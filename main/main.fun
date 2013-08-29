@@ -65,6 +65,8 @@ fun makeOptions {usage} =
                      case s of
                         "core-ml" => keepCoreML := true
                       | _ => usage (concat ["invalid -keep flag: ", s]))),
+       (Normal, "spec", " <file>", "specification file name",
+        SpaceString (fn s => specFile := SOME s)),
        (Expert, "keep-pass", " <pass>", "keep the results of pass",
         SpaceString
         (fn s => (case Regexp.fromString s of
@@ -212,13 +214,15 @@ fun commandLine (args: string list): unit =
                              ; Out.newline out
                           end)
              in
-                trace (Top, "Hindley-Milner Type Check SML")
+                trace (Top, "Elaborate and Catalyze SML")
                 elaborate
                 {input = input}
              end
           val processSML =
              mkCompileSrc {listFiles = fn {input} => Vector.fromList input,
-                           elaborate = Compile.elaborateSML}
+                           elaborate = (case !specFile of 
+                                NONE => Compile.elaborateSML
+                              | SOME f => Compile.elaborateSMLWithSpec {spec = f})}
           val processMLB =
              mkCompileSrc {listFiles = Compile.sourceFilesMLB,
                            elaborate = Compile.elaborateMLB}

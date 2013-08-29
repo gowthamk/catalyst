@@ -7,15 +7,17 @@
  *)
 
 local
-   ../atoms/sources.mlb
-   ../control/sources.mlb
-   ../lib/mlton/sources.mlb
-  type.sig
-  type.fun
-  speclang.sig
-  speclang.fun
+  $(SML_LIB)/basis/basis.mlb
+  $(SML_LIB)/mlyacc-lib/mlyacc-lib.mlb
+  ../lib/mlton/sources.mlb
+  ../atoms/sources.mlb
+  ../speclang/sources.mlb
+ 
+  spec.grm.sig
+  spec.grm.sml
+  spec.lex.sml
+  specfrontend.sig
+  specfrontend.fun
 in
-  signature TYPE_DESC
-  signature SPEC_LANG
-  functor SpecLang
+  functor SpecFrontend
 end

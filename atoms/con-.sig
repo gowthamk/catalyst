@@ -18,4 +18,6 @@ signature CON =
 
       val fromBool: bool -> t
       val stats: unit -> Layout.t
+      (* abhorrent hack alert! *)
+      val default : t
    end

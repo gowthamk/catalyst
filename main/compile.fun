@@ -69,6 +69,12 @@ structure CoreML = CoreML (open Atoms
                                          localTyvarNames = false})
                               end)
 (*-----------------------------------------------------*)
+(*             Specification Language                  *)
+(*-----------------------------------------------------*)
+
+structure SpecLang = SpecLang (open Atoms)
+
+(*-----------------------------------------------------*)
 (*                  Processing Passes                  *)
 (*-----------------------------------------------------*)
 
@@ -79,6 +85,7 @@ structure DeadCode = DeadCode (structure CoreML = CoreML)
 structure Elaborate = Elaborate (structure Ast = Ast
                                  structure CoreML = CoreML
                                  structure TypeEnv = TypeEnv)
+structure SpecFrontend = SpecFrontend (structure Spec = SpecLang)
 local
    open Elaborate
 in
@@ -419,6 +426,15 @@ in
       fn {input: File.t list} =>
       (ignore (elaborate {input = genMLB {input = input}}))
       handle Done => ()
+
+   val elaborateSMLWithSpec =
+      fn {spec : File.t} => fn {input: File.t list} =>
+        let val _ = elaborateSML {input=input}
+            val specast = SpecFrontend.lexAndParseSpecFile (spec)
+         in
+            Control.messageStr (Control.Top,
+              SpecLang.RelSpec.toString specast)
+         end
 end
 
 end

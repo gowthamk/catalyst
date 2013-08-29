@@ -15,6 +15,8 @@ local
    ../core-ml/sources.mlb
    ../elaborate/sources.mlb
    ../front-end/sources.mlb
+   ../specparser/sources.mlb
+   ../speclang/sources.mlb
 
    lookup-constant.sig
    lookup-constant.fun

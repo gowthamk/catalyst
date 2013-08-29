@@ -1,0 +1,149 @@
+(*  User declarations section for helper functions *)
+open Spec
+open RelLang
+structure TypeSpec = RelSpec.TypeSpec
+val defaultCons = Con.default
+%%
+(* ML Yacc Declarations *)
+%name Spec (* tokens signature will be Spec_TOKENS *)
+(* 
+  The structure Token is defined by LrParser structure provided 
+  by ml-yacc-lib  
+*)
+%header (functor SpecLrValsFun (structure Token : TOKEN
+                                structure Spec : SPEC_LANG) : Spec_LRVALS)
+%eop EOF
+%noshift EOF
+%pos int
+(* 
+  Lex functor is constructed to expect TOKENS signature 
+  constructed from following declarations
+ *)
+%term   RELATION
+      | TRUE
+      | FALSE
+      | PLUS
+      | MINUS
+      | UNION
+      | CROSSPRD
+      | SUBSETEQ
+      | SUBSET
+      | EQUALOP
+      | IFF
+      | CONJ
+      | COLON
+      | SEMICOLON
+      | COMMA
+      | STAR
+      | LPAREN
+      | RPAREN
+      | LCURLY
+      | RCURLY
+      | ARROW
+      | PIPE
+      | ID of string
+      | INT of int
+      | EOF
+
+%nonterm start of RelSpec.t
+  | spec of RelSpec.t
+  | decsandtys of RelSpec.t
+  | reldec of StructuralRelation.t
+  | patmatchseq of (Con.t * Var.t list option * term) list
+  | patmatch of Con.t * Var.t list option * term
+  | conpat of Con.t * Var.t list option
+  | conargs of Var.t list
+  | idseq of Var.t list
+  | rterm of term
+  | rexpr of expr
+  | ratom of expr
+  | elem of elem
+  | elemseq of elem list
+  | typespec of TypeSpec.t 
+  | refty of RefinementType.t
+  | tyatom of RefinementType.t
+  | basety of RefinementType.t
+  | pred of Predicate.t
+  | relpred of Predicate.RelPredicate.t
+  | rpatom of Predicate.RelPredicate.t
+%verbose
+%pure
+
+%%
+(* BNF Rules *)
+start : spec (spec)
+
+spec:   decsandtys (decsandtys)
+
+decsandtys : reldec SEMICOLON decsandtys 
+                (case decsandtys of RelSpec.T (reldecs,typespecs) => 
+                    RelSpec.T (reldec :: reldecs, typespecs))
+           | typespec SEMICOLON decsandtys
+                (case decsandtys of RelSpec.T (reldecs,typespecs) => 
+                    RelSpec.T (reldecs,typespec :: typespecs))
+           |  (RelSpec.T ([],[]))
+
+reldec : RELATION ID patmatchseq 
+          (StructuralRelation.T{id=RelId.fromString ID,
+                ty=(), map=patmatchseq})
+       | RELATION ID EQUALOP rterm
+          (StructuralRelation.T{id=RelId.fromString ID,
+                ty=(), map=[(defaultCons,NONE,rterm)]})
+
+patmatchseq : patmatch PIPE patmatchseq (patmatch :: patmatchseq)
+            | patmatch ([patmatch])
+
+patmatch : LPAREN conpat RPAREN EQUALOP rterm 
+              (case conpat of (c,vlop) => (c,vlop,rterm))
+
+conpat : ID conargs (Con.fromString ID, SOME conargs)
+
+conargs : ID ([Var.fromString ID])
+        | LPAREN idseq RPAREN (idseq)
+
+idseq : ID ([Var.fromString ID])
+      | ID COMMA idseq ((Var.fromString ID)::idseq)
+
+rterm : ID STAR (Star(RelId.fromString ID))
+     | rexpr (Expr(rexpr))
+
+rexpr : ratom CROSSPRD rexpr (X(ratom,rexpr))
+      | ratom UNION rexpr (U(ratom,rexpr))
+      | ratom (ratom)
+
+ratom : LCURLY LPAREN elemseq RPAREN RCURLY (T(elemseq))
+      | ID LPAREN ID RPAREN (R(RelId.fromString ID1, Var.fromString ID2))
+      | LPAREN rexpr RPAREN (rexpr)
+
+elemseq : elem ([elem])
+        | elem COMMA elemseq (elem::elemseq)
+
+elem : INT (Int(INT)) 
+     | TRUE (Bool(true))
+     | FALSE (Bool(false))
+     | ID (Var(Var.fromString ID))
+
+typespec : ID COLON refty (TypeSpec.T ((Var.fromString ID),refty))
+
+refty : tyatom (tyatom)
+      | tyatom ARROW tyatom (RefinementType.Arrow(tyatom1,tyatom2))
+
+tyatom : basety (basety)
+       | LPAREN refty RPAREN (refty)
+
+basety : ID (RefinementType.Base ((Var.fromString ID), 
+                TypeDesc.makeTunknown(), 
+                Predicate.T(Predicate.BasePredicate.True,
+                  Predicate.RelPredicate.True)))
+       | LCURLY ID PIPE pred RCURLY (RefinementType.Base ((Var.fromString ID), 
+                TypeDesc.makeTunknown(), pred))
+
+pred : relpred (Predicate.T(Predicate.BasePredicate.True,relpred))
+
+relpred : rpatom (rpatom)
+        | rpatom CONJ relpred (Predicate.RelPredicate.Conj(rpatom,relpred))
+
+rpatom : TRUE (Predicate.RelPredicate.True)
+       | rexpr EQUALOP rexpr (Predicate.RelPredicate.Eq(rexpr1,rexpr2))
+       | rexpr SUBSET rexpr (Predicate.RelPredicate.Sub(rexpr1,rexpr2))
+       | rexpr SUBSETEQ rexpr (Predicate.RelPredicate.SubEq(rexpr1,rexpr2))

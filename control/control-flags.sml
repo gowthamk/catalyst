@@ -741,6 +741,12 @@ val inputFile = control {name = "input file",
                          default = "<bogus>",
                          toString = File.toString}
 
+val specFile = control {name = "spec file",
+                         default = NONE,
+                         toString = (fn sop => case sop of
+                            SOME s => File.toString s 
+                          | NONE => "no spec file")}
+
 val keepCoreML = control {name = "keep CoreML",
                           default = false,
                           toString = Bool.toString}

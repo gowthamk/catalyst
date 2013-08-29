@@ -35,4 +35,6 @@ val _ = stats
 
 fun fromBool b = if b then truee else falsee
 
+(* abhorrent hack alert! *)
+val default = fromString "__CONS__"
 end
