@@ -1,12 +1,7 @@
-(* Copyright (C) 1999-2008 Henry Cejtin, Matthew Fluet, Suresh
- *    Jagannathan, and Stephen Weeks.
- * Copyright (C) 1997-2000 NEC Research Institute.
- *
- * MLton is released under a BSD-style license.
- * See the file MLton-LICENSE for details.
+(*
+ * Author : GK
  *)
-
-signature CORE_ML_STRUCTS = 
+signature A_NORMAL_CORE_ML_STRUCTS = 
    sig
       include ATOMS
       structure Type:
@@ -29,40 +24,38 @@ signature CORE_ML_STRUCTS =
          end
    end
 
-signature CORE_ML = 
+signature A_NORMAL_CORE_ML = 
    sig
       include CORE_ML_STRUCTS
+
+      structure Value:
+        sig
+          datatype atom =
+              Const of Const.t
+            | Var of Var.t
+          datatype t = 
+              Atom of atom
+            | Tuple of atom vector
+            | Record of atom Record.t
+          val layout : t -> Layout.t
+        end
 
       structure Pat:
          sig
             type t
             datatype node =
-               Con of {arg: t option,
+               Con of {arg: Value.t option,
                        con: Con.t,
                        targs: Type.t vector}
-             | Const of unit -> Const.t
-             | Layered of Var.t * t
-             | List of t vector
-             | Record of t Record.t
-             | Tuple of t vector
-             | Var of Var.t
+             | Layered of Var.t * Value.t
+             | List of Value.atom vector
+             | Value of Value.t
              | Wild
-
             val dest: t -> node * Type.t
-            val falsee: t
-            val foreachVar: t * (Var.t -> unit) -> unit
-            (* true if pattern contains a constant, constructor or variable *)
-            val isRefutable: t -> bool
-            val isUnit: t -> bool
-            val isWild: t -> bool
             val layout: t -> Layout.t
             val make: node * Type.t -> t
             val node: t -> node
-            val var: Var.t * Type.t -> t
-            val truee: t
-            val tuple: t vector -> t
-            val ty: t -> Type.t
-            val wild: Type.t -> t
+            val ty : t -> Type.t
          end
 
       structure Exp:
@@ -72,67 +65,37 @@ signature CORE_ML =
             type t
             datatype noMatch = Impossible | RaiseAgain | RaiseBind | RaiseMatch
             datatype node =
-               App of t * t
+               App of (unit -> Var.t) * 
+                      (unit -> Type.t vector) * 
+                      Value.t (*GK*)
              | Case of {kind: string,
                         lay: unit -> Layout.t,
                         nest: string list,
                         noMatch: noMatch,
-                        nonexhaustiveExnMatch: Control.Elaborate.DiagDI.t,
-                        nonexhaustiveMatch: Control.Elaborate.DiagEIW.t,
-                        redundantMatch: Control.Elaborate.DiagEIW.t,
-                        region: Region.t,
                         rules: {exp: t,
                                 lay: (unit -> Layout.t) option,
                                 pat: Pat.t} vector,
-                        test: t}
-             | Con of Con.t * Type.t vector
-             | Const of unit -> Const.t
+                        test: Value.t} (*GK*)
              | EnterLeave of t * SourceInfo.t
              | Handle of {catch: Var.t * Type.t,
                           handler: t,
                           try: t}
              | Lambda of lambda
              | Let of dec vector * t
-             | List of t vector
-             | PrimApp of {args: t vector,
+             | List of Value.atom vector (*GK*)
+             | PrimApp of {args: Value.t vector, (*GK*)
                            prim: Type.t Prim.t,
                            targs: Type.t vector}
-             | Raise of t
-             | Record of t Record.t
-             | Seq of t vector
+             | Raise of Value.t (*GK*)
+             | Seq of t vector 
              | Var of (unit -> Var.t) * (unit -> Type.t vector)
-
-            val andAlso: t * t -> t
-            val casee: {kind: string,
-                        lay: unit -> Layout.t,
-                        nest: string list,
-                        noMatch: noMatch,
-                        nonexhaustiveExnMatch: Control.Elaborate.DiagDI.t,
-                        nonexhaustiveMatch: Control.Elaborate.DiagEIW.t,
-                        redundantMatch: Control.Elaborate.DiagEIW.t,
-                        region: Region.t,
-                        rules: {exp: t,
-                                lay: (unit -> Layout.t) option,
-                                pat: Pat.t} vector,
-                        test: t} -> t
+             | Value of Value.t
             val dest: t -> node * Type.t
-            val iff: t * t * t -> t
-            val falsee: t
-            val foreachVar: t * (Var.t -> unit) -> unit
-            (* true if the expression may side-effect. See p 19 of Definition *)
-            val isExpansive: t -> bool
-            val lambda: lambda -> t
             val layout: t -> Layout.t
             val layoutWithType: t -> Layout.t
             val make: node * Type.t -> t
             val node: t -> node
-            val orElse: t * t -> t
-            val truee: t
-            val tuple: t vector -> t
             val ty: t -> Type.t
-            val unit: t
-            val var: Var.t * Type.t -> t
-            val whilee: {expr: t, test: t} -> t
          end
 
       structure Lambda:
@@ -142,12 +105,10 @@ signature CORE_ML =
             val bogus: t
             val dest: t -> {arg: Var.t,
                             argType: Type.t,
-                            body: Exp.t,
-                            mayInline: bool}
+                            body: Exp.t}
             val make: {arg: Var.t,
                        argType: Type.t,
-                       body: Exp.t,
-                       mayInline: bool} -> t
+                       body: Exp.t} -> t
          end
       sharing type Exp.lambda = Lambda.t
 
@@ -163,16 +124,13 @@ signature CORE_ML =
              | Fun of {decs: {lambda: Lambda.t,
                               var: Var.t} vector,
                        tyvars: unit -> Tyvar.t vector}
-             | Val of {nonexhaustiveExnMatch: Control.Elaborate.DiagDI.t,
-                       nonexhaustiveMatch: Control.Elaborate.DiagEIW.t,
-                       rvbs: {lambda: Lambda.t,
+             | Val of {rvbs: {lambda: Lambda.t,
                               var: Var.t} vector,
                        tyvars: unit -> Tyvar.t vector,
                        vbs: {exp: Exp.t,
                              lay: unit -> Layout.t,
                              nest: string list,
-                             pat: Pat.t,
-                             patRegion: Region.t} vector}
+                             pat: Pat.t} vector}
 
             val layout: t -> Layout.t
          end

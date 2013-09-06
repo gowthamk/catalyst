@@ -52,7 +52,10 @@ structure Atoms =
       structure Ffi = Ffi (structure CFunction = CFunction
                            structure CType = CType)
       structure Vars = UnorderedSet (Var)
+      structure TypeDesc = TypeDesc(structure Tyvar = Tyvar
+                                    structure Tycon = Tycon)
    end
+
 
 open Atoms
 

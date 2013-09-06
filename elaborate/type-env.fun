@@ -850,6 +850,23 @@ structure Type =
                  | SOME v => 0 = Vector.length v)
           | _ => false
 
+      (*Add a function to the Type Strucuture: We expose our type structure
+      which is translated from ML type structure.*) 
+      (* Author: He Zhu *)
+      fun toMyType t' =
+      	case toType t' of
+      		Con (c, ts) => 
+      			if (isArrow t') then 
+      				TypeDesc.makeTarrow (toMyType (Vector.sub(ts, 0)), toMyType (Vector.sub(ts,1)))
+      			else TypeDesc.makeTconstr (c, Vector.toListMap (ts, toMyType))
+    
+      		| Record sr => TypeDesc.makeTtuple ((Vector.toListMap (Srecord.toVector sr, fn (a, b) => 
+      												TypeDesc.makeTfield (Field.toString a, toMyType b))))
+      		       
+      		| Var a => TypeDesc.makeTvar a
+
+      		| _ => TypeDesc.makeTunknown()
+
       local
          fun make (ov, eq) () = newTy (Overload ov, eq)
          datatype z = datatype Overload.t

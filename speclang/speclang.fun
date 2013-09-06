@@ -2,8 +2,6 @@ functor SpecLang (S : SPEC_LANG_STRUCTS) : SPEC_LANG =
 struct
   open S
 
-  structure TypeDesc = TypeDesc (open S)
-
   structure RelLang =
   struct
     structure RelId = Var

@@ -41,6 +41,8 @@ signature ATOMS' =
       structure WordX: WORD_X
       structure WordXVector: WORD_X_VECTOR
 
+      structure TypeDesc : TYPE_DESC
+
       sharing CFunction = Ffi.CFunction = Prim.CFunction
       sharing CType = CFunction.CType = Ffi.CType = Prim.CType
       sharing CharSize = Tycon.CharSize
@@ -55,6 +57,8 @@ signature ATOMS' =
          = WordX.WordSize
       sharing WordX = Const.WordX = WordXVector.WordX
       sharing WordXVector = Const.WordXVector
+      sharing Tyvar = TypeDesc.Tyvar
+      sharing Tycon = TypeDesc.Tycon
    end
 
 signature ATOMS =
@@ -96,4 +100,5 @@ signature ATOMS =
       sharing Vars = Atoms.Vars
       sharing WordSize = Atoms.WordSize
       sharing WordX = Atoms.WordX
+      sharing TypeDesc = Atoms.TypeDesc
    end

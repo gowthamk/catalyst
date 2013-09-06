@@ -361,6 +361,15 @@ fun elaborate {input: MLBString.t}: CoreML.Program.t =
    let
       val (E, decs) = parseAndElaborateMLB input
       val _ = Env.processDefUse E
+      val _ =
+               let
+                  open Control
+               in
+                  if !keepElaboratedEnv
+                     then saveToFile ({suffix = "env"}, No, E,
+                                      Layout Env.layout)
+                  else ()
+               end
       val _ = if !Control.elaborateOnly then raise Done else ()
       (* parseAndElaborateMLB returns a bool flag *)
       (* which we want to get rid of using dead-code pass *)
@@ -383,18 +392,9 @@ fun elaborate {input: MLBString.t}: CoreML.Program.t =
                            end}
       val decs = Vector.concatV (Vector.map (decs, Vector.fromList))
       val coreML = CoreML.Program.T {decs = decs}
-      val _ =
-         let
-            open Control
-         in
-            if !keepCoreML
-               then saveToFile ({suffix = "core-ml"}, No, coreML,
-                                Layouts CoreML.Program.layouts)
-            else ()
-         end
-      in
-        coreML
-      end
+    in
+      coreML
+    end
 
 val elaborateMLB =
    fn {input: File.t} =>
@@ -402,6 +402,9 @@ val elaborateMLB =
    handle Done => ()
 
 local
+   open Atoms
+   open Control
+   structure Type = TypeEnv.Type
    fun genMLB {input: File.t list}: MLBString.t =
       let
          val basis = "$(SML_LIB)/basis/default.mlb"
@@ -429,8 +432,46 @@ in
 
    val elaborateSMLWithSpec =
       fn {spec : File.t} => fn {input: File.t list} =>
-        let val _ = elaborateSML {input=input}
+        let val CoreML.Program.T{decs} = elaborate {input = genMLB {input = input}}
             val specast = SpecFrontend.lexAndParseSpecFile (spec)
+            val catexpi = Vector.index (decs,fn dec => case dec of
+                CoreML.Dec.Exception {arg,con} => String.compare 
+                  (Con.toString con, "Catalyst") = EQUAL
+              | _ => false)
+            val starti = case catexpi of SOME i => i
+              | NONE => Error.bug "Exception Catalyst not declared"
+            val userDecs = Vector.dropPrefix (decs,starti+1)
+            val coreML = CoreML.Program.T{decs=userDecs}
+            val _ =
+               let open Control
+               in
+                  if !keepCoreML
+                     then saveToFile ({suffix = "core-ml"}, No, coreML,
+                                      Layouts CoreML.Program.layouts)
+                  else ()
+               end
+            val _ = Vector.foreach (userDecs, fn dec => case dec of
+                CoreML.Dec.Datatype dts => Vector.foreach (dts,
+                  fn {cons, tycon, tyvars} => 
+                    let val ty = TypeDesc.makeTconstr (tycon,
+                          Vector.toListMap (tyvars,TypeDesc.makeTvar))
+                    in
+                      Vector.foreach (cons, fn {arg,con} => case arg of
+                          SOME argty => 
+                            let val argty = Type.toMyType argty 
+                                val _ = messageStr(Top,TypeDesc.toString ty)
+                                val _ = messageStr(Top,TypeDesc.toString argty)
+                            in
+                              if TypeDesc.isWidthSubType (ty,argty) then
+                                messageStr (Top, (Atoms.Con.toString con) 
+                                  ^ "is rec\n")
+                              else 
+                                messageStr (Top, (Atoms.Con.toString con) 
+                                  ^ "is not rec\n")
+                            end
+                        | NONE => ())
+                    end)
+              | _ => ())
          in
             Control.messageStr (Control.Top,
               SpecLang.RelSpec.toString specast)

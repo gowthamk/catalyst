@@ -67,6 +67,8 @@ fun makeOptions {usage} =
                       | _ => usage (concat ["invalid -keep flag: ", s]))),
        (Normal, "spec", " <file>", "specification file name",
         SpaceString (fn s => specFile := SOME s)),
+       (Expert, "keep-elab-env", " {true|false}", "keep elaborated env",
+        boolRef keepElaboratedEnv),
        (Expert, "keep-pass", " <pass>", "keep the results of pass",
         SpaceString
         (fn s => (case Regexp.fromString s of

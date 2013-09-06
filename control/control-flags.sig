@@ -199,6 +199,8 @@ signature CONTROL_FLAGS =
 
       (* Save the final CoreML to a file. *)
       val keepCoreML: bool ref
+      (* Save elaborated env to a file. *)
+      val keepElaboratedEnv : bool ref
       (* Save the final Machine to a file. *)
       val keepMachine: bool ref
       (* Save the final RSSA to a file. *)

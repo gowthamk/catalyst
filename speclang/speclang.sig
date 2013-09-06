@@ -6,8 +6,6 @@ signature SPEC_LANG =
 sig
   include SPEC_LANG_STRUCTS
 
-  structure TypeDesc : TYPE_DESC
-
   structure RelLang : 
   sig
     structure RelId : ID

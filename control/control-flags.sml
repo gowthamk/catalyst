@@ -751,6 +751,10 @@ val keepCoreML = control {name = "keep CoreML",
                           default = false,
                           toString = Bool.toString}
 
+val keepElaboratedEnv = control {name = "keep Env",
+                          default = false,
+                          toString = Bool.toString}
+
 val keepDefUse = control {name = "keep def use",
                           default = true,
                           toString = Bool.toString}

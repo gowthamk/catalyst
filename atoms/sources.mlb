@@ -48,6 +48,8 @@ local
    tycon.fun
    type-ops.sig
    type-ops.fun
+   type.sig
+   type.fun
    use-name.fun
    var.sig
    var.fun
@@ -74,6 +76,7 @@ in
    signature TYPE_OPS
    signature WORD_X
    signature WORD_X_VECTOR
+   signature TYPE_DESC
 
    functor Atoms
    functor Id
