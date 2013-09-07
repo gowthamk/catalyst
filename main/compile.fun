@@ -68,6 +68,24 @@ structure CoreML = CoreML (open Atoms
                                     (t, {expandOpaque = true,
                                          localTyvarNames = false})
                               end)
+structure ANormalCoreML = ANormalCoreML (open Atoms
+                               structure Type =
+                                  struct
+                                     open TypeEnv.Type
+
+                                     val makeHom =
+                                        fn {con, var} =>
+                                        makeHom {con = con,
+                                                 expandOpaque = true,
+                                                 var = var}
+
+                                     fun layout t = 
+                                        layoutPrettyAux 
+                                        (t, {expandOpaque = true,
+                                             localTyvarNames = false})
+                                  end)
+structure ANormalize = ANormalize (structure CoreML = CoreML
+                                   structure ANormalCoreML = ANormalCoreML)
 (*-----------------------------------------------------*)
 (*             Specification Language                  *)
 (*-----------------------------------------------------*)
@@ -450,6 +468,9 @@ in
                                       Layouts CoreML.Program.layouts)
                   else ()
                end
+            val str = CoreML.Con.toString (CoreML.Con.cons)
+            val _ = messageStr (Top, Bool.toString (CoreML.Var.equals (
+              CoreML.Var.newString str, CoreML.Var.newString str)))
             val _ = Vector.foreach (userDecs, fn dec => case dec of
                 CoreML.Dec.Datatype dts => Vector.foreach (dts,
                   fn {cons, tycon, tyvars} => 

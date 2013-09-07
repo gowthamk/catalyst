@@ -66,6 +66,17 @@ struct
       Var.fromString id 
     end
 
+  val inv = fn (x,y) => (y,x)
+
+  fun doItObjs (objs : 'a vector) (f : 'a -> 'b list * 'c) : 
+    ('c vector * 'b list) = 
+    Vector.mapAndFold (objs, [], fn (obj, bsacc) =>
+        let
+          val (bs,obj') = f obj
+        in
+          (obj', List.concat [bsacc,bs])
+        end)
+
   fun decsFromValBinds (tyvars : unit -> Tyvar.t vector) 
       (vbs : valbind list) : A.Dec.t vector =
     let
@@ -79,29 +90,6 @@ struct
 
   val varToValue = fn var => 
     A.Value.Atom (A.Value.Var var)
-
-  fun getValBindForExp (exp : A.Exp.t) (tyvars : Tyvar.t vector) :
-    (A.Dec.t * Var.t) =
-    let
-      open A
-      val expty = Exp.ty exp
-      val newvar = genVar ()
-      val newtyvars = Vector.map (tyvars, fn tyvar =>
-        Tyvar.newNoname {equality = (Tyvar.isEquality tyvar)})
-      val subpatnode = Pat.Value (Value.Atom (Value.Var newvar))
-      val subpat = Pat.make (subpatnode,expty)
-      val vbs = Vector.fromList [{exp = exp, 
-        lay = fn _ => Layout.empty, nest = [], pat = subpat}]
-      val dec = Dec.Val ({rvbs = Vector.fromList [],
-        tyvars = fn _ => newtyvars, vbs = vbs})
-    in
-      (dec, newvar)
-    end
-
-
-  fun doItExp (exp : C.Exp.t) : (valbind list * A.Exp.t) = 
-    (*Vector.fromList [], A.Lambda.make (C.Lambda.dest exp)*)
-    raise (Fail "notimpl")
 
   fun getValBindForPat (pat : A.Pat.t) (tyvars : Tyvar.t vector): 
       (Var.t * A.Dec.t) =
@@ -185,8 +173,6 @@ struct
       | C.Pat.Con ({arg = SOME arg,con,targs}) => 
         let
           open A
-          val dummy = fn (c:Var.t) => c
-          val _ = fn (c:Con.t) => dummy c
           val patty = C.Pat.ty pat
           val (value,subpatdecs) = doItPatToAtomicPat arg tyvars 
           val pat = Pat.Con ({arg = SOME value, con = con, 
@@ -257,27 +243,252 @@ struct
         end
       | C.Pat.Wild => (A.Pat.make (A.Pat.Wild, C.Pat.ty pat),[])
 
-  fun doItLambda lam = 
+  fun getValBindForExp (exp : A.Exp.t) (tyvars : Tyvar.t vector) :
+    (A.Dec.t * Var.t) =
+    let
+      open A
+      val expty = Exp.ty exp
+      val newvar = genVar ()
+      val newtyvars = Vector.map (tyvars, fn tyvar =>
+        Tyvar.newNoname {equality = (Tyvar.isEquality tyvar)})
+      val subpatnode = Pat.Value (varToValue newvar)
+      val subpat = Pat.make (subpatnode,expty)
+      val vbs = Vector.fromList [{exp = exp, 
+        lay = fn _ => Layout.empty, nest = [], pat = subpat}]
+      val dec = Dec.Val ({rvbs = Vector.fromList [],
+        tyvars = fn _ => newtyvars, vbs = vbs})
+    in
+      (dec, newvar)
+    end
+
+  fun doItExpToVar (exp : C.Exp.t) (tyvars : Tyvar.t vector) : 
+    (A.Dec.t list * Var.t) = 
+    let
+      val (ssexpdecs,sexp) = doItExp exp tyvars
+      val (sexpdec,newvar) = getValBindForExp sexp tyvars
+      val sexpdecs = List.concat [ssexpdecs, [sexpdec]]
+    in
+      (sexpdecs, newvar)
+    end
+
+  and doItExpToValue (exp : C.Exp.t) (tyvars : Tyvar.t vector) : 
+    (A.Dec.t list * A.Value.t) = 
+    let
+      val (ssexpdecs,sexp) = doItExp exp tyvars
+      val sexpty = A.Exp.ty sexp
+      val (sexpdec,value) = case A.Exp.node sexp of
+          A.Exp.Value v => ([],v)
+        | _ => 
+          let
+            val (sexpdec,newvar) = getValBindForExp sexp tyvars
+            val value = varToValue newvar
+          in
+            ([sexpdec], value)
+          end
+      val sexpdecs = List.concat [ssexpdecs,sexpdec]
+    in
+      (sexpdecs,value)
+    end
+
+  and doItExp (exp : C.Exp.t) (tyvars : Tyvar.t vector) : 
+    (A.Dec.t list * A.Exp.t) = 
+    let
+      val expty = C.Exp.ty exp
+      val expnode = C.Exp.node exp
+      open A
+    in
+      case expnode of
+          C.Exp.App (e1,e2) => 
+          let
+            val (fdecs, f) = doItExpToVar e1 tyvars
+            val fth = fn _ => f
+            val ftyargsth = fn _ => (Vector.map (tyvars, fn tyvar =>
+              (Type.var o Tyvar.newNoname) {equality = (Tyvar.isEquality tyvar)}))
+            val (argdecs,argval) = doItExpToValue e2 tyvars
+            val expnode = Exp.App (fth, ftyargsth, argval)
+          in
+            (List.concat [fdecs,argdecs], Exp.make (expnode,expty))
+          end
+        | C.Exp.Case {kind, lay, nest, noMatch, rules, test, ...} =>
+          (*
+           * A correct elaboration of case-match statement should be done in
+           * following steps:
+           * 1. Let wildexp be expression bound to wild card pattern match.
+           * 2. For each rule in rules, let exp be corresponding Exp.t, 
+           *  2.1 Elaborate the match pattern to get an ordered (Var.t,Pat.t) list.
+           *  2.2 Fold over the list constructing a nested case-match statement
+           *      with Var.t as test and with two rules - first rule with Pat.t as match
+           *      and second rule with wild card match. For wild card match,
+           *      corresponding Exp.t is wildexp <?1><?2>. 
+           *  2.3 For first match in innermost case-match expression, make exp
+           *      as corresponding match expression.
+           * 3. Collapse rules with equivalent match expressions at the toplevel - 
+           *    3.1 Start unifying pats in nested match expressions. Whenever there
+           *        is a failure, add a new rule with unmatched expression.
+           * <?1> Make sure that freevars of wildexp are not captured by
+           *      bindings introduced in pat-match
+           * <?2> This duplication is semantics-preserving even in presence of 
+           *      side-effects. Why? Despite duplication, wildexp is executed only
+           *      once - when all cases fail - i.e., precisely when it is executed in
+           *      unelaborated expression.
+           *)
+          (*
+           * However, we are not going to do this. For every rule, we will naively 
+           * elaborate Pat.t and construct a LET expression with resultant
+           * bindings and Exp.t. We will also not collapse duplicate
+           * case-matches at the top level. The reason why this naive
+           * translation works for our analysis is because 
+           * 1. case-matches and let bindings are treated similarly - as assumptions 
+           *    constituting the typing context - by our analysis. Therefore, a
+           *    nested case-match expression and a series of let bindings, both
+           *    result in same stack of assumptions. 
+           * 2. We are going to analyze all the rules anyway.
+           * 
+           *)
+          let
+            val (predecs, testval) = doItExpToValue test tyvars
+            val newrules = Vector.map (rules, fn ({exp,lay,pat}) =>
+              let
+                (* 
+                 * tyvars are for the dec which binds current expression. We are
+                 * not going to let patdecs/expdecs escape. So we don't pass tyvars to 
+                 * doItPat/doItExp.
+                 *)
+                val (newpat,patdecs) = doItPat pat (Vector.fromList [])
+                val (mexpdecs, mexp) = doItExp exp (Vector.fromList [])
+                val mexpnode = Exp.node mexp and mexpty = Exp.ty mexp
+                val newexpnode = case mexpnode of
+                    Exp.Let (decv,e) => (case mexpdecs of [] => 
+                        Exp.Let (Vector.concat [Vector.fromList patdecs, decv],e)
+                      | _ => Error.bug ("Assumption abt let failed."))
+                  | _ => Exp.Let (Vector.concat [Vector.fromList patdecs, 
+                        Vector.fromList mexpdecs], mexp)
+                (*
+                 * The above transformation should be type preserving. 
+                 *)
+                val newexpty = mexpty 
+                val newexp = Exp.make (newexpnode,newexpty)
+                val newrule = {exp = newexp, lay = lay, pat = newpat}
+              in
+                newrule
+              end)
+            val expnode = Exp.Case {kind = kind, lay = lay, nest = nest, 
+              rules = newrules, test = testval}
+          in
+            (predecs, Exp.make (expnode,expty))
+          end
+        | C.Exp.Lambda lam => ([], Exp.make (Exp.Lambda (doItLambda lam), 
+            expty))
+        | C.Exp.Var v => ([], Exp.make (Exp.Var v, expty))
+        | C.Exp.Seq expv => 
+          let
+            val (predecs,newexpv) = doItExps expv tyvars
+          in
+            (predecs, Exp.make (Exp.Seq newexpv,expty))
+          end
+        | C.Exp.Let (decv,exp) =>
+          let
+            val (predecs,newexp) = doItExp exp tyvars
+            val newdecv = Vector.concat [doItDecs decv, Vector.fromList predecs]
+            val newexpnode = Exp.Let (newdecv,newexp)
+          in
+            ([], Exp.make (newexpnode,expty))
+          end
+        | C.Exp.List expv => 
+          let
+            val (varv, predecs) = doItObjs expv (fn exp => 
+              doItExpToVar exp tyvars)
+            val expnode = Exp.List (Vector.map (varv, Value.Var))
+          in
+            (predecs, Exp.make (expnode,expty))
+          end
+        | C.Exp.Record exprec => 
+          let
+            val (lblvarv, predecs) = doItObjs (Record.toVector exprec) 
+              (fn (lbl,exp) => 
+                let
+                  val (predecs, var) = doItExpToVar exp tyvars
+                in
+                  (predecs, (lbl,var))
+                end)
+            val atomrec = Record.fromVector (Vector.map (lblvarv,
+              fn (lbl,var) => (lbl,Value.Var var)))
+            val expnode = Exp.Value (Value.Record atomrec)
+          in
+            (predecs, Exp.make (expnode,expty))
+          end
+        | C.Exp.Const cth => ([], Exp.make (Exp.Value (Value.Atom (
+            Value.Const (cth()))) ,expty))
+        | C.Exp.Raise exp => 
+          let
+            val (predecs,value) = doItExpToValue exp tyvars
+            val expnode = Exp.Raise value
+          in
+            (predecs, Exp.make (expnode,expty))
+          end
+        | C.Exp.EnterLeave (exp,si) =>
+          let
+            val (predecs,value) = doItExpToValue exp tyvars
+            val expnode = Exp.EnterLeave (value,si)
+          in
+            (predecs, Exp.make(expnode, expty))
+          end
+        | C.Exp.Con (c,tv) => 
+          (*
+           * We treat con as any other variable henceforth
+           *)
+          let
+            val varth = fn _ => Var.fromString (Con.toString c)
+            val expnode = Exp.Var (varth,fn _ => tv)
+          in
+            ([],Exp.make(expnode,expty))
+          end
+        | C.Exp.Handle ({catch,handler,try}) => 
+          let
+            val (predecs1,handler') = doItExp handler tyvars
+            val (predecs2,try') = doItExp try tyvars
+            val expnode = Exp.Handle ({catch = catch, handler = handler', 
+              try = try'})
+          in
+            (List.concat [predecs1,predecs2], Exp.make (expnode,expty))
+          end
+        | C.Exp.PrimApp ({args, prim, targs}) =>
+          let
+            val (predecs,valv) = inv (doItObjs args (fn arg => 
+              doItExpToValue arg tyvars))
+            val expnode = Exp.PrimApp ({args = valv, prim = prim, 
+              targs = targs})
+          in
+            (predecs, Exp.make(expnode,expty))
+          end
+    end
+
+  and doItExps (exps : C.Exp.t vector) (tyvars : Tyvar.t vector) : 
+      (A.Dec.t list * A.Exp.t vector) =
+      inv (doItObjs exps (fn exp => doItExp exp tyvars))
+
+  and doItLambda (lam : C.Lambda.t) : A.Lambda.t  = 
     let
       val {arg,argType,body,mayInline} = C.Lambda.dest lam
       val bodyTy = C.Exp.ty body
-      val (newvbs,newexp) = doItExp body
       (*
        * All the tyvars free in bodyexp are already bound 
        * at the enclosing dec for this lambda. No need to
        * generalize any tyvars.
        *)
-      val tyvars = fn _ => Vector.fromList []
-      val newbody = case newvbs of
+
+      val tyvars = Vector.fromList []
+      val (newdecs,newexp) = doItExp body tyvars
+            val newbody = case newdecs of
           [] => newexp 
-        | _ =>  A.Exp.make (A.Exp.Let (decsFromValBinds tyvars newvbs,
-            newexp),bodyTy)
+        | _ =>  A.Exp.make (A.Exp.Let (Vector.fromList newdecs, 
+          newexp),bodyTy)
     in
       A.Lambda.make {arg = arg, argType = argType, 
         body = newbody}
     end
 
-  fun doItDec (dec:C.Dec.t) : A.Dec.t list = case dec of
+  and doItDec (dec:C.Dec.t) : A.Dec.t list = case dec of
       C.Dec.Datatype r => [A.Dec.Datatype r]
     | C.Dec.Exception r => [A.Dec.Exception r]
     | C.Dec.Fun {decs = lamvec, tyvars} =>
@@ -295,32 +506,31 @@ struct
            * and simplified expression, while extracting subexpvbs and 
            * subpatvbs
            *)
-          val  (subexpvbs, vbs', subpatdecs)= Vector.fold (vbs, ([],[],[]),
+          val  (subexpdecs, vbs', subpatdecs)= Vector.fold (vbs, ([],[],[]),
             fn ({exp,lay,nest,pat, ...},(pre, cur, post)) => 
               let
-                val (subexpvbs,newexp) = doItExp exp
+                val (subexpdecs,newexp) = doItExp exp (tyvars())
                 val (newpat,spatdecs) = doItPat pat (tyvars())
                 val vb' = {exp = newexp, lay = lay, nest = nest,
                   pat = newpat}
               in
-                (List.concat [subexpvbs,pre], 
+                (List.concat [subexpdecs,pre], 
                  List.concat [cur,[vb']],
                  List.concat [spatdecs,post])
               end)
-          val subexpdecs = List.map (subexpvbs, fn subexpvb => 
-            A.Dec.Val ({rvbs = Vector.fromList [], tyvars = tyvars, 
-              vbs = Vector.fromList [subexpvb]}))
           val expdec = [A.Dec.Val ({rvbs = rvbs', tyvars = tyvars,
               vbs = Vector.fromList vbs'})]
         in
           List.concat [subexpdecs, expdec, subpatdecs]
         end
 
-  val doIt = fn (C.Program.T{decs}) => 
+  and doItDecs decs =
     let
       val decss = Vector.toListMap (decs,doItDec)
       val decsv = Vector.fromList (List.concat decss)
     in
-      A.Program.T{decs = decsv}
+      decsv
     end
+
+  val doIt = fn (C.Program.T{decs}) => A.Program.T{decs = doItDecs decs}
 end

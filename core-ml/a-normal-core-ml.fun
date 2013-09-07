@@ -124,13 +124,11 @@ and expNode =
  | Case of {kind: string,
             lay: unit -> Layout.t,
             nest: string list,
-            noMatch: noMatch,
             rules: {exp: exp,
                     lay: (unit -> Layout.t) option,
                     pat: Pat.t} vector,
             test: Value.t}
- | Con of Con.t * Type.t vector
- | EnterLeave of exp * SourceInfo.t
+ | EnterLeave of Value.t * SourceInfo.t
  | Handle of {catch: Var.t * Type.t,
               handler: exp,
               try: exp}
@@ -141,9 +139,7 @@ and expNode =
                prim: Type.t Prim.t,
                targs: Type.t vector}
  | Raise of Value.t
- | Seq of Value.t vector
- (* GK: Do not replace with Value.t. This should account for polymorphic
-    instantiation *)
+ | Seq of exp vector
  | Var of (unit -> Var.t) * (unit -> Type.t vector)
  | Value of Value.t
 and lambda = Lam of {arg: Var.t,
@@ -206,10 +202,9 @@ in
                           rules = Vector.map (rules, fn {exp, pat, ...} =>
                                               (Pat.layout pat, layoutExp exp)),
                           test = Value.layout test}
-       | Con (c, targs) => seq [Con.layout c, layoutTargs targs]
-       | EnterLeave (e, si) =>
+       | EnterLeave (v, si) =>
             seq [str "EnterLeave ",
-                 tuple [layoutExp e, SourceInfo.layout si]]
+                 tuple [Value.layout v, SourceInfo.layout si]]
        | Handle {catch, handler, try} =>
             Pretty.handlee {catch = Var.layout (#1 catch),
                             handler = layoutExp handler,
@@ -224,7 +219,7 @@ in
                             prim = Prim.layout prim,
                             targs = Vector.map (targs, Type.layout)}
        | Raise v => Pretty.raisee (Value.layout v)
-       | Seq es => Pretty.seq (Vector.map (es, Value.layout))
+       | Seq es => Pretty.seq (Vector.map (es, layoutExp))
        | Var (var, targs) => 
             if !Control.showTypes
                then let 

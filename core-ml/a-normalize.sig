@@ -12,6 +12,9 @@ signature A_NORMALIZE_STRUCTS =
       sharing CoreML.Tyvar = ANormalCoreML.Tyvar
       sharing CoreML.Var = ANormalCoreML.Var
       sharing CoreML.Record = ANormalCoreML.Record
+      sharing CoreML.Const = ANormalCoreML.Const
+      sharing CoreML.Prim = ANormalCoreML.Prim
+      sharing CoreML.SourceInfo = ANormalCoreML.SourceInfo
    end
 
 signature A_NORMALIZE = 

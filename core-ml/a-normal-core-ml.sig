@@ -26,7 +26,7 @@ signature A_NORMAL_CORE_ML_STRUCTS =
 
 signature A_NORMAL_CORE_ML = 
    sig
-      include CORE_ML_STRUCTS
+      include A_NORMAL_CORE_ML_STRUCTS
 
       structure Value:
         sig
@@ -63,7 +63,6 @@ signature A_NORMAL_CORE_ML =
             type dec
             type lambda
             type t
-            datatype noMatch = Impossible | RaiseAgain | RaiseBind | RaiseMatch
             datatype node =
                App of (unit -> Var.t) * 
                       (unit -> Type.t vector) * 
@@ -71,12 +70,11 @@ signature A_NORMAL_CORE_ML =
              | Case of {kind: string,
                         lay: unit -> Layout.t,
                         nest: string list,
-                        noMatch: noMatch,
                         rules: {exp: t,
                                 lay: (unit -> Layout.t) option,
                                 pat: Pat.t} vector,
                         test: Value.t} (*GK*)
-             | EnterLeave of t * SourceInfo.t
+             | EnterLeave of Value.t * SourceInfo.t
              | Handle of {catch: Var.t * Type.t,
                           handler: t,
                           try: t}
