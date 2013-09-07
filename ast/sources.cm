@@ -37,7 +37,7 @@ functor Tyvar
 
 is
 
-../../lib/mlton/sources.cm
+../lib/mlton/sources.cm
 ../control/sources.cm
 
 admits-equality.sig

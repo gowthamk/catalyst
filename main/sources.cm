@@ -13,19 +13,15 @@ structure Main
 
 is
 
-../../lib/mlton/sources.cm
+../lib/mlton/sources.cm
 ../ast/sources.cm
 ../atoms/sources.cm
-../backend/sources.cm
-../closure-convert/sources.cm
-../codegen/sources.cm
 ../control/sources.cm
 ../core-ml/sources.cm
-../defunctorize/sources.cm
 ../elaborate/sources.cm
 ../front-end/sources.cm
-../ssa/sources.cm
-../xml/sources.cm
+../specparser/sources.cm
+../speclang/sources.cm
 
 lookup-constant.sig
 lookup-constant.fun

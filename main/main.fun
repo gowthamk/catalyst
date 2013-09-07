@@ -232,7 +232,6 @@ fun commandLine (args: string list): unit =
              case start of
                 Place.SML => processSML [input]
               | Place.MLB => processMLB input
-              | _ => Error.bug "invalid start"
           val doit
             = trace (Top, "Catalyze")
               (fn () =>

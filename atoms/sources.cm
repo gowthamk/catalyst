@@ -33,6 +33,7 @@ signature TYVAR
 signature VAR
 signature WORD_X
 signature WORD_X_VECTOR
+signature TYPE_DESC
 
 functor Atoms
 functor Id
@@ -43,7 +44,7 @@ functor UseName
 
 is
 
-../../lib/mlton/sources.cm
+../lib/mlton/sources.cm
 ../ast/sources.cm
 ../control/sources.cm
 
@@ -84,6 +85,8 @@ tycon.sig
 tycon.fun
 type-ops.sig
 type-ops.fun
+type.sig
+type.fun
 use-name.fun
 var.sig
 var.fun

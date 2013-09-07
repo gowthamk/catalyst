@@ -1,13 +1,50 @@
-all:lex yacc parser
+## Copyright (C) 2009 Matthew Fluet.
+ # Copyright (C) 1999-2006 Henry Cejtin, Matthew Fluet, Suresh
+ #    Jagannathan, and Stephen Weeks.
+ # Copyright (C) 1997-2000 NEC Research Institute.
+ #
+ # MLton is released under a BSD-style license.
+ # See the file MLton-LICENSE for details.
+ ##
 
-lex:spec.lex
-	mllex spec.lex
+SRC := $(shell cd .. && pwd)
+BUILD := $(SRC)/build
+BIN := $(BUILD)/bin
+PATH := $(BIN):$(shell echo $$PATH)
 
-yacc:spec.grm
-	mlyacc spec.grm
+ifeq (mllex, $(shell if mllex >/dev/null 2>&1 || [ $$? != 127 ] ; then echo mllex; fi))
+MLLEX := mllex
+else
+ifeq (ml-lex, $(shell if ml-lex >/dev/null 2>&1 || [ $$? != 127 ] ; then echo ml-lex; fi))
+MLLEX := ml-lex
+else
+MLLEX := no-mllex
+endif
+endif
 
-parser:
-	mlton -output spec sources.mlb
+ifeq (mlyacc, $(shell if mlyacc >/dev/null 2>&1 || [ $$? != 127 ] ; then echo mlyacc; fi))
+MLYACC := mlyacc
+else
+ifeq (ml-yacc, $(shell if ml-lex >/dev/null 2>&1 || [ $$? != 127 ] ; then echo ml-yacc; fi))
+MLYACC := ml-yacc
+else
+MLYACC := no-mlyacc
+endif
+endif
 
+.PHONY: all
+all: spec.lex.sml spec.grm.sig spec.grm.sml 
+
+.PHONY: clean
 clean:
-	rm spec.lex.sml spec.grm.sml spec
+	../../bin/clean
+
+%.lex.sml: %.lex
+	rm -f $@
+	$(MLLEX) $<
+	chmod -w $@
+
+%.grm.sig %.grm.sml: %.grm
+	rm -f $<.*
+	$(MLYACC) $<
+	chmod -w $<.*

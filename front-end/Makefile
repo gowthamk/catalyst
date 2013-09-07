@@ -7,7 +7,7 @@
  # See the file MLton-LICENSE for details.
  ##
 
-SRC := $(shell cd ../.. && pwd)
+SRC := $(shell cd .. && pwd)
 BUILD := $(SRC)/build
 BIN := $(BUILD)/bin
 PATH := $(BIN):$(shell echo $$PATH)
