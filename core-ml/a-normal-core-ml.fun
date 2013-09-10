@@ -24,41 +24,42 @@ fun layoutTargs (ts: Type.t vector) =
       else empty
    end
 
-structure Value =
-        struct
-          datatype atom =
-              Const of Const.t
-            | Var of Var.t
-
-          datatype t = 
-              Atom of atom
-            | Tuple of atom vector
-            | Record of atom Record.t
-
-          fun layout v = 
-            let
-              open Layout
-            in
-              case v of
-                Atom (Const c) => Const.layout c
-              | Atom (Var v) => Var.layout v
-              | Tuple av => seq (Vector.toListMap (av, fn v => layout (Atom v)))
-              | Record r => record (Vector.toListMap (Record.toVector r, fn (f, p) =>
-                             (Field.toString f, layout (Atom p))))
-            end
-        end
-
 structure Pat =
    struct
+
+  structure Val =
+          struct
+            datatype atom =
+                Const of Const.t
+              | Var of Var.t
+
+            datatype t = 
+                Atom of atom
+              | Tuple of atom vector
+              | Record of atom Record.t
+
+            fun layout v = 
+              let
+                open Layout
+              in
+                case v of
+                  Atom (Const c) => Const.layout c
+                | Atom (Var v) => Var.layout v
+                | Tuple av => seq (Vector.toListMap (av, fn v => layout (Atom v)))
+                | Record r => record (Vector.toListMap (Record.toVector r, fn (f, p) =>
+                               (Field.toString f, layout (Atom p))))
+              end
+          end
+
       datatype t = T of {node: node,
                          ty: Type.t}
       and node =
-         Con of {arg: Value.t option,
+         Con of {arg: Val.t option,
                  con: Con.t,
                  targs: Type.t vector}
-       | Layered of Var.t * Value.t
-       | List of Value.atom vector
-       | Value of Value.t
+       | Layered of Var.t * Val.t
+       | List of Val.atom vector
+       | Value of Val.t
        | Wild
 
       local
@@ -82,11 +83,11 @@ structure Pat =
                        layoutTargs targs,
                        case arg of
                           NONE => empty
-                        | SOME p => Value.layout p]
+                        | SOME p => Val.layout p]
              | Layered (x, p) =>
-                  seq [maybeConstrain (Var.layout x, t), str " as ", Value.layout p]
-             | List ps => list (Vector.toListMap (ps, Value.layout o Value.Atom))
-             | Value v => Value.layout v
+                  seq [maybeConstrain (Var.layout x, t), str " as ", Val.layout p]
+             | List ps => list (Vector.toListMap (ps, Val.layout o Val.Atom))
+             | Value v => Val.layout v
              | Wild => str "_"
          end
   end
@@ -98,6 +99,11 @@ structure NoMatch =
 
 datatype noMatch = datatype NoMatch.t
 
+datatype exp_val_atom = Const of Const.t
+                      | Var of Var.t * Type.t vector
+datatype exp_val_t = Atom of exp_val_atom
+                  | Tuple of exp_val_atom vector
+                  | Record of exp_val_atom Record.t
 datatype dec =
    Datatype of {cons: {arg: Type.t option,
                        con: Con.t} vector,
@@ -118,30 +124,28 @@ datatype dec =
 and exp = Exp of {node: expNode,
                   ty: Type.t}
 and expNode =
-   App of (unit -> Var.t) * 
-          (unit -> Type.t vector) * 
-          Value.t
+   App of exp_val_atom * exp_val_t
  | Case of {kind: string,
             lay: unit -> Layout.t,
             nest: string list,
             rules: {exp: exp,
                     lay: (unit -> Layout.t) option,
                     pat: Pat.t} vector,
-            test: Value.t}
- | EnterLeave of Value.t * SourceInfo.t
+            test: exp_val_t}
+ | EnterLeave of exp_val_t * SourceInfo.t
  | Handle of {catch: Var.t * Type.t,
               handler: exp,
               try: exp}
  | Lambda of lambda
  | Let of dec vector * exp
- | List of Value.atom vector
- | PrimApp of {args: Value.t vector,
+ | List of exp_val_atom vector
+ | PrimApp of {args: exp_val_t vector,
                prim: Type.t Prim.t,
                targs: Type.t vector}
- | Raise of Value.t
+ | Raise of exp_val_t
  | Seq of exp vector
- | Var of (unit -> Var.t) * (unit -> Type.t vector)
- | Value of Value.t
+ | Value of exp_val_t
+
 and lambda = Lam of {arg: Var.t,
                      argType: Type.t,
                      body: exp}
@@ -149,6 +153,20 @@ and lambda = Lam of {arg: Var.t,
 local
    open Layout
 in
+  fun exp_val_layt v = case v of
+      Atom (Const c) => Const.layout c
+    | Atom (Var (v,targs)) =>
+      let
+        val tylayt = if Vector.isEmpty targs
+          then empty
+          else seq [Vector.layout Type.layout targs, str " "]
+      in
+        paren (seq [Var.layout v, str " ", tylayt])
+      end 
+    | Tuple av => seq (Vector.toListMap (av, fn v => exp_val_layt (Atom v)))
+    | Record r => record (Vector.toListMap (Record.toVector r, fn (f, p) =>
+                   (Field.toString f, exp_val_layt (Atom p))))
+
    fun layoutTyvars (ts: Tyvar.t vector) =
       case Vector.length ts of
          0 => empty
@@ -187,24 +205,15 @@ in
                                           layoutExp exp]]))]
    and layoutExp (Exp {node, ...}) =
       case node of
-         App (f, targs, arg) => 
-          let
-            val targs = targs()
-            val f = f ()
-            val tylayt = if Vector.isEmpty targs
-              then empty
-              else seq [Vector.layout Type.layout targs, str " "]
-          in
-            paren (seq [Var.layout f, str " ", tylayt, Value.layout arg])
-          end 
+         App (f, arg) => paren (seq [exp_val_layt (Atom f), str " ", exp_val_layt arg])
        | Case {rules, test, ...} =>
             Pretty.casee {default = NONE,
                           rules = Vector.map (rules, fn {exp, pat, ...} =>
                                               (Pat.layout pat, layoutExp exp)),
-                          test = Value.layout test}
+                          test = exp_val_layt test}
        | EnterLeave (v, si) =>
             seq [str "EnterLeave ",
-                 tuple [Value.layout v, SourceInfo.layout si]]
+                 tuple [exp_val_layt v, SourceInfo.layout si]]
        | Handle {catch, handler, try} =>
             Pretty.handlee {catch = Var.layout (#1 catch),
                             handler = layoutExp handler,
@@ -213,25 +222,15 @@ in
        | Let (ds, e) =>
             Pretty.lett (align (Vector.toListMap (ds, layoutDec)),
                          layoutExp e)
-       | List es => list (Vector.toListMap (es, Value.layout o Value.Atom))
+       | List es => list (Vector.toListMap (es, exp_val_layt o Atom))
        | PrimApp {args, prim, targs} =>
-            Pretty.primApp {args = Vector.map (args, Value.layout),
+            Pretty.primApp {args = Vector.map (args, exp_val_layt),
                             prim = Prim.layout prim,
                             targs = Vector.map (targs, Type.layout)}
-       | Raise v => Pretty.raisee (Value.layout v)
+       | Raise v => Pretty.raisee (exp_val_layt v)
        | Seq es => Pretty.seq (Vector.map (es, layoutExp))
-       | Var (var, targs) => 
-            if !Control.showTypes
-               then let 
-                       open Layout
-                       val targs = targs ()
-                    in
-                       if Vector.isEmpty targs
-                          then Var.layout (var ())
-                       else seq [Var.layout (var ()), str " ",
-                                 Vector.layout Type.layout targs]
-                    end
-            else Var.layout (var ())
+        | Value v => exp_val_layt v
+
    and layoutFuns (tyvars, decs)  =
       if 0 = Vector.length decs
          then empty
@@ -274,6 +273,14 @@ structure Lambda =
 
 structure Exp =
    struct
+
+    structure Val =
+      struct
+        datatype atom = datatype exp_val_atom
+        datatype t = datatype exp_val_t
+        val layout = exp_val_layt
+      end
+
       type dec = dec
       type lambda = lambda
       datatype t = datatype exp
@@ -294,9 +301,6 @@ structure Exp =
 
       fun make (n, t) = Exp {node = n,
                              ty = t}
-
-      fun var (x: Var.t, ty: Type.t): t =
-         make (Var (fn () => x, fn () => Vector.new0 ()), ty)
    end
 
 structure Dec =

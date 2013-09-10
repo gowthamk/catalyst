@@ -28,28 +28,29 @@ signature A_NORMAL_CORE_ML =
    sig
       include A_NORMAL_CORE_ML_STRUCTS
 
-      structure Value:
-        sig
-          datatype atom =
-              Const of Const.t
-            | Var of Var.t
-          datatype t = 
-              Atom of atom
-            | Tuple of atom vector
-            | Record of atom Record.t
-          val layout : t -> Layout.t
-        end
-
       structure Pat:
          sig
+
+          structure Val:
+            sig
+              datatype atom =
+                  Const of Const.t
+                | Var of Var.t
+              datatype t = 
+                  Atom of atom
+                | Tuple of atom vector
+                | Record of atom Record.t
+              val layout : t -> Layout.t
+            end
+
             type t
             datatype node =
-               Con of {arg: Value.t option,
+               Con of {arg: Val.t option,
                        con: Con.t,
                        targs: Type.t vector}
-             | Layered of Var.t * Value.t
-             | List of Value.atom vector
-             | Value of Value.t
+             | Layered of Var.t * Val.t
+             | List of Val.atom vector
+             | Value of Val.t
              | Wild
             val dest: t -> node * Type.t
             val layout: t -> Layout.t
@@ -60,34 +61,43 @@ signature A_NORMAL_CORE_ML =
 
       structure Exp:
          sig
+            structure Val:
+              sig
+                datatype atom =
+                    Const of Const.t
+                  | Var of Var.t * Type.t vector
+                datatype t = 
+                    Atom of atom
+                  | Tuple of atom vector
+                  | Record of atom Record.t
+                val layout : t -> Layout.t
+              end
             type dec
             type lambda
             type t
             datatype node =
-               App of (unit -> Var.t) * 
-                      (unit -> Type.t vector) * 
-                      Value.t (*GK*)
+               App of Val.atom * 
+                      Val.t (*GK*)
              | Case of {kind: string,
                         lay: unit -> Layout.t,
                         nest: string list,
                         rules: {exp: t,
                                 lay: (unit -> Layout.t) option,
                                 pat: Pat.t} vector,
-                        test: Value.t} (*GK*)
-             | EnterLeave of Value.t * SourceInfo.t
+                        test: Val.t} (*GK*)
+             | EnterLeave of Val.t * SourceInfo.t
              | Handle of {catch: Var.t * Type.t,
                           handler: t,
                           try: t}
              | Lambda of lambda
              | Let of dec vector * t
-             | List of Value.atom vector (*GK*)
-             | PrimApp of {args: Value.t vector, (*GK*)
+             | List of Val.atom vector (*GK*)
+             | PrimApp of {args: Val.t vector, (*GK*)
                            prim: Type.t Prim.t,
                            targs: Type.t vector}
-             | Raise of Value.t (*GK*)
+             | Raise of Val.t (*GK*)
              | Seq of t vector 
-             | Var of (unit -> Var.t) * (unit -> Type.t vector)
-             | Value of Value.t
+             | Value of Val.t
             val dest: t -> node * Type.t
             val layout: t -> Layout.t
             val layoutWithType: t -> Layout.t

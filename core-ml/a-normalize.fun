@@ -47,6 +47,7 @@ struct
   structure A = ANormalCoreML
   structure Var = A.Var
   structure Tyvar = A.Tyvar
+  structure Type = A.Type
 
   local
     open A
@@ -88,8 +89,14 @@ struct
       Vector.fromList (List.map (vbs,decFromValBind))
     end
 
-  val varToValue = fn var => 
-    A.Value.Atom (A.Value.Var var)
+  val varToPatVal = fn var => 
+    A.Pat.Val.Atom (A.Pat.Val.Var var)
+
+  val varToExpVal = fn (var,tyvec) => 
+    A.Exp.Val.Atom (A.Exp.Val.Var (var,tyvec))
+
+  val tyvarvToTyv = fn tyvars => Vector.map (tyvars, fn tyvar =>
+    (Type.var o Tyvar.newNoname) {equality = (Tyvar.isEquality tyvar)})
 
   fun getValBindForPat (pat : A.Pat.t) (tyvars : Tyvar.t vector): 
       (Var.t * A.Dec.t) =
@@ -99,9 +106,8 @@ struct
       val newvar = genVar ()
       val newtyvars = Vector.map (tyvars, fn tyvar =>
         Tyvar.newNoname {equality = (Tyvar.isEquality tyvar)})
-      val subexp = Exp.make (Exp.Var (fn _ => newvar,
-        fn _ => Vector.map (newtyvars, fn tyv => Type.var tyv)), 
-          patty)
+      val subexp = Exp.make (Exp.Value (varToExpVal (newvar,
+        Vector.map (newtyvars, fn tyv => Type.var tyv))), patty)
       val spatvb = Vector.fromList [{exp = subexp, 
         lay = fn _ => Layout.empty, nest = [], pat = pat}]
       val spatdec = Dec.Val ({rvbs = Vector.fromList [],
@@ -111,18 +117,18 @@ struct
     end
 
   fun doItPatToVar (pat : C.Pat.t) (tyvars : Tyvar.t vector) : 
-      (A.Value.atom * A.Dec.t list) =
+      (A.Pat.Val.atom * A.Dec.t list) =
     let
       open A
       val patty = C.Pat.ty pat
       val (spat,sspatdecs) = doItPat pat tyvars
       val spatty = Pat.ty spat
       val (atom,spatdecs) = case Pat.node spat of
-          Pat.Value (Value.Atom v) => (v, sspatdecs)
+          Pat.Value (Pat.Val.Atom v) => (v, sspatdecs)
         | _ => 
           let
             val (newvar, spatdec) = getValBindForPat spat tyvars
-            val atom = Value.Var newvar
+            val atom = Pat.Val.Var newvar
           in
             (atom,spatdec::sspatdecs)
           end
@@ -131,7 +137,7 @@ struct
     end
 
   and doItPatToAtomicPat (pat : C.Pat.t) (tyvars : Tyvar.t vector) : 
-      (A.Value.t * A.Dec.t list) =
+      (A.Pat.Val.t * A.Dec.t list) =
     let
       open A
       val patty = C.Pat.ty pat
@@ -142,7 +148,7 @@ struct
         | _ => 
           let
             val (newvar, spatdec) = getValBindForPat spat tyvars
-            val value = Value.Atom (Value.Var newvar)
+            val value = Pat.Val.Atom (Pat.Val.Var newvar)
           in
             (value,spatdec::sspatdecs)
           end
@@ -184,7 +190,7 @@ struct
         let
           val patty = C.Pat.ty pat
           val (atom,spatdecs) = doItPatToVar pat' tyvars
-          val patnode = A.Pat.Layered (var,A.Value.Atom atom)
+          val patnode = A.Pat.Layered (var,A.Pat.Val.Atom atom)
         in
           (A.Pat.make (patnode,patty), spatdecs)
         end
@@ -215,7 +221,7 @@ struct
                 ((lbl,atom)::atoms, spatdecs::spatdecslist)
               end)
           val atomrec = Record.fromVector (Vector.fromList atomlist)
-          val patnode = Pat.Value (Value.Record atomrec)
+          val patnode = Pat.Value (Pat.Val.Record atomrec)
         in
           (Pat.make (patnode,patty), List.concat subpatdecslist)
         end
@@ -230,14 +236,14 @@ struct
               in
                 (atom::atoms, spatdecs::spatdecslist)
               end)
-          val patnode = Pat.Value (Value.Tuple (Vector.fromList atomlist))
+          val patnode = Pat.Value (Pat.Val.Tuple (Vector.fromList atomlist))
         in
           (Pat.make (patnode,patty),List.concat subpatdecslist)
         end
       | C.Pat.Var var => 
         let
           val patty = C.Pat.ty pat
-          val patnode = A.Pat.Value (A.Value.Atom (A.Value.Var var))
+          val patnode = A.Pat.Value (A.Pat.Val.Atom (A.Pat.Val.Var var))
         in
           (A.Pat.make (patnode,patty), [])
         end
@@ -251,7 +257,7 @@ struct
       val newvar = genVar ()
       val newtyvars = Vector.map (tyvars, fn tyvar =>
         Tyvar.newNoname {equality = (Tyvar.isEquality tyvar)})
-      val subpatnode = Pat.Value (varToValue newvar)
+      val subpatnode = Pat.Value (varToPatVal newvar)
       val subpat = Pat.make (subpatnode,expty)
       val vbs = Vector.fromList [{exp = exp, 
         lay = fn _ => Layout.empty, nest = [], pat = subpat}]
@@ -272,7 +278,7 @@ struct
     end
 
   and doItExpToValue (exp : C.Exp.t) (tyvars : Tyvar.t vector) : 
-    (A.Dec.t list * A.Value.t) = 
+    (A.Dec.t list * A.Exp.Val.t) = 
     let
       val (ssexpdecs,sexp) = doItExp exp tyvars
       val sexpty = A.Exp.ty sexp
@@ -281,7 +287,7 @@ struct
         | _ => 
           let
             val (sexpdec,newvar) = getValBindForExp sexp tyvars
-            val value = varToValue newvar
+            val value = varToExpVal (newvar,tyvarvToTyv tyvars)
           in
             ([sexpdec], value)
           end
@@ -301,11 +307,10 @@ struct
           C.Exp.App (e1,e2) => 
           let
             val (fdecs, f) = doItExpToVar e1 tyvars
-            val fth = fn _ => f
-            val ftyargsth = fn _ => (Vector.map (tyvars, fn tyvar =>
-              (Type.var o Tyvar.newNoname) {equality = (Tyvar.isEquality tyvar)}))
+            val Exp.Val.Atom fvar = varToExpVal (f,tyvarvToTyv tyvars)
+            val ftyargv = tyvarvToTyv tyvars
             val (argdecs,argval) = doItExpToValue e2 tyvars
-            val expnode = Exp.App (fth, ftyargsth, argval)
+            val expnode = Exp.App (fvar, argval)
           in
             (List.concat [fdecs,argdecs], Exp.make (expnode,expty))
           end
@@ -379,7 +384,8 @@ struct
           end
         | C.Exp.Lambda lam => ([], Exp.make (Exp.Lambda (doItLambda lam), 
             expty))
-        | C.Exp.Var v => ([], Exp.make (Exp.Var v, expty))
+        | C.Exp.Var (fth,tyvth) => ([], Exp.make (Exp.Value ( varToExpVal
+            (fth(),tyvth())), expty))
         | C.Exp.Seq expv => 
           let
             val (predecs,newexpv) = doItExps expv tyvars
@@ -398,7 +404,8 @@ struct
           let
             val (varv, predecs) = doItObjs expv (fn exp => 
               doItExpToVar exp tyvars)
-            val expnode = Exp.List (Vector.map (varv, Value.Var))
+            val expnode = Exp.List (Vector.map (varv, fn var => 
+              Exp.Val.Var (var,tyvarvToTyv tyvars)))
           in
             (predecs, Exp.make (expnode,expty))
           end
@@ -412,13 +419,13 @@ struct
                   (predecs, (lbl,var))
                 end)
             val atomrec = Record.fromVector (Vector.map (lblvarv,
-              fn (lbl,var) => (lbl,Value.Var var)))
-            val expnode = Exp.Value (Value.Record atomrec)
+              fn (lbl,var) => (lbl,Exp.Val.Var (var,tyvarvToTyv tyvars))))
+            val expnode = Exp.Value (Exp.Val.Record atomrec)
           in
             (predecs, Exp.make (expnode,expty))
           end
-        | C.Exp.Const cth => ([], Exp.make (Exp.Value (Value.Atom (
-            Value.Const (cth()))) ,expty))
+        | C.Exp.Const cth => ([], Exp.make (Exp.Value (Exp.Val.Atom (
+            Exp.Val.Const (cth()))) ,expty))
         | C.Exp.Raise exp => 
           let
             val (predecs,value) = doItExpToValue exp tyvars
@@ -438,8 +445,8 @@ struct
            * We treat con as any other variable henceforth
            *)
           let
-            val varth = fn _ => Var.fromString (Con.toString c)
-            val expnode = Exp.Var (varth,fn _ => tv)
+            val var = Var.fromString (Con.toString c)
+            val expnode = Exp.Value (varToExpVal (var,tv))
           in
             ([],Exp.make(expnode,expty))
           end
