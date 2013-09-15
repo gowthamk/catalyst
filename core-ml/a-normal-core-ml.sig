@@ -21,6 +21,7 @@ signature A_NORMAL_CORE_ML_STRUCTS =
             val tuple: t vector -> t
             val unit: t
             val var : Tyvar.t -> t
+            val toMyType : t -> TypeDesc.t
          end
    end
 

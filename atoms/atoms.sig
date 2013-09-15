@@ -59,6 +59,8 @@ signature ATOMS' =
       sharing WordXVector = Const.WordXVector
       sharing Tyvar = TypeDesc.Tyvar
       sharing Tycon = TypeDesc.Tycon
+      sharing Field = TypeDesc.Field
+      sharing Record = TypeDesc.Record
    end
 
 signature ATOMS =

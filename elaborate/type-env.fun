@@ -859,12 +859,9 @@ structure Type =
       			if (isArrow t') then 
       				TypeDesc.makeTarrow (toMyType (Vector.sub(ts, 0)), toMyType (Vector.sub(ts,1)))
       			else TypeDesc.makeTconstr (c, Vector.toListMap (ts, toMyType))
-    
-      		| Record sr => TypeDesc.makeTtuple ((Vector.toListMap (Srecord.toVector sr, fn (a, b) => 
-      												TypeDesc.makeTfield (Field.toString a, toMyType b))))
-      		       
+      		| Record sr => TypeDesc.makeTrecord (Vector.map (Srecord.toVector sr, 
+              fn (lbl, ty) => (lbl, toMyType ty)))
       		| Var a => TypeDesc.makeTvar a
-
       		| _ => TypeDesc.makeTunknown()
 
       local

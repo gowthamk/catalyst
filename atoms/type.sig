@@ -2,6 +2,9 @@ signature TYPE_DESC_STRUCTS =
  sig
     structure Tyvar : TYVAR
     structure Tycon : TYCON
+    structure Field : FIELD
+    structure Record : RECORD
+    sharing Field = Record.Field
  end
    
 signature TYPE_DESC = 
@@ -12,15 +15,13 @@ signature TYPE_DESC =
 	  	Tunknown
 	  | Tvar of Tyvar.t
 	  | Tarrow of t * t
-	  | Ttuple of t list
+	  | Trecord of t Record.t
 	  | Tconstr of Tycon.t * t list
-	  | Tfield of string * t
 	  
 	  val makeTarrow : (t * t) -> t
 	  val makeTconstr: (Tycon.t * t list) -> t
 	  val makeTvar: Tyvar.t -> t
-	  val makeTfield: (string * t) -> t
-	  val makeTtuple: t list -> t
+	  val makeTrecord: (Field.t * t) vector -> t
 	  val makeTunknown: unit -> t
     val toString : t -> string
 	  val sametype : (t * t) -> bool

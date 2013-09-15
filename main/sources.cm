@@ -22,6 +22,7 @@ is
 ../front-end/sources.cm
 ../specparser/sources.cm
 ../speclang/sources.cm
+../specelab/sources.cm
 
 lookup-constant.sig
 lookup-constant.fun

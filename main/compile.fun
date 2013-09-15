@@ -84,8 +84,6 @@ structure ANormalCoreML = ANormalCoreML (open Atoms
                                         (t, {expandOpaque = true,
                                              localTyvarNames = false})
                                   end)
-structure ANormalize = ANormalize (structure CoreML = CoreML
-                                   structure ANormalCoreML = ANormalCoreML)
 (*-----------------------------------------------------*)
 (*             Specification Language                  *)
 (*-----------------------------------------------------*)
@@ -112,7 +110,10 @@ end
 structure LookupConstant = LookupConstant (structure Const = Const
                                            structure ConstType = ConstType
                                            structure Ffi = Ffi)
-
+structure ANormalize = ANormalize (structure CoreML = CoreML
+                                   structure ANormalCoreML = ANormalCoreML)
+structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
+                                   structure ANormalCoreML = ANormalCoreML)
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
 (* ------------------------------------------------- *)
@@ -460,14 +461,19 @@ in
               | NONE => Error.bug "Exception Catalyst not declared"
             val userDecs = Vector.dropPrefix (decs,starti+1)
             val coreML = CoreML.Program.T{decs=userDecs}
+            val ancoreML = ANormalize.doIt coreML
             val _ =
                let open Control
                in
                   if !keepCoreML
-                     then saveToFile ({suffix = "core-ml"}, No, coreML,
-                                      Layouts CoreML.Program.layouts)
+                     then (saveToFile ({suffix = "core-ml"}, No, coreML,
+                                      Layouts CoreML.Program.layouts);
+                           saveToFile ({suffix = "an-core-ml"}, No, ancoreML,
+                                      Layouts ANormalCoreML.Program.layouts))
                   else ()
                end
+            val speclang = specast
+            val varenv = ElaborateVarEnv.elaborate ancoreML speclang
             val str = CoreML.Con.toString (CoreML.Con.cons)
             val _ = messageStr (Top, Bool.toString (CoreML.Var.equals (
               CoreML.Var.newString str, CoreML.Var.newString str)))

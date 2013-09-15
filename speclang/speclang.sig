@@ -13,7 +13,7 @@ sig
     datatype elem = Int of int
                   | Bool of bool
                   | Var of Var.t
-    datatype expr = T of elem list
+    datatype expr = T of elem vector
                   | X of expr * expr
                   | U of expr * expr
                   | R of RelId.t * Var.t
@@ -29,7 +29,8 @@ sig
     
     datatype t = T of {id : RelLang.RelId.t,
                        ty : unit,
-                       map : (Con.t * Var.t list option * RelLang.term) list}
+                       map : (Con.t * Var.t vector option * RelLang.term)
+                             vector}
     val toString : t -> string
   end
 
@@ -63,14 +64,26 @@ sig
     end
     datatype t =  T of BasePredicate.t * RelPredicate.t
     val toString : t -> string
+    val truee : unit -> t
     end
 
   structure RefinementType : 
   sig
     datatype t = Base of Var.t * TypeDesc.t * Predicate.t
+               | Tuple of t vector
                | Arrow of t*t
+               (* Records are tuples with fixed bound var *)
+               (* Needs extension for {'a | r} list *)
     val toString : t -> string
+    val fromTyD : TypeDesc.t -> t
   end
+
+  structure RefinementTypeScheme :
+    sig
+      datatype t = T of {tyvars : Tyvar.t vector,
+                        refty : RefinementType.t }
+      val generalize : Tyvar.t vector * RefinementType.t -> t
+    end
 
   structure RelSpec : 
   sig
@@ -79,7 +92,8 @@ sig
       datatype t = T of Var.t * RefinementType.t
       val toString : t -> string
     end
-    datatype t = T of StructuralRelation.t list * TypeSpec.t list
+    datatype t = T of {reldecs : StructuralRelation.t vector,
+                       typespecs : TypeSpec.t vector}
     val toString : t -> string
     val layout : t -> Layout.t
   end

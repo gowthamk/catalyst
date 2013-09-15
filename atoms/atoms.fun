@@ -53,7 +53,9 @@ structure Atoms =
                            structure CType = CType)
       structure Vars = UnorderedSet (Var)
       structure TypeDesc = TypeDesc(structure Tyvar = Tyvar
-                                    structure Tycon = Tycon)
+                                    structure Tycon = Tycon
+                                    structure Field = Field
+                                    structure Record = Record)
    end
 
 

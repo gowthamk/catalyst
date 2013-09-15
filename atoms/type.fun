@@ -7,26 +7,29 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
 			  	Tunknown
 			  | Tvar of Tyvar.t
 			  | Tarrow of t * t
-			  | Ttuple of t list
+			  | Trecord of t Record.t
 			  | Tconstr of Tycon.t * t list
-			  | Tfield of string * t
 			  
 	 	fun makeTarrow (tdesc1, tdesc2) = Tarrow (tdesc1, tdesc2)
+
 	 	fun makeTconstr (cons, tdlist) = Tconstr (cons, tdlist)
+
 	 	fun makeTvar tvar = Tvar tvar
-	 	fun makeTfield (str, tdesc1) = Tfield (str, tdesc1)
-	 	fun makeTtuple tdlist = Ttuple tdlist
+
+    val makeTrecord = Trecord o Record.fromVector
+
 	 	fun makeTunknown () = Tunknown
+
     fun toString t = case t of
         Tunknown => "Tunknown"
       | Tvar v  => "Tvar ("^(Tyvar.toString v)^")"
       | Tarrow (t1,t2)=> "Tarrow ("^(toString t1)^","^(toString t2)^")"
-      | Ttuple tdl => "Ttuple (["^
-          (List.fold (tdl,"",(fn(t,s)=>(s^","^(toString t)))))^"])"
+      | Trecord tdrec => "Trecord {" ^ (Vector.fold (Record.toVector tdrec,"",
+          fn((lbl,td),acc) => (Field.toString lbl) ^ " : " ^ (toString td) 
+            ^ "," ^ acc)) ^ "}"
       | Tconstr (tc,tdl) => "Tconstr("^(Tycon.toString tc)^","^"["^
             (List.fold 
             (tdl,"",(fn(t,s)=>(s^","^(toString t)))))^"])"
-      | Tfield (s,td) => "Tfield ("^s^","^(toString td)^")"
 
     fun sametype (t1,t2) = 
       let 
@@ -40,19 +43,21 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
         | (Tarrow (tda1,tdr1), Tarrow (tda2,tdr2)) => 
             (sametype (tda1,tda2)) andalso
             (sametype (tdr1,tdr2))
-        | (Ttuple td1, Ttuple td2) => sametypes (td1,td2)
+        | (Trecord tdrec1, Trecord tdrec2) => Vector.forall (
+            Record.toVector tdrec1, fn (l1,t2) => 
+              Vector.exists (Record.toVector tdrec2, fn (l2,t2) => 
+                (Field.toString l1 = Field.toString l2) 
+                andalso sametype (t1,t2)))
         | (Tconstr (tycon1,td1), Tconstr (tycon2,td2)) => 
             Tycon.equals (tycon1,tycon2) andalso
             sametypes (td1,td2)
-        | (Tfield (s1,td1),Tfield (s2,td2)) => (s1 = s2) 
-            andalso sametype (td1,td2)
         | (_,_) => false
       end
 
     fun isWidthSubType (t1,t2) = sametype (t1,t2) orelse case t2 of
-        Ttuple tl => List.exists (tl,fn t => isWidthSubType (t1,t))
+        Trecord trec => Vector.exists (Record.toVector trec, fn (_,t) => 
+          isWidthSubType (t1,t))
 	    | Tconstr (_,tl) => List.exists (tl,fn t => isWidthSubType (t1,t))
-      | Tfield (_,t) => isWidthSubType (t1,t)
       | _ => false
 	end
 	

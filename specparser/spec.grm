@@ -49,10 +49,10 @@ val defaultCons = Con.default
   | spec of RelSpec.t
   | decsandtys of RelSpec.t
   | reldec of StructuralRelation.t
-  | patmatchseq of (Con.t * Var.t list option * term) list
-  | patmatch of Con.t * Var.t list option * term
-  | conpat of Con.t * Var.t list option
-  | conargs of Var.t list
+  | patmatchseq of (Con.t * Var.t vector option * term) list
+  | patmatch of Con.t * Var.t vector option * term
+  | conpat of Con.t * Var.t vector option
+  | conargs of Var.t vector
   | idseq of Var.t list
   | rterm of term
   | rexpr of expr
@@ -76,19 +76,22 @@ start : spec (spec)
 spec:   decsandtys (decsandtys)
 
 decsandtys : reldec SEMICOLON decsandtys 
-                (case decsandtys of RelSpec.T (reldecs,typespecs) => 
-                    RelSpec.T (reldec :: reldecs, typespecs))
+                (case decsandtys of RelSpec.T ({reldecs,typespecs}) => 
+                    RelSpec.T {reldecs = Vector.fromList (reldec ::
+                      (Vector.toList reldecs)), typespecs = typespecs})
            | typespec SEMICOLON decsandtys
-                (case decsandtys of RelSpec.T (reldecs,typespecs) => 
-                    RelSpec.T (reldecs,typespec :: typespecs))
-           |  (RelSpec.T ([],[]))
+                (case decsandtys of RelSpec.T {reldecs,typespecs} => 
+                    RelSpec.T {reldecs = reldecs, typespecs = 
+                    Vector.fromList (typespec :: (Vector.toList typespecs))})
+           |  (RelSpec.T {reldecs = Vector.fromList [],
+                  typespecs = Vector.fromList []})
 
 reldec : RELATION ID patmatchseq 
-          (StructuralRelation.T{id=RelId.fromString ID,
-                ty=(), map=patmatchseq})
+          (StructuralRelation.T {id=RelId.fromString ID,
+                ty=(), map = Vector.fromList patmatchseq})
        | RELATION ID EQUALOP rterm
           (StructuralRelation.T{id=RelId.fromString ID,
-                ty=(), map=[(defaultCons,NONE,rterm)]})
+                ty=(), map = Vector.fromList [(defaultCons,NONE,rterm)]})
 
 patmatchseq : patmatch PIPE patmatchseq (patmatch :: patmatchseq)
             | patmatch ([patmatch])
@@ -98,8 +101,8 @@ patmatch : LPAREN conpat RPAREN EQUALOP rterm
 
 conpat : ID conargs (Con.fromString ID, SOME conargs)
 
-conargs : ID ([Var.fromString ID])
-        | LPAREN idseq RPAREN (idseq)
+conargs : ID (Vector.fromList [Var.fromString ID])
+        | LPAREN idseq RPAREN (Vector.fromList idseq)
 
 idseq : ID ([Var.fromString ID])
       | ID COMMA idseq ((Var.fromString ID)::idseq)
@@ -111,7 +114,7 @@ rexpr : ratom CROSSPRD rexpr (X(ratom,rexpr))
       | ratom UNION rexpr (U(ratom,rexpr))
       | ratom (ratom)
 
-ratom : LCURLY LPAREN elemseq RPAREN RCURLY (T(elemseq))
+ratom : LCURLY LPAREN elemseq RPAREN RCURLY (T(Vector.fromList elemseq))
       | ID LPAREN ID RPAREN (R(RelId.fromString ID1, Var.fromString ID2))
       | LPAREN rexpr RPAREN (rexpr)
 

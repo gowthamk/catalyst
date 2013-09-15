@@ -10,12 +10,9 @@ local
    ../atoms/sources.mlb
    ../control/sources.mlb
    ../lib/mlton/sources.mlb
-  type.sig
-  type.fun
   speclang.sig
   speclang.fun
 in
-  signature TYPE_DESC
   signature SPEC_LANG
   functor SpecLang
 end
