@@ -34,6 +34,27 @@ struct
     val termToString = fn trm => case trm of
         Expr e => exprToString e
       | Star r => (RelId.toString r) ^ "*"
+
+    fun app (relId,var) = R(relId,var)
+    fun union (e1,e2) = U (e1,e2)
+    fun crossprd (e1,e2) = X (e1,e2)
+    fun emptyexpr _ = T (Vector.fromList [])
+    fun applySubsts substs rexpr = 
+      let
+        val doIt = applySubsts substs
+        (* caution : telescoped substitutions *)
+        fun subst v = Vector.fold (substs, v, fn ((old,new),v) =>
+          if (Var.toString old = Var.toString v) then new else v)
+        fun elemSubst elem = case elem of
+            Var v => Var (subst v)
+          | c => c
+      in
+      case rexpr of 
+          T elemv => T (Vector.map (elemv,elemSubst))
+        | X (e1,e2) => X (doIt e1, doIt e2)
+        | U (e1,e2) => U (doIt e1, doIt e2)
+        | R (relId,argvar) => R (relId, subst argvar)
+      end
   end
 
   structure StructuralRelation =
@@ -99,7 +120,14 @@ struct
     val toString = fn T(bp,rp) => "(" ^ (BasePredicate.toString bp) 
         ^ "," ^ (RelPredicate.toString rp)^ ")"
 
-    val truee = fn _ => T (BasePredicate.True, RelPredicate.True)
+    fun truee _ = T (BasePredicate.True, RelPredicate.True)
+
+    fun conj (T(p11,p12),T(p21,p22)) = T (BasePredicate.Conj(p11,p21),
+      RelPredicate.Conj(p12,p22))
+
+    fun conjR (T(p,r),r') = T (p,RelPredicate.Conj(r,r'))
+
+    fun conjP (T(p,r),p') = T (BasePredicate.Conj(p,p'),r)
   end
 
   structure RefinementType =
@@ -151,6 +179,8 @@ struct
     
       val generalize = fn (tyvars, refty) =>
         T {tyvars = tyvars, refty = refty}
+      val specialize = fn (T {tyvars,refty}) =>
+        refty
     end
 
   structure RelSpec =

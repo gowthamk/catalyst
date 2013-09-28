@@ -22,6 +22,11 @@ sig
     val elemToString : elem -> string
     val exprToString : expr -> string
     val termToString : term -> string
+    val app : RelId.t * Var.t -> expr
+    val union : expr * expr -> expr
+    val crossprd : expr * expr -> expr
+    val emptyexpr : unit -> expr
+    val applySubsts : (Var.t * Var.t) vector -> expr -> expr
   end
 
   structure StructuralRelation :
@@ -65,6 +70,9 @@ sig
     datatype t =  T of BasePredicate.t * RelPredicate.t
     val toString : t -> string
     val truee : unit -> t
+    val conj : t*t -> t
+    val conjR : t*RelPredicate.t -> t
+    val conjP : t*BasePredicate.t -> t
     end
 
   structure RefinementType : 
@@ -83,6 +91,7 @@ sig
       datatype t = T of {tyvars : Tyvar.t vector,
                         refty : RefinementType.t }
       val generalize : Tyvar.t vector * RefinementType.t -> t
+      val specialize: t -> RefinementType.t
     end
 
   structure RelSpec : 
