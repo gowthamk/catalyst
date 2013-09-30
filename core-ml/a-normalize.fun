@@ -69,6 +69,13 @@ struct
 
   val inv = fn (x,y) => (y,x)
 
+  
+  fun applyTyVarSubsts substs tyvars = Vector.map (tyvars, fn tyvar =>
+    Vector.foldr (substs,tyvar,fn ((new,old),tyvar) => 
+      if Tyvar.sameName (old,tyvar) then new else tyvar))
+
+  val applyTyVarSubstsInType  = Type.renameTyVars 
+
   fun doItObjs (objs : 'a vector) (f : 'a -> 'b list * 'c) : 
     ('c vector * 'b list) = 
     Vector.mapAndFold (objs, [], fn (obj, bsacc) =>
@@ -106,8 +113,14 @@ struct
       val newvar = genVar ()
       val newtyvars = Vector.map (tyvars, fn tyvar =>
         Tyvar.newNoname {equality = (Tyvar.isEquality tyvar)})
+      val tyvarsubsts = Vector.zip (newtyvars,tyvars)
+      val newpatty = applyTyVarSubstsInType tyvarsubsts patty
+      (* 
+       * Bug : patty might contain old tyvars
+       * Fixed: newpatty.
+       *)
       val subexp = Exp.make (Exp.Value (varToExpVal (newvar,
-        Vector.map (newtyvars, fn tyv => Type.var tyv))), patty)
+        Vector.map (newtyvars, fn tyv => Type.var tyv))), newpatty)
       val spatvb = Vector.fromList [{exp = subexp, 
         lay = fn _ => Layout.empty, nest = [], pat = pat}]
       val spatdec = Dec.Val ({rvbs = Vector.fromList [],
@@ -248,6 +261,133 @@ struct
           (A.Pat.make (patnode,patty), [])
         end
       | C.Pat.Wild => (A.Pat.make (A.Pat.Wild, C.Pat.ty pat),[])
+      | C.Pat.Const cth =>
+        let
+          val patty = C.Pat.ty pat
+          val patnode = A.Pat.Value (A.Pat.Val.Atom 
+            (A.Pat.Val.Const (cth())))
+        in
+          (A.Pat.make (patnode,patty), [])
+        end
+
+  fun applyTyVarSubstsInLam substs (lam : A.Lambda.t) =
+    let
+      open A
+      val {arg,argType,body} = Lambda.dest lam
+      val argType' = applyTyVarSubstsInType substs argType
+      val body' = applyTyVarSubstsInExp substs body
+    in
+      Lambda.make {arg = arg, argType = argType', body = body'}
+    end
+
+  and applyTyVarSubstsInExp (substs : (Tyvar.t * Tyvar.t) vector)
+    (exp : A.Exp.t) : A.Exp.t = 
+    let
+      open A
+      val expty = Exp.ty exp
+      val expnode = Exp.node exp
+      fun applyTyVarSubstsInExpAtom substs (expatom : Exp.Val.atom) =
+        let
+          open Exp
+        in
+          case expatom of
+            Val.Var (v,tyv) => Val.Var (v,Vector.map (tyv,
+              applyTyVarSubstsInType substs))
+          | _ => expatom
+        end
+      fun applyTyVarSubstsInExpVal substs (expval : Exp.Val.t) =
+        let
+          open Exp
+        in
+          case expval of
+            Val.Atom atom => Val.Atom (applyTyVarSubstsInExpAtom substs atom)
+          | Val.Tuple atomv => Val.Tuple (Vector.map (atomv,
+              applyTyVarSubstsInExpAtom substs))
+          | Val.Record atomrec => (Val.Record o Record.fromVector) (Vector.map (
+              Record.toVector atomrec, fn (lbl,atom) => (lbl,
+                applyTyVarSubstsInExpAtom substs atom)))
+        end
+      val newexpty = applyTyVarSubstsInType substs expty
+      val newexpnode = case expnode of
+        Exp.App (Exp.Val.Var (f,tyargs),arg) =>
+          Exp.App (Exp.Val.Var (f, Vector.map (tyargs, 
+            applyTyVarSubstsInType substs)), arg)
+      | Exp.Case {kind,lay,nest,rules,test} =>
+        let
+          val newrules = Vector.map (rules, fn {exp,lay,pat} =>
+            {exp = applyTyVarSubstsInExp substs exp, lay=lay, pat=pat})
+          val newtest = applyTyVarSubstsInExpVal substs test
+        in
+          Exp.Case {kind=kind, lay=lay, nest=nest,
+            rules=newrules, test=newtest}
+        end
+      | Exp.Lambda lam => Exp.Lambda (applyTyVarSubstsInLam substs lam)
+      | Exp.Let (decs,exp) => 
+        let
+          val newdecs = Vector.map (decs, applyTyVarSubstsInDec substs)
+          val newexp = applyTyVarSubstsInExp substs exp
+        in
+          Exp.Let (newdecs,newexp)
+        end
+      | Exp.List (atomv) => Exp.List (Vector.map (atomv,
+          applyTyVarSubstsInExpAtom substs)) 
+      | Exp.PrimApp {args,prim,targs} => 
+        let
+          val newargs = Vector.map (args, applyTyVarSubstsInExpVal substs)
+          val newtargs = Vector.map (targs, applyTyVarSubstsInType substs)
+        in
+          Exp.PrimApp {args = newargs, prim = prim, targs = newtargs}
+        end
+      | Exp.Raise v => Exp.Raise (applyTyVarSubstsInExpVal substs v)
+      | Exp.Seq expv => Exp.Seq (Vector.map (expv, 
+          applyTyVarSubstsInExp substs))
+      | Exp.Value v => Exp.Value (applyTyVarSubstsInExpVal substs v)
+      | rest => rest
+    in
+      Exp.make (newexpnode,newexpty)
+    end
+
+  and applyTyVarSubstsInDec substs dec =
+    let
+      open A
+      (*
+       * foreach [new/old] in substs, If old \in tyvars, then 
+       * remove that substitution. Else, if new \in tyvars, then
+       * our new tyvar generator is not generating fresh names, so
+       * raise error. Else, retain the substitution.
+       *)
+      fun freeSubsts substs tyvars = 
+        Vector.fromList (Vector.foldr (substs, [], 
+          fn ((new,old),substs) => 
+            if Vector.exists (tyvars, fn tyvar => Tyvar.sameName (tyvar,new)) 
+            then Error.bug "new tyvar gen unsound"
+            else if Vector.exists (tyvars, 
+              fn tyvar => Tyvar.sameName (tyvar,old))
+            then substs
+            else (new,old) :: substs))
+    in
+      case dec of
+        Dec.Fun {decs,tyvars} =>
+        let
+          val substs = freeSubsts substs (tyvars())
+          val newdecs = Vector.map (decs, fn {lambda,var} => 
+            {lambda = applyTyVarSubstsInLam substs lambda, var = var})
+        in
+          Dec.Fun {decs = newdecs, tyvars = tyvars}
+        end
+      | Dec.Val {rvbs,tyvars,vbs} => 
+        let
+          val substs = freeSubsts substs (tyvars())
+          val rvbs' = Vector.map (rvbs, fn {lambda,var} => 
+            {lambda = applyTyVarSubstsInLam substs lambda, var = var})
+          val vbs' = Vector.map (vbs, fn {exp,lay,nest,pat} =>
+            {exp = applyTyVarSubstsInExp substs exp,
+             lay = lay, nest = nest, pat = pat})
+        in
+          Dec.Val {rvbs = rvbs', tyvars = tyvars, vbs = vbs'}
+        end
+      | _ => dec
+    end
 
   fun getValBindForExp (exp : A.Exp.t) (tyvars : Tyvar.t vector) :
     (A.Dec.t * Var.t) =
@@ -257,9 +397,16 @@ struct
       val newvar = genVar ()
       val newtyvars = Vector.map (tyvars, fn tyvar =>
         Tyvar.newNoname {equality = (Tyvar.isEquality tyvar)})
+      val tyvarsubsts = Vector.zip (newtyvars,tyvars)
+      val newexp = applyTyVarSubstsInExp tyvarsubsts exp
+      val newexpty = applyTyVarSubstsInType tyvarsubsts expty
       val subpatnode = Pat.Value (varToPatVal newvar)
-      val subpat = Pat.make (subpatnode,expty)
-      val vbs = Vector.fromList [{exp = exp, 
+      val subpat = Pat.make (subpatnode,newexpty)
+      (*
+       * Bug: exp and expty still refer to old tyvars
+       * Fixed. We now have newexp and newexpty.
+       *)
+      val vbs = Vector.fromList [{exp = newexp, 
         lay = fn _ => Layout.empty, nest = [], pat = subpat}]
       val dec = Dec.Val ({rvbs = Vector.fromList [],
         tyvars = fn _ => newtyvars, vbs = vbs})

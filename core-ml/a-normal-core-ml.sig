@@ -22,6 +22,7 @@ signature A_NORMAL_CORE_ML_STRUCTS =
             val unit: t
             val var : Tyvar.t -> t
             val toMyType : t -> TypeDesc.t
+            val renameTyVars : (Tyvar.t * Tyvar.t) vector -> t -> t
          end
    end
 

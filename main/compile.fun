@@ -474,31 +474,6 @@ in
                end
             val speclang = specast
             val varenv = ElaborateVarEnv.elaborate ancoreML speclang
-            val str = CoreML.Con.toString (CoreML.Con.cons)
-            val _ = messageStr (Top, Bool.toString (CoreML.Var.equals (
-              CoreML.Var.newString str, CoreML.Var.newString str)))
-            val _ = Vector.foreach (userDecs, fn dec => case dec of
-                CoreML.Dec.Datatype dts => Vector.foreach (dts,
-                  fn {cons, tycon, tyvars} => 
-                    let val ty = TypeDesc.makeTconstr (tycon,
-                          Vector.toListMap (tyvars,TypeDesc.makeTvar))
-                    in
-                      Vector.foreach (cons, fn {arg,con} => case arg of
-                          SOME argty => 
-                            let val argty = Type.toMyType argty 
-                                val _ = messageStr(Top,TypeDesc.toString ty)
-                                val _ = messageStr(Top,TypeDesc.toString argty)
-                            in
-                              if TypeDesc.isWidthSubType (ty,argty) then
-                                messageStr (Top, (Atoms.Con.toString con) 
-                                  ^ "is rec\n")
-                              else 
-                                messageStr (Top, (Atoms.Con.toString con) 
-                                  ^ "is not rec\n")
-                            end
-                        | NONE => ())
-                    end)
-              | _ => ())
          in
             Control.messageStr (Control.Top,
               SpecLang.RelSpec.toString specast)

@@ -151,40 +151,40 @@ state 12:
 
 state 13:
 
-	tyatom : basety .  (reduce by rule 32)
+	tyatom : basety .  (reduce by rule 33)
 
 
 
-	.	reduce by rule 32
+	.	reduce by rule 33
 
 
 state 14:
 
-	refty : tyatom .  (reduce by rule 30)
-	refty : tyatom . ARROW tyatom 
+	refty : tyatom .  (reduce by rule 31)
+	refty : tyatom . ARROW refty 
 
 	ARROW	shift 23
+
+
+	.	reduce by rule 31
+
+
+state 15:
+
+	typespec : ID COLON refty .  (reduce by rule 30)
+
 
 
 	.	reduce by rule 30
 
 
-state 15:
-
-	typespec : ID COLON refty .  (reduce by rule 29)
-
-
-
-	.	reduce by rule 29
-
-
 state 16:
 
-	basety : ID .  (reduce by rule 34)
+	basety : ID .  (reduce by rule 35)
 
 
 
-	.	reduce by rule 34
+	.	reduce by rule 35
 
 
 state 17:
@@ -260,13 +260,14 @@ state 22:
 
 state 23:
 
-	refty : tyatom ARROW . tyatom 
+	refty : tyatom ARROW . refty 
 
 	LPAREN	shift 18
 	LCURLY	shift 17
 	ID	shift 16
 
-	tyatom	goto 35
+	refty	goto 35
+	tyatom	goto 14
 	basety	goto 13
 
 	.	error
@@ -316,6 +317,7 @@ state 27:
 
 state 28:
 
+	conpat : ID .  (reduce by rule 10)
 	conpat : ID . conargs 
 
 	LPAREN	shift 42
@@ -323,29 +325,29 @@ state 28:
 
 	conargs	goto 40
 
-	.	error
+	.	reduce by rule 10
 
 
 state 29:
 
 	rexpr : ratom . CROSSPRD rexpr 
 	rexpr : ratom . UNION rexpr 
-	rexpr : ratom .  (reduce by rule 19)
+	rexpr : ratom .  (reduce by rule 20)
 
 	UNION	shift 44
 	CROSSPRD	shift 43
 
 
-	.	reduce by rule 19
+	.	reduce by rule 20
 
 
 state 30:
 
-	rterm : rexpr .  (reduce by rule 16)
+	rterm : rexpr .  (reduce by rule 17)
 
 
 
-	.	reduce by rule 16
+	.	reduce by rule 17
 
 
 state 31:
@@ -395,11 +397,11 @@ state 34:
 
 state 35:
 
-	refty : tyatom ARROW tyatom .  (reduce by rule 31)
+	refty : tyatom ARROW refty .  (reduce by rule 32)
 
 
 
-	.	reduce by rule 31
+	.	reduce by rule 32
 
 
 state 36:
@@ -422,11 +424,11 @@ state 36:
 
 state 37:
 
-	tyatom : LPAREN refty RPAREN .  (reduce by rule 33)
+	tyatom : LPAREN refty RPAREN .  (reduce by rule 34)
 
 
 
-	.	reduce by rule 33
+	.	reduce by rule 34
 
 
 state 38:
@@ -450,20 +452,20 @@ state 39:
 
 state 40:
 
-	conpat : ID conargs .  (reduce by rule 10)
-
-
-
-	.	reduce by rule 10
-
-
-state 41:
-
-	conargs : ID .  (reduce by rule 11)
+	conpat : ID conargs .  (reduce by rule 11)
 
 
 
 	.	reduce by rule 11
+
+
+state 41:
+
+	conargs : ID .  (reduce by rule 12)
+
+
+
+	.	reduce by rule 12
 
 
 state 42:
@@ -517,11 +519,11 @@ state 45:
 
 state 46:
 
-	rterm : ID STAR .  (reduce by rule 15)
+	rterm : ID STAR .  (reduce by rule 16)
 
 
 
-	.	reduce by rule 15
+	.	reduce by rule 16
 
 
 state 47:
@@ -561,22 +563,22 @@ state 49:
 
 state 50:
 
-	relpred : rpatom .  (reduce by rule 37)
+	relpred : rpatom .  (reduce by rule 38)
 	relpred : rpatom . CONJ relpred 
 
 	CONJ	shift 68
 
 
-	.	reduce by rule 37
+	.	reduce by rule 38
 
 
 state 51:
 
-	pred : relpred .  (reduce by rule 36)
+	pred : relpred .  (reduce by rule 37)
 
 
 
-	.	reduce by rule 36
+	.	reduce by rule 37
 
 
 state 52:
@@ -605,11 +607,11 @@ state 53:
 
 state 54:
 
-	rpatom : TRUE .  (reduce by rule 39)
+	rpatom : TRUE .  (reduce by rule 40)
 
 
 
-	.	reduce by rule 39
+	.	reduce by rule 40
 
 
 state 55:
@@ -639,31 +641,31 @@ state 56:
 
 state 57:
 
-	idseq : ID .  (reduce by rule 13)
+	idseq : ID .  (reduce by rule 14)
 	idseq : ID . COMMA idseq 
 
 	COMMA	shift 75
 
 
-	.	reduce by rule 13
+	.	reduce by rule 14
 
 
 state 58:
 
-	rexpr : ratom CROSSPRD rexpr .  (reduce by rule 17)
-
-
-
-	.	reduce by rule 17
-
-
-state 59:
-
-	rexpr : ratom UNION rexpr .  (reduce by rule 18)
+	rexpr : ratom CROSSPRD rexpr .  (reduce by rule 18)
 
 
 
 	.	reduce by rule 18
+
+
+state 59:
+
+	rexpr : ratom UNION rexpr .  (reduce by rule 19)
+
+
+
+	.	reduce by rule 19
 
 
 state 60:
@@ -688,58 +690,58 @@ state 61:
 
 state 62:
 
-	elemseq : elem .  (reduce by rule 23)
+	elemseq : elem .  (reduce by rule 24)
 	elemseq : elem . COMMA elemseq 
 
 	COMMA	shift 78
 
 
-	.	reduce by rule 23
+	.	reduce by rule 24
 
 
 state 63:
 
-	elem : INT .  (reduce by rule 25)
-
-
-
-	.	reduce by rule 25
-
-
-state 64:
-
-	elem : ID .  (reduce by rule 28)
-
-
-
-	.	reduce by rule 28
-
-
-state 65:
-
-	elem : FALSE .  (reduce by rule 27)
-
-
-
-	.	reduce by rule 27
-
-
-state 66:
-
-	elem : TRUE .  (reduce by rule 26)
+	elem : INT .  (reduce by rule 26)
 
 
 
 	.	reduce by rule 26
 
 
+state 64:
+
+	elem : ID .  (reduce by rule 29)
+
+
+
+	.	reduce by rule 29
+
+
+state 65:
+
+	elem : FALSE .  (reduce by rule 28)
+
+
+
+	.	reduce by rule 28
+
+
+state 66:
+
+	elem : TRUE .  (reduce by rule 27)
+
+
+
+	.	reduce by rule 27
+
+
 state 67:
 
-	ratom : LPAREN rexpr RPAREN .  (reduce by rule 22)
+	ratom : LPAREN rexpr RPAREN .  (reduce by rule 23)
 
 
 
-	.	reduce by rule 22
+	.	reduce by rule 23
 
 
 state 68:
@@ -761,11 +763,11 @@ state 68:
 
 state 69:
 
-	basety : LCURLY ID PIPE pred RCURLY .  (reduce by rule 35)
+	basety : LCURLY ID PIPE pred RCURLY .  (reduce by rule 36)
 
 
 
-	.	reduce by rule 35
+	.	reduce by rule 36
 
 
 state 70:
@@ -821,11 +823,11 @@ state 73:
 
 state 74:
 
-	conargs : LPAREN idseq RPAREN .  (reduce by rule 12)
+	conargs : LPAREN idseq RPAREN .  (reduce by rule 13)
 
 
 
-	.	reduce by rule 12
+	.	reduce by rule 13
 
 
 state 75:
@@ -841,11 +843,11 @@ state 75:
 
 state 76:
 
-	ratom : ID LPAREN ID RPAREN .  (reduce by rule 21)
+	ratom : ID LPAREN ID RPAREN .  (reduce by rule 22)
 
 
 
-	.	reduce by rule 21
+	.	reduce by rule 22
 
 
 state 77:
@@ -875,65 +877,65 @@ state 78:
 
 state 79:
 
-	relpred : rpatom CONJ relpred .  (reduce by rule 38)
+	relpred : rpatom CONJ relpred .  (reduce by rule 39)
 
 
 
-	.	reduce by rule 38
+	.	reduce by rule 39
 
 
 state 80:
 
-	rpatom : rexpr EQUALOP rexpr .  (reduce by rule 40)
-
-
-
-	.	reduce by rule 40
-
-
-state 81:
-
-	rpatom : rexpr SUBSET rexpr .  (reduce by rule 41)
+	rpatom : rexpr EQUALOP rexpr .  (reduce by rule 41)
 
 
 
 	.	reduce by rule 41
 
 
-state 82:
+state 81:
 
-	rpatom : rexpr SUBSETEQ rexpr .  (reduce by rule 42)
+	rpatom : rexpr SUBSET rexpr .  (reduce by rule 42)
 
 
 
 	.	reduce by rule 42
 
 
+state 82:
+
+	rpatom : rexpr SUBSETEQ rexpr .  (reduce by rule 43)
+
+
+
+	.	reduce by rule 43
+
+
 state 83:
 
-	idseq : ID COMMA idseq .  (reduce by rule 14)
+	idseq : ID COMMA idseq .  (reduce by rule 15)
 
 
 
-	.	reduce by rule 14
+	.	reduce by rule 15
 
 
 state 84:
 
-	ratom : LCURLY LPAREN elemseq RPAREN RCURLY .  (reduce by rule 20)
+	ratom : LCURLY LPAREN elemseq RPAREN RCURLY .  (reduce by rule 21)
 
 
 
-	.	reduce by rule 20
+	.	reduce by rule 21
 
 
 state 85:
 
-	elemseq : elem COMMA elemseq .  (reduce by rule 24)
+	elemseq : elem COMMA elemseq .  (reduce by rule 25)
 
 
 
-	.	reduce by rule 24
+	.	reduce by rule 25
 
 
 state 86:
@@ -945,4 +947,4 @@ state 86:
 	.	error
 
 57 of 181 action table entries left after compaction
-58 goto table entries
+59 goto table entries

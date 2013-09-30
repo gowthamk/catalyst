@@ -864,6 +864,24 @@ structure Type =
       		| Var a => TypeDesc.makeTvar a
       		| _ => TypeDesc.makeTunknown()
 
+      (* Add a function to rename tyvars in type *)
+      (* Author : GK *)
+      fun renameTyVars (substs : (Tyvar.t * Tyvar.t) vector) ty =
+        let
+          fun applySubst v = Vector.foldr (substs,v,
+            fn ((new,old),v) => if Tyvar.sameName (old,v) then new else v)
+          val newty = case toType ty of
+            Var v => Var (applySubst v)
+          | Con (c, ts) => Con (c, Vector.map (ts,renameTyVars substs))
+          | Record sr => (Record o Srecord.fromVector) (Vector.map 
+              (Srecord.toVector sr, fn (lbl,t) => 
+                (lbl,renameTyVars substs t)))
+          | ty => ty
+          val eq = equality ty
+        in
+          newTy (newty,eq)
+        end
+ 
       local
          fun make (ov, eq) () = newTy (Overload ov, eq)
          datatype z = datatype Overload.t

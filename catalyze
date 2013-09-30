@@ -20,7 +20,7 @@ hpux)
 ;;
 esac
 # Uncomment the following line and ...
-#mlton="./make"
+mlton="./make"
 # comment the following to execute catalyst compiled with mlton
 smlnj='sml'
 if $smlnj -h >/dev/null 2>&1; then

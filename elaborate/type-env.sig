@@ -75,6 +75,8 @@ signature TYPE_ENV =
             (*Add a function to the Type Strucuture: We expose our type
             structure which is translated from ML type structure.*)
             val toMyType: t -> TypeDesc.t
+            (* Add function to rename tyvars in a type *)
+            val renameTyVars : (Tyvar.t * Tyvar.t) vector -> t -> t
          end
 (*      sharing type Type.intSize = IntSize.t *)
       sharing type Type.realSize = RealSize.t
