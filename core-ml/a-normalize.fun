@@ -103,7 +103,7 @@ struct
     A.Exp.Val.Atom (A.Exp.Val.Var (var,tyvec))
 
   val tyvarvToTyv = fn tyvars => Vector.map (tyvars, fn tyvar =>
-    (Type.var o Tyvar.newNoname) {equality = (Tyvar.isEquality tyvar)})
+    (Type.var o Tyvar.newLike) tyvar)
 
   fun getValBindForPat (pat : A.Pat.t) (tyvars : Tyvar.t vector): 
       (Var.t * A.Dec.t) =
@@ -509,8 +509,9 @@ struct
                 val (newpat,patdecs) = doItPat pat (Vector.fromList [])
                 val (mexpdecs, mexp) = doItExp exp (Vector.fromList [])
                 val mexpnode = Exp.node mexp and mexpty = Exp.ty mexp
-                val newexpnode = case mexpnode of
-                    Exp.Let (decv,e) => (case mexpdecs of [] => 
+                val newexpnode = case (mexpdecs,mexpnode) of
+                    ([],_) => mexpnode
+                  | (_,Exp.Let (decv,e)) => (case mexpdecs of [] => 
                         Exp.Let (Vector.concat [Vector.fromList patdecs, decv],e)
                       | _ => Error.bug ("Assumption abt let failed."))
                   | _ => Exp.Let (Vector.concat [Vector.fromList patdecs, 
@@ -664,7 +665,8 @@ struct
             fn ({exp,lay,nest,pat, ...},(pre, cur, post)) => 
               let
                 val (subexpdecs,newexp) = doItExp exp (tyvars())
-                val (newpat,spatdecs) = doItPat pat (tyvars())
+                val (newpat,spatdecs) = (A.Pat.make (A.Pat.Wild, C.Pat.ty pat),[])
+               (*doItPat pat (tyvars())*)
                 val vb' = {exp = newexp, lay = lay, nest = nest,
                   pat = newpat}
               in

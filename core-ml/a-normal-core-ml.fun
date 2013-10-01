@@ -27,29 +27,29 @@ fun layoutTargs (ts: Type.t vector) =
 structure Pat =
    struct
 
-  structure Val =
-          struct
-            datatype atom =
-                Const of Const.t
-              | Var of Var.t
+      structure Val =
+        struct
+          datatype atom =
+              Const of Const.t
+            | Var of Var.t
 
-            datatype t = 
-                Atom of atom
-              | Tuple of atom vector
-              | Record of atom Record.t
+          datatype t = 
+              Atom of atom
+            | Tuple of atom vector
+            | Record of atom Record.t
 
-            fun layout v = 
-              let
-                open Layout
-              in
-                case v of
-                  Atom (Const c) => Const.layout c
-                | Atom (Var v) => Var.layout v
-                | Tuple av => seq (Vector.toListMap (av, fn v => layout (Atom v)))
-                | Record r => record (Vector.toListMap (Record.toVector r, fn (f, p) =>
-                               (Field.toString f, layout (Atom p))))
-              end
-          end
+          fun layout v = 
+            let
+              open Layout
+            in
+              case v of
+                Atom (Const c) => Const.layout c
+              | Atom (Var v) => Var.layout v
+              | Tuple av => tuple (Vector.toListMap (av, fn v => layout (Atom v)))
+              | Record r => record (Vector.toListMap (Record.toVector r, fn (f, p) =>
+                             (Field.toString f, layout (Atom p))))
+            end
+        end
 
       datatype t = T of {node: node,
                          ty: Type.t}
@@ -156,16 +156,17 @@ in
   fun exp_val_layt v = case v of
       Atom (Const c) => Const.layout c
     | Atom (Var (v,targs)) =>
-      let
-        val tylayt = if Vector.isEmpty targs
-          then empty
-          else seq [Vector.layout Type.layout targs, str " "]
-      in
-        paren (seq [Var.layout v, str " ", tylayt])
-      end 
+        if Vector.isEmpty targs then Var.layout v
+          else seq [Var.layout v, str " ", tuple (Vector.toListMap
+            (targs, Type.layout))]
     | Tuple av => seq (Vector.toListMap (av, fn v => exp_val_layt (Atom v)))
-    | Record r => record (Vector.toListMap (Record.toVector r, fn (f, p) =>
-                   (Field.toString f, exp_val_layt (Atom p))))
+    | Record r => Record.layout
+            {extra = "",
+             layoutElt = fn atm => exp_val_layt (Atom atm),
+             layoutTuple = fn es => tuple (Vector.toListMap (es, 
+                fn atm => exp_val_layt (Atom atm))),
+             record = r,
+             separator = " = "}
 
    fun layoutTyvars (ts: Tyvar.t vector) =
       case Vector.length ts of
