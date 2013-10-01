@@ -32,18 +32,27 @@ struct
 
   fun unifyConArgs (ve : VE.t) (con : Con.t) (vars : Var.t vector) =
     let
-      val conTy = RefTyS.specialize (VE.find ve 
-        (Var.fromString(Con.toString con)))
+      val conStr = Con.toString con
+      val convid = Var.fromString conStr
+      val lenstr = fn v => (Int.toString o Vector.length) v
+      val conTy = RefTyS.specialize (VE.find ve convid)
+        handle (VE.VarNotFound v) => Error.bug ("Could not find constructor "
+          ^ conStr  ^ " in varenv\n")
       open RefTy
     in
       case conTy of 
-        Base (bv,_,_) => (assert(Vector.isEmpty vars); Vector.fromList [])
+        Base (bv,_,_) => (assert(Vector.isEmpty vars, 
+          "Nullary constructor "^conStr^" applied to arguments"); 
+          Vector.fromList [])
       | Arrow (Base (bv,argTyD,_),Base (_,datTyD,_)) => 
-          (assert (Vector.length vars = 1);
+          (assert (Vector.length vars = 1, 
+          conStr ^ " expects 1 arg. " ^ (lenstr vars) ^ " given");
           Vector.map (vars,fn (var) => 
             (bv, var, TyD.sametype (argTyD,datTyD))))
       | Arrow (Tuple tv, Base (_,datTyD,_)) =>
-          (assert (Vector.length tv = Vector.length vars);
+          (assert (Vector.length tv = Vector.length vars,
+          conStr ^ " expects "^ (lenstr tv) ^" args. " 
+            ^ (lenstr vars) ^ " given");
          Vector.map2 (tv,vars,fn (Base (bv,argTyD,_), var) =>
             (bv, var, TyD.sametype (argTyD,datTyD))))
       | _ => raise (Fail "Could not unify and determine rec args")
@@ -58,15 +67,17 @@ struct
       val rexpr' = RelLang.applySubsts substs rexpr
       val newref = fn var => RP.Eq (RelLang.app(id,var),rexpr')
       val RefTyS.T {tyvars,refty} = VE.find ve convid
+        handle (VE.VarNotFound v) => Error.bug ("Could not find constructor "
+          ^ (Var.toString convid) ^ " in varenv\n")
       val annotConTy = case refty of
           RefTy.Base (bv,tyd,pred) => RefTy.Base (bv,tyd, 
             Predicate.conjR (pred,newref bv))
-        | RefTy.Arrow (_,RefTy.Base (bv,tyd,pred)) => RefTy.Base (bv,tyd, 
-            Predicate.conjR (pred,newref bv))
+        | RefTy.Arrow (arg,RefTy.Base (bv,tyd,pred)) => RefTy.Arrow(arg,
+            RefTy.Base (bv,tyd, Predicate.conjR (pred,newref bv)))
         | _ => raise (Fail "Constructor type is neither base not arrow")
       val newTyS = RefTyS.generalize (tyvars,annotConTy)
     in
-      VE.add ve (convid,newTyS)
+      VE.add (VE.remove ve convid) (convid,newTyS)
     end
 
   fun elabSRBind (re: RE.t)(ve : VE.t) {id,ty,map} =
@@ -79,7 +90,8 @@ struct
         | RelLang.Star relId => 
           let
             val {ty,map} = RE.find re relId 
-              handle RE.RelNotFound => raise (Fail "Ind of unknown relation")
+              handle (RE.RelNotFound r) => raise (Fail 
+                ("Ind of unknown relation : "^(RelLang.RelId.toString r)))
           in
             Vector.map (map, fn (con,valop,rexpr) => case valop of 
                 NONE => (con,valop,rexpr)
@@ -107,11 +119,15 @@ struct
         case dec of Dec.Datatype datbinds => Vector.fold (datbinds, ve,
           fn (datbind,ve)   => elabDatBind ve datbind) 
           | _ => ve)
+      val _ = print (VE.toString initialVE)
       val elabRE = Vector.fold (reldecs, RE.empty, 
         fn(StructuralRelation.T srbind,re) => elabSRBind re initialVE srbind)
+      val _ = print (RE.toString elabRE)
+      (*val refinedVE = initialVE*)
       val refinedVE = Vector.fold (RE.toVector elabRE, initialVE, 
         fn ((id,{ty,map}),ve) => Vector.fold (map, ve, 
           fn (conPatBind,ve) => addRelToConTy ve conPatBind id))
+      val _ = print (VE.toString refinedVE)
     in
       refinedVE
     end

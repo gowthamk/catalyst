@@ -57,7 +57,8 @@ fun getDepth () = !depth
 fun indent () = depth := !depth + 3
 fun unindent () = depth := !depth - 3
 
-fun assert cond = if cond then () else raise (Fail "Assertion failed")
+fun assert (cond,errmsg) = if cond then () else 
+  raise (Fail ("Assertion failed: "^errmsg))
 
 fun message (verb: Verbosity.t, th: unit -> Layout.t): unit =
    if Verbosity.<= (verb, !verbosity)

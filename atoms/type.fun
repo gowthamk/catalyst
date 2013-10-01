@@ -21,15 +21,14 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
 	 	fun makeTunknown () = Tunknown
 
     fun toString t = case t of
-        Tunknown => "Tunknown"
-      | Tvar v  => "Tvar ("^(Tyvar.toString v)^")"
-      | Tarrow (t1,t2)=> "Tarrow ("^(toString t1)^","^(toString t2)^")"
-      | Trecord tdrec => "Trecord {" ^ (Vector.fold (Record.toVector tdrec,"",
-          fn((lbl,td),acc) => (Field.toString lbl) ^ " : " ^ (toString td) 
-            ^ "," ^ acc)) ^ "}"
-      | Tconstr (tc,tdl) => "Tconstr("^(Tycon.toString tc)^","^"["^
-            (List.fold 
-            (tdl,"",(fn(t,s)=>(s^","^(toString t)))))^"])"
+        Tunknown => "<?>"
+      | Tvar v  => Tyvar.toString v
+      | Tarrow (t1,t2)=> "("^(toString t1)^") -> ("^(toString t2)^")"
+      | Trecord tdrec => "{" ^ (Vector.toString (fn (lbl,td) => 
+          (Field.toString lbl) ^ " : " ^ (toString td)) 
+          (Record.toVector tdrec)) ^ "}"
+      | Tconstr (tc,tdl) => "(" ^ (List.toString toString tdl) ^") " 
+          ^ (Tycon.toString tc)
 
     fun sametype (t1,t2) = 
       let 

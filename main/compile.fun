@@ -424,6 +424,25 @@ local
    open Atoms
    open Control
    structure Type = TypeEnv.Type
+   val primitiveDatatypes =
+      Vector.new1
+      (let
+          val a = Tyvar.newNoname {equality = false}
+       in
+          {tycon = Tycon.list,
+           tyvars = Vector.new1 a,
+           cons = Vector.new3 ({con = Con.nill, arg = NONE},
+                               {con = Con.cons,
+                                arg = SOME (Type.tuple
+                                            (Vector.new2
+                                             (Type.var a,
+                                              Type.list (Type.var a))))},
+                               {con = Con.fromString "cons",
+                                arg = SOME (Type.tuple
+                                            (Vector.new2
+                                             (Type.var a,
+                                              Type.list (Type.var a))))})}
+       end)
    fun genMLB {input: File.t list}: MLBString.t =
       let
          val basis = "$(SML_LIB)/basis/default.mlb"
@@ -460,7 +479,10 @@ in
             val starti = case catexpi of SOME i => i
               | NONE => Error.bug "Exception Catalyst not declared"
             val userDecs = Vector.dropPrefix (decs,starti+1)
-            val coreML = CoreML.Program.T{decs=userDecs}
+            val primitiveDecs = Vector.map (primitiveDatatypes,
+              (CoreML.Dec.Datatype o Vector.new1))
+            val coreML = CoreML.Program.T{decs = Vector.concat 
+              [primitiveDecs, userDecs]}
             val ancoreML = ANormalize.doIt coreML
             val _ =
                let open Control

@@ -13,24 +13,46 @@ struct
   struct
     type t = RelLang.RelId.t
     val equal = relIdStrEq
+    val toString = RelLang.RelId.toString
+  end
+  structure Value:VALUE = 
+  struct
+    type t = reldesc
+    val toString = fn ({ty,map}) =>
+      let
+        val conmap = "{" ^ (Vector.toString (fn (c,vlo,rexpr) =>
+            let
+              val cstr = Con.toString c
+              val vseq = case vlo of NONE => ""
+                | SOME vl => Vector.toString Var.toString vl
+              val trmstr = RelLang.exprToString rexpr
+            in
+              cstr ^ vseq ^ " => " ^ trmstr
+            end) map) ^ "}\n"
+      in
+        conmap
+      end
   end
 
-  structure RelMap = ApplicativeMap (structure Key = Key)
+  structure RelMap = ApplicativeMap (structure Key = Key
+                                     structure Value = Value)
 
-  exception RelNotFound
+  exception RelNotFound of RelLang.RelId.t
 
-  type t = reldesc RelMap.t
+  type t = RelMap.t
 
   val empty = RelMap.empty
 
   val mem = RelMap.mem
 
   fun find env relId = RelMap.find env relId 
-    handle KeyNotFound => raise RelNotFound
+    handle (RelMap.KeyNotFound k) => raise (RelNotFound k)
 
   val add = fn env => fn (var,tys) => RelMap.add env var tys 
 
   val remove = RelMap.remove
 
   val toVector = RelMap.toVector
+
+  val toString = RelMap.toString
 end

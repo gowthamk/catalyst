@@ -2,20 +2,28 @@ signature KEY =
 sig
   type t
   val equal : t*t -> bool
+  val toString : t -> string
+end
+signature VALUE =
+sig
+  type t
+  val toString : t -> string
 end
 signature APPLICATIVE_MAP_STRUCTS =
 sig
   structure Key : KEY
+  structure Value : VALUE
 end
 signature APPLICATIVE_MAP = 
 sig
   include APPLICATIVE_MAP_STRUCTS
-  exception KeyNotFound
-  type 'a t
-  val empty : 'a t
-  val mem : 'a t -> Key.t -> bool
-  val find : 'a t -> Key.t -> 'a
-  val add : 'a t -> Key.t -> 'a -> 'a t
-  val remove : 'a t -> Key.t -> 'a t
-  val toVector : 'a t -> (Key.t * 'a) vector
+  exception KeyNotFound of Key.t
+  type t
+  val empty : t
+  val mem : t -> Key.t -> bool
+  val find : t -> Key.t -> Value.t
+  val add : t -> Key.t -> Value.t -> t
+  val remove : t -> Key.t -> t
+  val toVector : t -> (Key.t * Value.t) vector
+  val toString : t -> string
 end

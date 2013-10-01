@@ -8,7 +8,7 @@ sig
   type reldesc = { ty : unit,
                   map : (Con.t * Var.t vector option * RelLang.expr) 
                     vector}
-  exception RelNotFound
+  exception RelNotFound of RelLang.RelId.t
   type t
   val empty : t
   val mem : t -> RelLang.RelId.t -> bool
@@ -16,4 +16,5 @@ sig
   val add : t -> (RelLang.RelId.t * reldesc) -> t
   val remove : t -> RelLang.RelId.t -> t
   val toVector : t -> (RelLang.RelId.t * reldesc) vector
+  val toString : t -> string
 end

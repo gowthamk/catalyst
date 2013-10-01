@@ -36,6 +36,7 @@ sig
                        ty : unit,
                        map : (Con.t * Var.t vector option * RelLang.term)
                              vector}
+    val conMapToString : (Con.t * Var.t vector option * RelLang.term) vector -> string
     val toString : t -> string
   end
 
@@ -92,6 +93,7 @@ sig
                         refty : RefinementType.t }
       val generalize : Tyvar.t vector * RefinementType.t -> t
       val specialize: t -> RefinementType.t
+      val toString : t -> string
     end
 
   structure RelSpec : 

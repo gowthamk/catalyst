@@ -98,6 +98,7 @@ patmatchseq : patmatch PIPE patmatchseq (patmatch :: patmatchseq)
 
 patmatch : LPAREN conpat RPAREN EQUALOP rterm 
               (case conpat of (c,vlop) => (c,vlop,rterm))
+         | ID EQUALOP rterm ((Con.fromString ID,NONE,rterm))
 
 conpat :  ID (Con.fromString ID, NONE)
        |  ID conargs (Con.fromString ID, SOME conargs)
@@ -115,7 +116,8 @@ rexpr : ratom CROSSPRD rexpr (X(ratom,rexpr))
       | ratom UNION rexpr (U(ratom,rexpr))
       | ratom (ratom)
 
-ratom : LCURLY LPAREN elemseq RPAREN RCURLY (T(Vector.fromList elemseq))
+ratom : LCURLY LPAREN RPAREN RCURLY (T(Vector.fromList []))
+      | LCURLY LPAREN elemseq RPAREN RCURLY (T(Vector.fromList elemseq))
       | ID LPAREN ID RPAREN (R(RelId.fromString ID1, Var.fromString ID2))
       | LPAREN rexpr RPAREN (rexpr)
 

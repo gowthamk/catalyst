@@ -15,7 +15,7 @@ signature CONTROL =
        * Some take a verbosity argument that specifies the verbosity level at
        * which messages should be printed. 
        *)
-      val assert : bool -> unit
+      val assert : (bool * string) -> unit
       val message: verbosity * (unit -> Layout.t) -> unit
       val messageStr: verbosity * string -> unit
       val sizeMessage: string * 'a -> Layout.t

@@ -43,7 +43,7 @@ struct
       let
         val doIt = applySubsts substs
         (* caution : telescoped substitutions *)
-        fun subst v = Vector.fold (substs, v, fn ((old,new),v) =>
+        fun subst v = Vector.fold (substs, v, fn ((new,old),v) =>
           if (Var.toString old = Var.toString v) then new else v)
         fun elemSubst elem = case elem of
             Var v => Var (subst v)
@@ -62,19 +62,27 @@ struct
     datatype t = T of {id : RelLang.RelId.t,
                        ty : unit,
                        map : (Con.t * Var.t vector option * RelLang.term) vector}
+
+    fun conMapToString map =
+      let
+        val conmap = "{" ^ (Vector.toString (fn (c,vlo,trm) =>
+            let
+              val cstr = Con.toString c
+              val vseq = case vlo of NONE => ""
+                | SOME vl => Vector.toString Var.toString vl
+              val trmstr = RelLang.termToString trm
+            in
+              cstr ^ vseq ^ " => " ^ trmstr
+            end) map) ^ "}\n"
+      in
+        conmap
+      end
+
     val toString = fn T{id,ty,map} =>
       let val relid = Var.toString id
-          val conmap = Vector.fold (map,"\n",fn((c,vlo,trm),acc) => 
-            let val cstr = Con.toString c
-                val vseq = case vlo of NONE => ""
-                  | SOME vl => "(" ^ (Vector.fold (vl,"",fn(v,acc) => 
-                      (Var.toString v) ^ "," ^ acc)) ^ ")"
-                val trmstr = RelLang.termToString trm
-            in
-              "| " ^ cstr ^ vseq  ^ " = " ^ trmstr ^ "\n" ^ acc 
-            end)
+          val conmap = conMapToString map
       in
-        "relation " ^ relid ^ conmap
+        "relation " ^ relid ^ " = " ^ conmap
       end
   end
 
@@ -163,11 +171,11 @@ struct
       end
 
     fun toString rty = case rty of
-          Base(var,_,pred) => "{" ^ (Var.toString var) ^ " | "
-              ^ (Predicate.toString pred) ^ "}"
-        | Tuple tv => "(" ^ (Vector.fold (tv,"",fn (rt,acc) => 
-            acc ^ (toString rt) ^ ",")) ^ ")"
-        | Arrow (t1,t2) => (toString t1) ^ " -> " ^ (toString t2)
+          Base(var,td,pred) => "{" ^ (Var.toString var) ^ ":" 
+            ^ (TypeDesc.toString td) ^ " | " ^ (Predicate.toString pred) ^ "}"
+        | Tuple tv => Vector.toString toString tv
+        | Arrow (t1,t2) => "(" ^ (toString t1) ^ ") -> (" 
+          ^ (toString t2) ^ ")"
 
     val toString = toString
   end
@@ -181,6 +189,14 @@ struct
         T {tyvars = tyvars, refty = refty}
       val specialize = fn (T {tyvars,refty}) =>
         refty
+      fun toString (T {tyvars,refty}) =
+        let
+          val tyvstr = if Vector.isEmpty tyvars then ""
+            else Vector.toString Tyvar.name tyvars
+          val reftystr = RefinementType.toString refty
+        in
+          tyvstr ^ reftystr
+        end
     end
 
   structure RelSpec =
@@ -195,10 +211,9 @@ struct
     datatype t = T of {reldecs : StructuralRelation.t vector,
                        typespecs : TypeSpec.t vector}
     val toString = fn T ({reldecs,typespecs,...}) =>
-      let val srs = Vector.fold (reldecs, "", fn (reldec,acc) =>
-            (StructuralRelation.toString reldec) ^ ";\n" ^ acc)
-          val tss = Vector.fold (typespecs, "", fn (typespec,acc) =>
-            (TypeSpec.toString typespec) ^ ";\n" ^acc)
+      let 
+        val srs = Vector.toString StructuralRelation.toString reldecs          
+        val tss = Vector.toString TypeSpec.toString typespecs
       in
         srs^tss
       end
