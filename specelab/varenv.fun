@@ -1,6 +1,8 @@
 functor VarEnv (S : VAR_ENV_STRUCTS) : VAR_ENV = 
 struct
   open S
+  
+  open SpecLang
 
   type tyscheme = RefinementTypeScheme.t
 

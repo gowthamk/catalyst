@@ -7,9 +7,11 @@
  *)
 
 Group
-  signature VAR_ENV
-  signature ELABORATE_VAR_ENV
-  functor ElaborateVarEnv
+
+  signature VERIFICATION_CONDITION
+  functor VerificationCondition
+  signature SPEC_VERIFY
+  functor SpecVerify
 
 is
    ../atoms/sources.cm
@@ -17,11 +19,8 @@ is
    ../lib/mlton/sources.cm
    ../speclang/sources.cm
    ../core-ml/sources.cm
-  map.sig
-  map.fun
-  varenv.sig
-  varenv.fun
-  relenv.sig
-  relenv.fun
-  elaborate_varenv.sig
-  elaborate_varenv.fun
+   ../specelab/sources.cm
+   vc.sig
+   vc.fun
+   specverify.sig
+   specverify.fun

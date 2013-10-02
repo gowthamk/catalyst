@@ -1,12 +1,13 @@
 signature VAR_ENV_STRUCTS = 
 sig
-  include SPEC_LANG
+  structure Var : ID
+  structure SpecLang : SPEC_LANG
 end
 signature VAR_ENV = 
 sig
   include VAR_ENV_STRUCTS
   type tyscheme
-  sharing type tyscheme  = RefinementTypeScheme.t
+  sharing type tyscheme  = SpecLang.RefinementTypeScheme.t
   exception VarNotFound of Var.t
   type t
   val empty : t

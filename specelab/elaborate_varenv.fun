@@ -3,7 +3,8 @@ struct
   open S
   open SpecLang
   open ANormalCoreML
-  structure VE = VarEnv (open SpecLang)
+  structure VE = VarEnv (structure Var = Var
+                         structure SpecLang = SpecLang)
   structure RE = RelEnv (open SpecLang)
   structure TyD = TypeDesc
   structure RefTy = RefinementType

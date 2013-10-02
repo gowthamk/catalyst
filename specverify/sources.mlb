@@ -12,16 +12,14 @@ local
    ../lib/mlton/sources.mlb
    ../speclang/sources.mlb
    ../core-ml/sources.mlb
-  map.sig
-  map.fun
-  varenv.sig
-  varenv.fun
-  relenv.sig
-  relenv.fun
-  elaborate_varenv.sig
-  elaborate_varenv.fun
+   ../specelab/sources.mlb
+   vc.sig
+   vc.fun
+   specverify.sig
+   specverify.fun
 in
-  signature VAR_ENV
-  signature ELABORATE_VAR_ENV
-  functor ElaborateVarEnv
+  signature VERIFICATION_CONDITION
+  functor VerificationCondition
+  signature SPEC_VERIFY
+  functor SpecVerify
 end
