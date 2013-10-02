@@ -119,15 +119,11 @@ struct
         case dec of Dec.Datatype datbinds => Vector.fold (datbinds, ve,
           fn (datbind,ve)   => elabDatBind ve datbind) 
           | _ => ve)
-      val _ = print (VE.toString initialVE)
       val elabRE = Vector.fold (reldecs, RE.empty, 
         fn(StructuralRelation.T srbind,re) => elabSRBind re initialVE srbind)
-      val _ = print (RE.toString elabRE)
-      (*val refinedVE = initialVE*)
       val refinedVE = Vector.fold (RE.toVector elabRE, initialVE, 
         fn ((id,{ty,map}),ve) => Vector.fold (map, ve, 
           fn (conPatBind,ve) => addRelToConTy ve conPatBind id))
-      val _ = print (VE.toString refinedVE)
     in
       refinedVE
     end

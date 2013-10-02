@@ -114,6 +114,7 @@ structure ANormalize = ANormalize (structure CoreML = CoreML
                                    structure ANormalCoreML = ANormalCoreML)
 structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
                                    structure ANormalCoreML = ANormalCoreML)
+structure VE = ElaborateVarEnv.VE
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
 (* ------------------------------------------------- *)
@@ -494,8 +495,20 @@ in
                                       Layouts ANormalCoreML.Program.layouts))
                   else ()
                end
+            fun $ (f,arg) = f arg
+            infixr 5 $
             val speclang = specast
-            val varenv = ElaborateVarEnv.elaborate ancoreML speclang
+            val ve = ElaborateVarEnv.elaborate ancoreML speclang
+            (* 
+             * ML has ::, but not cons. So, ty(::) <- ty(cons) 
+             * and remove cons from ve.
+             *)
+            val consvid = Var.fromString "cons"
+            val consvid' = Var.fromString $ Con.toString Con.cons
+            val consty = VE.find ve consvid
+            val ve = VE.add (VE.remove (VE.remove ve consvid) consvid')
+              (consvid',consty)
+            val _ = print $ VE.toString ve
          in
             Control.messageStr (Control.Top,
               SpecLang.RelSpec.toString specast)
