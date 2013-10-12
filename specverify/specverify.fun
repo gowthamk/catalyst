@@ -22,14 +22,24 @@ struct
   val assert = Control.assert
   val unifiable = TyD.unifiable
   fun toRefTyS refTy = RefTyS.generalize (Vector.new0(), refTy)
-  val symbase = "sv_"
   val count = ref 4096
-  val genVar = fn _ => 
+  fun getUniqueId symbase =
     let val id = symbase ^ (Int.toString (!count))
         val _ = count := !count + 1
     in
       Var.fromString id 
     end
+  fun genVar () =  getUniqueId "sv_" 
+  fun getUniqueMarker () = getUniqueId "_mark_"
+  fun dummyRefTyS () = RefTyS.generalize (Vector.new0(),RefTy.fromTyD
+    (TyD.makeTunknown()))
+  fun varEq (v1,v2) = ((Var.toString v1) = (Var.toString v2))
+  fun markVE ve = 
+    let
+      val marker = getUniqueMarker ()
+    in
+      (marker,VE.add ve (marker,dummyRefTyS()))
+    end 
 
   (*
    * Produces a refTy' with base types taken from TyD and
@@ -76,8 +86,62 @@ struct
       refTy'
     end
 
-  fun wellFormedType (ve : VE.t) (refty : RefTy.t) : RefTy.t =
-    raise  Fail $ "unimpl"
+  val elabPatVal = fn (ve,tyvars,patval,expty) =>
+    let
+      open Pat.Val
+      fun elabPatVal (ve,patval,expty) : VE.t = case (patval,expty) of
+        (Atom (Wild),_) => ve
+      | (Atom (Const c),_) => Error.bug ("unimpl constant pats")
+      | (Atom (Var v),_) => VE.add ve (v, RefTyS.generalize 
+          (tyvars,expty))
+      | (Tuple patatoms,RefTy.Tuple refTys) => Vector.fold2 
+          (patatoms, refTys, ve, fn (patatom,refTy,ve) =>
+            elabPatVal (ve,Atom patatom,refTy))
+      | (Record patmrec, RefTy.Tuple refTys) => Vector.fold
+          (Record.toVector patmrec, ve, fn ((lbl,patom),ve) =>
+            let
+              val indx = Vector.index (refTys, fn refTy =>
+                case refTy of RefTy.Base (bv,_,_) => 
+                  Field.toString lbl = Var.toString bv
+                | _ => false)
+              val refTy = case indx of SOME i => Vector.sub (refTys,i)
+                | NONE => RefTy.fromTyD $ TyD.makeTunknown () 
+                  (* Unimpl : Nested records *)
+            in
+              elabPatVal (ve, Atom patom, refTy)
+            end)
+      | _ => Error.bug ("Expression type is not row type.")
+    in
+      elabPatVal (ve,patval,expty)
+    end
+
+  (*
+   * Invariant : bv and td of ty is unchanged.
+   *)
+  fun wellFormedType (marker : Var.t, markedVE : VE.t, ty : RefTy.t) 
+    : RefTy.t =
+    let
+      (* we rely on the fact the VE is ordered *)
+      val vevec = VE.toVector markedVE
+      val indx = Vector.index (vevec, fn (v,_) => varEq (v,marker))
+      val i = case indx of SOME i => i | _ => Error.bug "Marker absent"
+      (*
+       * tyvars are only generalized for function types and tuple types.
+       * We do not need vars with such types as they are not referenced
+       * from type refinements.
+       *)
+      val extyvec = Vector.map (Vector.prefix (vevec,i), fn (v,rtys) =>
+        (v,RefTyS.specialize rtys))
+      val (tyDB,pred1)= Vector.fold (extyvec,(TyDBinds.empty,Predicate.truee()),
+        fn ((exvar,exty),(clos,pred')) =>
+          case exty of
+            RefTy.Base (bv,extd,pred) => (TyDBinds.add clos exvar extd,
+              Predicate.conj (pred',Predicate.applySubst (exvar,bv) pred))
+          | _ => (clos,pred'))
+    in
+      RefTy.mapBaseTy ty (fn (v,td,pred) => (v,td,
+        Predicate.exists (tyDB,Predicate.conj(pred1,pred))))
+    end
 
   (*
    * For functions with dependent types, bound variables within argument
@@ -126,10 +190,38 @@ struct
       | _ => raise Fail $ "Invalid argTy-argExpVal pair encountered"
     end
 
-  fun typeSynthExp (ve : VE.t, exp : Exp.t) : VC.t vector * RefTy.t =
+    fun unifyWithDisj (refTy1 : RefTy.t,refTy2 : RefTy.t) : RefTy.t =
+      let
+        open RefTy
+      in
+        case (refTy1,refTy2) of
+          (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
+            let
+              val _ = assert (TyD.sameType (td1,td2), "Typedescs from \
+                \ two branches of case did not match")
+              val pred1' = Predicate.applySubst (bv2,bv1) pred1
+            in
+              Base (bv2,td2,Predicate.disj(pred1,pred2))
+            end
+        | (Tuple t1,Tuple t2) => (Tuple o Vector.map2) (t1,t2, 
+            fn (r1,r2) => case (r1,r2) of
+              (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
+                let
+                  val _ = assert (varEq (bv1,bv2), "Labels of tuples from \
+                    \ two branches of case did not match")
+                in
+                 unifyWithDisj (r1,r2)
+                end
+            | _ => unifyWithDisj (r1,r2))
+        | (Arrow _,Arrow _) => Error.bug "Unimpl : Case returning arrow"
+        | _ => Error.bug "Case rules types not unifiable"
+      end 
+
+  fun typeSynthValExp (ve:VE.t, valexp : Exp.Val.t) : RefTy.t = 
     let
       open Exp
-      fun typeSynthValExp (ve:VE.t, valexp : Val.t) : RefTy.t = case valexp of
+    in
+      case valexp of
         Val.Atom (Val.Const c) => RefTy.fromTyD (TyD.makeTunknown ())
       | Val.Atom (Val.Var (v,typv)) =>  
         let
@@ -161,6 +253,14 @@ struct
             in
               RefTy.alphaRename atmTy newbv
             end)
+    end
+
+  fun typeSynthExp (ve : VE.t, exp : Exp.t) : VC.t vector * RefTy.t =
+    let
+      open Exp
+      val expTy = ty exp
+      val trivialAns = fn _ => (Vector.new0(), RefTy.fromTyD $ 
+        Type.toMyType expTy)
     in
       case node exp of
         App (f,valexp) => 
@@ -183,10 +283,54 @@ struct
           in
             (vcs,resTy)
           end
-      | _ => raise Fail $ "unimpl"
+      | Case {test:Exp.Val.t,rules,...} => 
+          let
+            val (wfTypes,vcs) = Vector.mapAndFold (rules, Vector.new0(), 
+              fn ({pat,exp,...},vcs) =>
+              let
+                val valbind = Dec.PatBind (pat,test)
+                val (marker,markedVE) = markVE ve
+                (* 
+                 * tyvars used, if any, for type instantiations inside
+                 * test are bound at any of the enclosing valbinds. Therefore,
+                 * passing empty for tyvars is sound.
+                 *)
+                val (vcs1,extendedVE) = doItValBind (markedVE,
+                  Vector.new0(),valbind)
+                val (vcs2,ty) = typeSynthExp (extendedVE,exp)
+                val wftype = wellFormedType (marker,extendedVE,ty)
+              in
+                (wftype, Vector.concat [vcs, vcs1, vcs2])
+              end)
+            val (wfTypes,wfType) = Vector.splitLast wfTypes
+            val unifiedType = Vector.fold (wfTypes, wfType, unifyWithDisj)
+          in
+            (*
+             * 1. alphaRename boundvars forall wfTypes to a single var
+             * 2. assert that tyd is same for all
+             * 3. fold all alpha-renamed preds of wftypes with Disj
+             *)
+            (vcs,unifiedType)
+          end
+      | EnterLeave _ => trivialAns ()
+      | Handle _ => trivialAns ()
+      | Lambda l => typeSynthLambda (ve,l)
+      | Let (decs,subExp) => 
+        let
+          val (marker,markedVE) = markVE ve
+          val (vcs1,extendedVE) = doItDecs (markedVE,decs)
+          val (vcs2,subExpTy) = typeSynthExp (extendedVE,subExp)
+        in
+          (Vector.concat [vcs1, vcs2], 
+            wellFormedType (marker,extendedVE,subExpTy))
+        end
+      | PrimApp {args, prim, targs} => trivialAns ()
+      | Raise _ => trivialAns ()
+      | Seq tv => typeSynthExp (ve,Vector.last tv)
+      | Value v => (Vector.new0(),typeSynthValExp (ve,v))
     end
 
-  fun typeSynthLambda (ve : VE.t,lam : Lambda.t) : (VC.t vector * RefTy.t) =
+  and typeSynthLambda (ve : VE.t,lam : Lambda.t) : (VC.t vector * RefTy.t) =
     let
       val {arg,argType,body} = Lambda.dest lam
       val argRefTy = RefTy.fromTyD (Type.toMyType argType)
@@ -199,7 +343,7 @@ struct
       (bodyvcs,RefTy.Arrow (argRefTy,bodyRefTy))
     end
 
-  fun typeCheckLambda (ve : VE.t,lam : Lambda.t, ty : RefTy.t) : VC.t vector =
+  and typeCheckLambda (ve : VE.t,lam : Lambda.t, ty : RefTy.t) : VC.t vector =
     let
       val (argTy,resTy) = case ty of RefTy.Arrow v => v
         | _ => Error.bug "Function with non-arrow type"
@@ -217,36 +361,7 @@ struct
       Vector.concat [bodyvcs,newvcs]
     end
 
-  val elabPatVal = fn (ve,tyvars,patval,expty) =>
-    let
-      open Pat.Val
-      fun elabPatVal (ve,patval,expty) : VE.t = case (patval,expty) of
-        (Atom (Wild),_) => ve
-      | (Atom (Const c),_) => Error.bug ("unimpl constant pats")
-      | (Atom (Var v),_) => VE.add ve (v, RefTyS.generalize 
-          (tyvars,expty))
-      | (Tuple patatoms,RefTy.Tuple refTys) => Vector.fold2 
-          (patatoms, refTys, ve, fn (patatom,refTy,ve) =>
-            elabPatVal (ve,Atom patatom,refTy))
-      | (Record patmrec, RefTy.Tuple refTys) => Vector.fold
-          (Record.toVector patmrec, ve, fn ((lbl,patom),ve) =>
-            let
-              val indx = Vector.index (refTys, fn refTy =>
-                case refTy of RefTy.Base (bv,_,_) => 
-                  Field.toString lbl = Var.toString bv
-                | _ => false)
-              val refTy = case indx of SOME i => Vector.sub (refTys,i)
-                | NONE => RefTy.fromTyD $ TyD.makeTunknown () 
-                  (* Unimpl : Nested records *)
-            in
-              elabPatVal (ve, Atom patom, refTy)
-            end)
-      | _ => Error.bug ("Expression type is not row type.")
-    in
-      elabPatVal (ve,patval,expty)
-    end
-
-  fun doItValBind (ve,tyvars,valbind) : (VC.t vector * VE.t) = 
+  and doItValBind (ve,tyvars,valbind) : (VC.t vector * VE.t) = 
     case valbind of
       Dec.ExpBind (patval,exp) =>
         let
@@ -331,7 +446,7 @@ struct
               end
         end
 
-  fun doItDecs (ve : VE.t, decs : Dec.t vector) : (VC.t vector * VE.t) =
+  and doItDecs (ve : VE.t, decs : Dec.t vector) : (VC.t vector * VE.t) =
     let
       fun elabRecDecs (ve : VE.t) (tyvars : Tyvar.t vector)  decs = 
         Vector.fold (decs,ve, fn ({lambda : Lambda.t, var : Var.t},ve) =>
