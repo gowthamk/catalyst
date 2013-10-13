@@ -32,6 +32,7 @@ structure Pat =
           datatype atom =
               Const of Const.t
             | Var of Var.t
+            | Wild
 
           datatype t = 
               Atom of atom
@@ -45,6 +46,7 @@ structure Pat =
               case v of
                 Atom (Const c) => Const.layout c
               | Atom (Var v) => Var.layout v
+              | Atom (Wild) => str "_"
               | Tuple av => tuple (Vector.toListMap (av, fn v => layout (Atom v)))
               | Record r => record (Vector.toListMap (Record.toVector r, fn (f, p) =>
                              (Field.toString f, layout (Atom p))))
@@ -57,10 +59,7 @@ structure Pat =
          Con of {arg: Val.t option,
                  con: Con.t,
                  targs: Type.t vector}
-       | Layered of Var.t * Val.t
-       | List of Val.atom vector
        | Value of Val.t
-       | Wild
 
       local
          fun make f (T r) = f r
@@ -84,11 +83,7 @@ structure Pat =
                        case arg of
                           NONE => empty
                         | SOME p => Val.layout p]
-             | Layered (x, p) =>
-                  seq [maybeConstrain (Var.layout x, t), str " as ", Val.layout p]
-             | List ps => list (Vector.toListMap (ps, Val.layout o Val.Atom))
              | Value v => Val.layout v
-             | Wild => str "_"
          end
   end
 
@@ -101,10 +96,16 @@ datatype noMatch = datatype NoMatch.t
 
 datatype exp_val_atom = Const of Const.t
                       | Var of Var.t * Type.t vector
+
 datatype exp_val_t = Atom of exp_val_atom
                   | Tuple of exp_val_atom vector
                   | Record of exp_val_atom Record.t
-datatype dec =
+
+datatype valbind =
+    ExpBind of Pat.Val.t * exp
+  | PatBind of Pat.t * exp_val_t
+
+and dec =
    Datatype of {cons: {arg: Type.t option,
                        con: Con.t} vector,
                 tycon: Tycon.t,
@@ -117,10 +118,9 @@ datatype dec =
  | Val of {rvbs: {lambda: lambda,
                   var: Var.t} vector,
            tyvars: unit -> Tyvar.t vector,
-           vbs: {exp: exp,
+           vbs: {valbind : valbind,
                  lay: unit -> Layout.t,
-                 nest: string list,
-                 pat: Pat.t} vector}
+                 nest: string list} vector}
 and exp = Exp of {node: expNode,
                   ty: Type.t}
 and expNode =
@@ -138,7 +138,6 @@ and expNode =
               try: exp}
  | Lambda of lambda
  | Let of dec vector * exp
- | List of exp_val_atom vector
  | PrimApp of {args: exp_val_t vector,
                prim: Type.t Prim.t,
                targs: Type.t vector}
@@ -198,10 +197,15 @@ in
        | Val {rvbs, tyvars, vbs, ...} =>
             align [layoutFuns (tyvars, rvbs),
                    align (Vector.toListMap
-                          (vbs, fn {exp, pat, ...} =>
-                           seq [str "val",
+                          (vbs, fn {valbind, ...} => case valbind of
+                              PatBind (pat,expval) => seq [str "val",
                                 mayAlign [seq [layoutTyvars (tyvars ()),
                                                str " ", Pat.layout pat,
+                                               str " ="],
+                                          exp_val_layt expval]]
+                            | ExpBind (patval,exp) => seq [str "val",
+                                mayAlign [seq [layoutTyvars (tyvars ()),
+                                               str " ", Pat.Val.layout patval,
                                                str " ="],
                                           layoutExp exp]]))]
    and layoutExp (Exp {node, ...}) =
@@ -223,7 +227,6 @@ in
        | Let (ds, e) =>
             Pretty.lett (align (Vector.toListMap (ds, layoutDec)),
                          layoutExp e)
-       | List es => list (Vector.toListMap (es, exp_val_layt o Atom))
        | PrimApp {args, prim, targs} =>
             Pretty.primApp {args = Vector.map (args, exp_val_layt),
                             prim = Prim.layout prim,
@@ -306,6 +309,8 @@ structure Exp =
 
 structure Dec =
    struct
+      datatype valbind = datatype valbind
+
       datatype t = datatype dec
 
       val layout = layoutDec

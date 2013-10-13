@@ -500,7 +500,7 @@ in
             val speclang = specast
             val ve = ElaborateVarEnv.elaborate ancoreML speclang
             (* 
-             * ML has ::, but not cons. So, ty(::) <- ty(cons) 
+             * Hack : ML has ::, but not cons. So, ty(::) <- ty(cons) 
              * and remove cons from ve.
              *)
             val consvid = Var.fromString "cons"

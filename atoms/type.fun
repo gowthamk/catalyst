@@ -30,33 +30,30 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
       | Tconstr (tc,tdl) => "(" ^ (List.toString toString tdl) ^") " 
           ^ (Tycon.toString tc)
 
-    fun sametype (t1,t2) = 
+    fun sameType (t1,t2) = 
       let 
-        fun sametypes (tl1,tl2) = (List.length tl1 = List.length tl2) 
+        fun sameTypes (tl1,tl2) = (List.length tl1 = List.length tl2) 
           andalso List.fold2 (tl1,tl2,true, fn(t1,t2,flag) => 
-            (flag andalso sametype (t1,t2)))
+            (flag andalso sameType (t1,t2)))
       in
       case (t1,t2) of
           (Tunknown,Tunknown) => true
         | (Tvar v1, Tvar v2 ) => Tyvar.equals (v1,v2)
         | (Tarrow (tda1,tdr1), Tarrow (tda2,tdr2)) => 
-            (sametype (tda1,tda2)) andalso
-            (sametype (tdr1,tdr2))
+            (sameType (tda1,tda2)) andalso
+            (sameType (tdr1,tdr2))
         | (Trecord tdrec1, Trecord tdrec2) => Vector.forall (
             Record.toVector tdrec1, fn (l1,t2) => 
               Vector.exists (Record.toVector tdrec2, fn (l2,t2) => 
                 (Field.toString l1 = Field.toString l2) 
-                andalso sametype (t1,t2)))
+                andalso sameType (t1,t2)))
         | (Tconstr (tycon1,td1), Tconstr (tycon2,td2)) => 
             Tycon.equals (tycon1,tycon2) andalso
-            sametypes (td1,td2)
+            sameTypes (td1,td2)
         | (_,_) => false
       end
 
-    fun isWidthSubType (t1,t2) = sametype (t1,t2) orelse case t2 of
-        Trecord trec => Vector.exists (Record.toVector trec, fn (_,t) => 
-          isWidthSubType (t1,t))
-	    | Tconstr (_,tl) => List.exists (tl,fn t => isWidthSubType (t1,t))
-      | _ => false
+    fun unifiable (t1,t2) = true
+
 	end
 	

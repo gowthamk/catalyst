@@ -49,13 +49,6 @@ struct
   structure Tyvar = A.Tyvar
   structure Type = A.Type
 
-  local
-    open A
-  in
-    type valbind = {exp: Exp.t, lay: unit -> Layout.t, 
-        nest: string list, pat: Pat.t}
-  end
-
   val symbase = "anc_"
 
   val count = ref 1024
@@ -84,17 +77,6 @@ struct
         in
           (obj', List.concat [bsacc,bs])
         end)
-
-  fun decsFromValBinds (tyvars : unit -> Tyvar.t vector) 
-      (vbs : valbind list) : A.Dec.t vector =
-    let
-      val decFromValBind = fn vb => A.Dec.Val {
-        rvbs = Vector.fromList [],
-        tyvars = tyvars, 
-        vbs = Vector.fromList [vb]}
-    in
-      Vector.fromList (List.map (vbs,decFromValBind))
-    end
 
   val varToPatVal = fn var => 
     A.Pat.Val.Atom (A.Pat.Val.Var var)
@@ -202,25 +184,33 @@ struct
       | C.Pat.Layered (var,pat') =>
         let
           val patty = C.Pat.ty pat
-          val (atom,spatdecs) = doItPatToVar pat' tyvars
-          val patnode = A.Pat.Layered (var,A.Pat.Val.Atom atom)
+          val (spat,spatdecs) = doItPat pat' tyvars
         in
-          (A.Pat.make (patnode,patty), spatdecs)
+          raise (Fail "Unimpl layered patterns")
         end
       | C.Pat.List argvec =>
         let
-          open A
-          val patty = C.Pat.ty pat
-          val (atomlist, subpatdecslist) = Vector.foldr (argvec, ([],[]), 
-            fn (arg, (atoms,spatdecslist)) => 
-              let
-                val (atom,spatdecs) = doItPatToVar arg tyvars
-              in
-                (atom::atoms, spatdecs::spatdecslist)
-              end)
-          val patnode = Pat.List (Vector.fromList atomlist)
+          (*Convert it to cons application*)
+          open C
+          val patty = Pat.ty pat
+          val conopt = Type.deConOpt patty
+          val targs = case conopt of SOME (_,tv) => tv
+            | _ => Error.bug "List type expected. Got something else."
+          val nilpat = Pat.make (Pat.Con {arg = NONE, con = Con.nill,
+            targs = targs}, patty)
+          fun makeConsPat (arg,rest) = 
+            let
+              val argpatnode = Pat.Tuple (Vector.new2 (arg,rest))
+              val argpatty = Type.tuple (Vector.new2 (Pat.ty arg,
+                Pat.ty rest))
+              val argpat = Pat.make (argpatnode,argpatty)
+            in
+              Pat.make (Pat.Con { arg = argpat, con = Con.cons, 
+                targs = targs})
+            end
+          val conspat = Vector.foldr (argvec,nilpat,makeConsPat)
         in
-          (Pat.make (patnode,patty),List.concat subpatdecslist)
+          doItPat conspat tyvars
         end
       | C.Pat.Record (patrec) => 
         let
@@ -260,7 +250,8 @@ struct
         in
           (A.Pat.make (patnode,patty), [])
         end
-      | C.Pat.Wild => (A.Pat.make (A.Pat.Wild, C.Pat.ty pat),[])
+      | C.Pat.Wild => (A.Pat.make (A.Pat.Value A.Pat.Val.Wild, 
+          C.Pat.ty pat),[])
       | C.Pat.Const cth =>
         let
           val patty = C.Pat.ty pat
@@ -550,6 +541,31 @@ struct
           end
         | C.Exp.List expv => 
           let
+            (*Convert it to cons application*)
+            open C
+            val conopt = Type.deConOpt expty
+            val targs = case conopt of SOME (_,tv) => tv
+              | _ => Error.bug "List exp type expected. Got something else."
+            val nilexp = Exp.make (Exp.Con (Con.nill,targs), expty)
+            fun makeConsAppExp (arg,rest) = 
+              let
+                val argexpnode = (Exp.Record o Record.tuple) 
+                  (Vector.new2 (arg,rest))
+                val argexpty = Type.tuple (Vector.new2 (Exp.ty arg,
+                  Exp.ty rest))
+                val consexpty = Type.arrow (argexpty,expty)
+                val consexp = Exp.make (Exp.Con (Con.cons,targs),consexpty)
+                val argexp = Exp.make (argexpnode,argexpty)
+                val consAppExpNode = Exp.App (consexp,argexp)
+                val consAppExpTy = expty
+              in
+                Exp.make (consAppExpNode,consAppExpTy)
+              end
+            val consAppExp = Vector.foldr (expv,nilexp,makeConsAppExp)
+          in
+            doItExp consAppExp tyvars
+          end
+          let
             val (varv, predecs) = doItObjs expv (fn exp => 
               doItExpToVar exp tyvars)
             val expnode = Exp.List (Vector.map (varv, fn var => 
@@ -664,11 +680,15 @@ struct
           val  (subexpdecs, vbs', subpatdecs)= Vector.fold (vbs, ([],[],[]),
             fn ({exp,lay,nest,pat, ...},(pre, cur, post)) => 
               let
-                val (subexpdecs,newexp) = doItExp exp (tyvars())
-                val (newpat,spatdecs) = (A.Pat.make (A.Pat.Wild, C.Pat.ty pat),[])
-               (*doItPat pat (tyvars())*)
-                val vb' = {exp = newexp, lay = lay, nest = nest,
-                  pat = newpat}
+                val (elabExp,elabPat,binder) = case C.Pat.node pat of
+                    C.Pat.Con _ => (doItExpToValue,doItPat,A.Dec.PatBind)
+                  | C.Pat.List _ => (doItExpToValue,doItPat,A.Dec.PatBind)
+                  | C.Pat.Layered _ => (doItExpToValue,doItPat,A.Dec.PatBind)
+                  | _ => (doItExp,doItPatToAtomicPat,A.Dec.ExpBind)
+                val (subexpdecs,newexp) = elabExp exp (tyvars())
+                val (newpat,spatdecs) = elabPat pat (tyvars())
+                val valbind = binder (newpat,newexp)
+                val vb' = {valbind = valbind, lay = lay, nest = nest}
               in
                 (List.concat [subexpdecs,pre], 
                  List.concat [cur,[vb']],

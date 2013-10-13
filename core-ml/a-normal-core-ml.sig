@@ -38,6 +38,7 @@ signature A_NORMAL_CORE_ML =
               datatype atom =
                   Const of Const.t
                 | Var of Var.t
+                | Wild
               datatype t = 
                   Atom of atom
                 | Tuple of atom vector
@@ -46,14 +47,15 @@ signature A_NORMAL_CORE_ML =
             end
 
             type t
+            (*
+             * Pat.List => Pat.Con {con = Con.cons, ...}
+             * Pat.Layered (v,pat) => elab(val v=pat)
+             *)
             datatype node =
                Con of {arg: Val.t option,
                        con: Con.t,
                        targs: Type.t vector}
-             | Layered of Var.t * Val.t
-             | List of Val.atom vector
              | Value of Val.t
-             | Wild
             val dest: t -> node * Type.t
             val layout: t -> Layout.t
             val make: node * Type.t -> t
@@ -93,7 +95,6 @@ signature A_NORMAL_CORE_ML =
                           try: t}
              | Lambda of lambda
              | Let of dec vector * t
-             | List of Val.atom vector (*GK*)
              | PrimApp of {args: Val.t vector, (*GK*)
                            prim: Type.t Prim.t,
                            targs: Type.t vector}
@@ -124,6 +125,10 @@ signature A_NORMAL_CORE_ML =
 
       structure Dec:
          sig
+            datatype valbind =
+                ExpBind of Pat.Val.t * Exp.t
+              | PatBind of Pat.t * Exp.Val.t
+
             datatype t =
                Datatype of {cons: {arg: Type.t option,
                                    con: Con.t} vector,
@@ -137,10 +142,9 @@ signature A_NORMAL_CORE_ML =
              | Val of {rvbs: {lambda: Lambda.t,
                               var: Var.t} vector,
                        tyvars: unit -> Tyvar.t vector,
-                       vbs: {exp: Exp.t,
+                       vbs: {valbind: valbind,
                              lay: unit -> Layout.t,
-                             nest: string list,
-                             pat: Pat.t} vector}
+                             nest: string list} vector}
 
             val layout: t -> Layout.t
          end

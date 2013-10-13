@@ -10,6 +10,7 @@ struct
   structure RefTy = RefinementType
   structure RefTyS = RefinementTypeScheme
   structure RP = Predicate.RelPredicate
+  structure TypeSpec = RelSpec.TypeSpec
 
   val assert = Control.assert
 
@@ -49,13 +50,13 @@ struct
           (assert (Vector.length vars = 1, 
           conStr ^ " expects 1 arg. " ^ (lenstr vars) ^ " given");
           Vector.map (vars,fn (var) => 
-            (bv, var, TyD.sametype (argTyD,datTyD))))
+            (bv, var, TyD.sameType (argTyD,datTyD))))
       | Arrow (Tuple tv, Base (_,datTyD,_)) =>
           (assert (Vector.length tv = Vector.length vars,
           conStr ^ " expects "^ (lenstr tv) ^" args. " 
             ^ (lenstr vars) ^ " given");
          Vector.map2 (tv,vars,fn (Base (bv,argTyD,_), var) =>
-            (bv, var, TyD.sametype (argTyD,datTyD))))
+            (bv, var, TyD.sameType (argTyD,datTyD))))
       | _ => raise (Fail "Could not unify and determine rec args")
     end
 
@@ -114,7 +115,7 @@ struct
       RE.add re (id,{ty=ty',map=map'})
     end
 
-  fun elaborate (Program.T {decs=decs}) (RelSpec.T {reldecs, ...}) =
+  fun elaborate (Program.T {decs=decs}) (RelSpec.T {reldecs, typespecs}) =
     let
       val initialVE = Vector.fold (decs,VE.empty,fn (dec,ve) =>
         case dec of Dec.Datatype datbinds => Vector.fold (datbinds, ve,
@@ -125,7 +126,10 @@ struct
       val refinedVE = Vector.fold (RE.toVector elabRE, initialVE, 
         fn ((id,{ty,map}),ve) => Vector.fold (map, ve, 
           fn (conPatBind,ve) => addRelToConTy ve conPatBind id))
+      val fullVE = Vector.fold (typespecs, refinedVE, 
+        fn (TypeSpec.T (f,refTy),ve) => VE.add ve (f,RefTyS.generalize 
+          (Vector.new0 (), refTy)))
     in
-      refinedVE
+      fullVE
     end
 end

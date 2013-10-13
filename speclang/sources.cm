@@ -15,5 +15,7 @@ is
    ../atoms/sources.cm
    ../control/sources.cm
    ../lib/mlton/sources.cm
+  map.sig
+  map.fun
   speclang.sig
   speclang.fun

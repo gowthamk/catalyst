@@ -10,6 +10,8 @@ local
    ../atoms/sources.mlb
    ../control/sources.mlb
    ../lib/mlton/sources.mlb
+  map.sig
+  map.fun
   speclang.sig
   speclang.fun
 in
