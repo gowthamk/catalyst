@@ -2,6 +2,14 @@ functor SpecLang (S : SPEC_LANG_STRUCTS) : SPEC_LANG =
 struct
   open S
 
+  fun $ (f,arg) = f arg
+  infixr 5 $
+  val assert = Control.assert
+  fun varStrEq (v1,v2) = (Var.toString v1 = Var.toString v2)
+  fun varSubst (subst as (old,new)) v = if varStrEq (v,old) 
+    then new else v
+  fun tyvarStrEq (v1,v2) = (Tyvar.toString v1 = Tyvar.toString v2)
+
   structure RelLang =
   struct
     structure RelId = Var
@@ -86,64 +94,125 @@ struct
       end
   end
 
+  structure TyDBinds =
+  struct
+    structure Key = 
+    struct
+      type t = Var.t
+      val toString = Var.toString
+      fun equal (v1,v2) = (toString v1) = (toString v2)
+    end
+    structure Map = ApplicativeMap (structure Key = Key
+                                   structure Value = TypeDesc)
+    open Map
+  end
+
   structure Predicate =
   struct
     structure BasePredicate =
     struct
-      datatype int_expr =   Plus of expr * expr
-                          | Minus of expr * expr
-                          | Mult of expr * expr
-      and expr =  Int of int
-                | Bool of bool
-                | Var of Var.t
-                | IntExpr of int_expr
-      datatype t =  True 
-                  | Conj of t * t
-                  | Iff of t * t
+      datatype expr = Int of int
+                    | Bool of bool
+                    | Var of Var.t
+      datatype t =  Iff of t * t
                   | Eq of expr * expr
-      val toString = fn _ => "T"
+
+      fun toString bp = case bp of
+          Eq (Int i1,Int i2) => (Int.toString i1) ^ " = " 
+            ^ (Int.toString i2)
+        | Eq (Bool b1,Bool b2) => (Bool.toString b1) ^ " = " 
+            ^ (Bool.toString b2)
+        | Eq (Var v1, Var v2) => (Var.toString v1) ^ " = " 
+            ^ (Var.toString v2)
+        | Iff (t1,t2) => (toString t1) ^ " <=> " ^ (toString t2) 
+
+      fun varEq (v1,v2) = Eq (Var v1,Var v2)
+
+      fun applySubst subst t = 
+      let
+        val varSubst = varSubst subst
+      in
+        case t of
+            Eq (Var v1, Var v2) => Eq (Var $ varSubst v1, Var $ varSubst v2)
+          | Eq (Var v, e) => Eq (Var $ varSubst v, e)
+          | Eq (e, Var v) => Eq (e, Var $ varSubst v)
+          | Iff (t1,t2) => Iff (applySubst subst t1, applySubst subst t2)
+      end
     end
     structure RelPredicate =
     struct
       type expr = RelLang.expr
-      datatype t = True
-                 | Eq of expr * expr
+      datatype t =   Eq of expr * expr
                  | Sub of expr * expr
                  | SubEq of expr * expr
-                 | Conj of t * t
+                 
       fun toString rp = case rp of
-          True => "T"
-        | Eq (e1,e2) => (RelLang.exprToString e1) ^ " = "
+          Eq (e1,e2) => (RelLang.exprToString e1) ^ " = "
             ^ (RelLang.exprToString e2)
         | Sub (e1,e2) => (RelLang.exprToString e1) ^ " C "
             ^ (RelLang.exprToString e2)
         | SubEq (e1,e2) => (RelLang.exprToString e1) ^ " C= "
             ^ (RelLang.exprToString e2)
-        | Conj (e1,e2) => (toString e1) ^ " /\\ " ^ (toString e2)
 
-      val toString = toString
+      fun exprMap rp (f : RelLang.expr -> RelLang.expr) = case rp of
+          Eq (e1,e2) => Eq (f e1, f e2)
+        | Sub (e1,e2) => Sub (f e1, f e2)
+        | SubEq (e1,e2) => SubEq (f e1, f e2)
+
+      fun applySubst subst t = exprMap t 
+        (RelLang.applySubsts $ Vector.new1 subst)
     end
-    datatype t =  T of BasePredicate.t * RelPredicate.t
+    datatype t =  True
+               |  Base of BasePredicate.t 
+               |  Rel of RelPredicate.t
+               |  Exists of TyDBinds.t * t
+               |  Conj of t * t
+               |  Disj of t * t
 
-    val toString = fn T(bp,rp) => "(" ^ (BasePredicate.toString bp) 
-        ^ "," ^ (RelPredicate.toString rp)^ ")"
+    fun toString t = case t of
+        True => "T" 
+      | Base bp => BasePredicate.toString bp
+      | Rel rp => RelPredicate.toString rp 
+      | Exists (binds,t) => "E[" ^ (TyDBinds.toString binds) ^ "].[" ^ 
+          (toString t) ^ "]" 
+      | Conj (e1,e2) => (toString e1) ^ " /\\ " ^ (toString e2)
+      | Disj (e1,e2) => (toString e1) ^ " \\/ " ^ (toString e2)
 
-    fun truee _ = T (BasePredicate.True, RelPredicate.True)
+    fun truee _ = True
 
-    fun conj (T(p11,p12),T(p21,p22)) = T (BasePredicate.Conj(p11,p21),
-      RelPredicate.Conj(p12,p22))
+    fun conj (t1,t2) = Conj (t1,t2)
 
-    fun conjR (T(p,r),r') = T (p,RelPredicate.Conj(r,r'))
+    fun conjR (t,r) = Conj (t,Rel r)
 
-    fun conjP (T(p,r),p') = T (BasePredicate.Conj(p,p'),r)
+    fun conjP (t,p) = Conj (t,Base p)
+
+    fun applySubst (subst as (new,old)) t = case t of
+        True => True
+      | Base bp => Base (BasePredicate.applySubst subst bp)
+      | Rel rp => Rel (RelPredicate.applySubst subst rp)
+      | Exists (tyDB,t) => if (TyDBinds.mem tyDB old)
+            then Error.bug "Attempted substitution on existentially \
+              \ quantified variable"
+            else applySubst subst t
+      | Conj (t1,t2) => Conj (applySubst subst t1, applySubst subst t2)
+      | Disj (t1,t2) => Disj (applySubst subst t1, applySubst subst t2)
+
+    (* telescoped substitutions *)
+    fun applySubsts substs t = Vector.foldr (substs, t, fn (subst,t) =>
+      applySubst subst t)
+
+    fun exists (tyb,t) = Exists (tyb,t)
+
+    fun disj (t1,t2) = Disj (t1,t2)
   end
 
   structure RefinementType =
   struct
     datatype t = Base of Var.t * TypeDesc.t * Predicate.t
-               | Tuple of t vector
-               | Arrow of t*t
-                 (* Records are tuples with fixed bound var *)
+          | Tuple of t vector
+          | Arrow of t*t
+          (* Records are tuples with fixed bound var *)
+          (* Needs extension for {'a | r} list *)
 
     val symbase = "v_"
 
@@ -170,6 +239,7 @@ struct
         | tyD => Base (genVar(), tyD, Predicate.truee())
       end
 
+    
     fun toString rty = case rty of
           Base(var,td,pred) => "{" ^ (Var.toString var) ^ ":" 
             ^ (TypeDesc.toString td) ^ " | " ^ (Predicate.toString pred) ^ "}"
@@ -177,7 +247,24 @@ struct
         | Arrow (t1,t2) => "(" ^ (toString t1) ^ ") -> (" 
           ^ (toString t2) ^ ")"
 
-    val toString = toString
+    fun mapBaseTy t f = case t of
+        Base (v,t,p) => Base $ f (v,t,p)
+      | Tuple tv => Tuple $ Vector.map (tv,fn t => mapBaseTy t f)
+      | Arrow (t1,t2) => Arrow (mapBaseTy t1 f, mapBaseTy t2 f)
+
+    fun mapTyD t f = mapBaseTy t (fn (v,t,p) => (v,f t,p)) 
+      
+    fun applySubsts substs refty = 
+      mapBaseTy refty (fn (bv,t,pred) =>
+        if Vector.exists (substs,fn(ol,n) => varStrEq (ol,bv))
+          then Error.bug "Attempted substitution of bound var"
+          else (bv,t,Predicate.applySubsts substs pred))
+
+    fun alphaRename refty newbv = case refty of
+        Base (bv,t,p) => Base (bv,t,
+          Predicate.applySubst (newbv,bv) p)
+      | _ => Error.bug "alphaRename attempted on non-base type"
+
   end
 
   structure RefinementTypeScheme =
@@ -196,6 +283,25 @@ struct
           val reftystr = RefinementType.toString refty
         in
           tyvstr ^ reftystr
+        end
+      fun instantiate (T{tyvars,refty},tydvec) =
+        let
+          val len = Vector.length
+          val _ = assert (len tyvars = len tydvec,
+            "insufficient number of type args")
+          val substs = Vector.zip (tydvec,tyvars)
+          (*
+           * It is possible that we encounter a tyvar
+           * that is not generalized in this RefTyS.
+           * We do not panic.
+           *)
+          fun substTyvar ((tyd,tyvar),ty) = case ty of
+              TypeDesc.Tvar tvar => if tyvarStrEq (tvar,tyvar)
+                then tyd else ty
+            | _ => ty
+        in
+          RefinementType.mapTyD refty (fn ty => Vector.foldr (substs,
+            ty, substTyvar))
         end
     end
 

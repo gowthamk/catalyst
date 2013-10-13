@@ -40,44 +40,62 @@ sig
     val toString : t -> string
   end
 
+  structure TyDBinds : APPLICATIVE_MAP where 
+    type Key.t = Var.t and
+    type Value.t = TypeDesc.t
+
   structure Predicate : 
   sig
     structure BasePredicate :
     sig
-      datatype int_expr =   Plus of expr * expr
-                          | Minus of expr * expr
-                          | Mult of expr * expr
-      and expr =  Int of int
-                | Bool of bool
-                | Var of Var.t
-                | IntExpr of int_expr
-      datatype t =  True 
-                  | Conj of t * t
-                  | Iff of t * t
+      datatype expr =  Int of int
+                    | Bool of bool
+                    | Var of Var.t
+      datatype t =  Iff of t * t
                   | Eq of expr * expr
       val toString : t -> string
+      val varEq : Var.t * Var.t -> t
+      val applySubst : (Var.t * Var.t) -> t -> t
     end
 
     structure RelPredicate :
     sig
       type expr = RelLang.expr
-      datatype t = True
-                 | Eq of expr * expr
+      datatype t = Eq of expr * expr
                  | Sub of expr * expr
                  | SubEq of expr * expr
-                 | Conj of t * t
       val toString : t -> string
+      val applySubst : (Var.t * Var.t) -> t -> t
     end
-    datatype t =  T of BasePredicate.t * RelPredicate.t
+    datatype t =  True
+               |  Base of BasePredicate.t 
+               |  Rel of RelPredicate.t
+               |  Exists of TyDBinds.t * t
+               |  Conj of t * t
+               |  Disj of t * t
+
     val toString : t -> string
     val truee : unit -> t
     val conj : t*t -> t
     val conjR : t*RelPredicate.t -> t
     val conjP : t*BasePredicate.t -> t
+    val applySubst : Var.t * Var.t -> t -> t
+    val applySubsts : (Var.t * Var.t) vector -> t -> t
+    val exists : TyDBinds.t * t -> t
+    val disj : t*t -> t
     end
 
   structure RefinementType : 
   sig
+    (*
+     * Ideally, refinement should've been a Refinement.t.
+     * But, circular dependency among structures is disallowed.
+     * The following is not allowed as well:
+     *  functor VarMap (type r) : APPLICATIVE_MAP where
+     *    type Key.t = Var.t
+     *    and Value.t = r
+     *  datatype refinement = Disj of (VarMap(type r = t).t * ...)
+     *)
     datatype t = Base of Var.t * TypeDesc.t * Predicate.t
                | Tuple of t vector
                | Arrow of t*t
@@ -85,6 +103,12 @@ sig
                (* Needs extension for {'a | r} list *)
     val toString : t -> string
     val fromTyD : TypeDesc.t -> t
+    val applySubsts : (Var.t * Var.t) vector -> t -> t
+    val alphaRename : t -> Var.t -> t
+    val mapBaseTy : t -> ((Var.t * TypeDesc.t * Predicate.t) -> 
+          (Var.t * TypeDesc.t * Predicate.t)) -> t
+    val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
+      
   end
 
   structure RefinementTypeScheme :
@@ -93,6 +117,7 @@ sig
                         refty : RefinementType.t }
       val generalize : Tyvar.t vector * RefinementType.t -> t
       val specialize: t -> RefinementType.t
+      val instantiate : t * TypeDesc.t vector -> RefinementType.t
       val toString : t -> string
     end
 
