@@ -23,6 +23,7 @@ is
 ../specparser/sources.cm
 ../speclang/sources.cm
 ../specelab/sources.cm
+../specverify/sources.cm
 
 lookup-constant.sig
 lookup-constant.fun

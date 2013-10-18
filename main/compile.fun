@@ -115,6 +115,11 @@ structure ANormalize = ANormalize (structure CoreML = CoreML
 structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
                                    structure ANormalCoreML = ANormalCoreML)
 structure VE = ElaborateVarEnv.VE
+
+structure SpecVerify = SpecVerify (structure VE = VE
+                                   structure ANormalCoreML = ANormalCoreML)
+
+structure VC = SpecVerify.VC
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
 (* ------------------------------------------------- *)
@@ -509,6 +514,7 @@ in
             val ve = VE.add (VE.remove (VE.remove ve consvid) consvid')
               (consvid',consty)
             val _ = print $ VE.toString ve
+            val vcs = SpecVerify.doIt (ve,ancoreML)
          in
             Control.messageStr (Control.Top,
               SpecLang.RelSpec.toString specast)

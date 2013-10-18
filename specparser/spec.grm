@@ -145,12 +145,10 @@ basety : ID (RefinementType.Base ((Var.fromString ID),
                 TypeDesc.makeTunknown(), pred))
 
 (* Needs extension for base predicates *)
-pred : relpred (Predicate.T(Predicate.BasePredicate.True,relpred))
+pred :  TRUE (Predicate.truee()) 
+     |  rpatom (Predicate.Rel rpatom)
+     |  rpatom CONJ pred (Predicate.conjR (pred,rpatom))
 
-relpred : rpatom (rpatom)
-        | rpatom CONJ relpred (Predicate.RelPredicate.Conj(rpatom,relpred))
-
-rpatom : TRUE (Predicate.RelPredicate.True)
-       | rexpr EQUALOP rexpr (Predicate.RelPredicate.Eq(rexpr1,rexpr2))
+rpatom : rexpr EQUALOP rexpr (Predicate.RelPredicate.Eq(rexpr1,rexpr2))
        | rexpr SUBSET rexpr (Predicate.RelPredicate.Sub(rexpr1,rexpr2))
        | rexpr SUBSETEQ rexpr (Predicate.RelPredicate.SubEq(rexpr1,rexpr2))

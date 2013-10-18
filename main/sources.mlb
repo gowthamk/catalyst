@@ -18,6 +18,7 @@ local
    ../specparser/sources.mlb
    ../speclang/sources.mlb
    ../specelab/sources.mlb
+   ../specverify/sources.mlb
 
    lookup-constant.sig
    lookup-constant.fun

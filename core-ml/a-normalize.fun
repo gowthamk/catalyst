@@ -49,6 +49,9 @@ struct
   structure Tyvar = A.Tyvar
   structure Type = A.Type
 
+  fun $ (f,arg) = f arg
+  infixr 5 $
+
   val symbase = "anc_"
 
   val count = ref 1024
@@ -101,10 +104,12 @@ struct
        * Bug : patty might contain old tyvars
        * Fixed: newpatty.
        *)
-      val subexp = Exp.make (Exp.Value (varToExpVal (newvar,
-        Vector.map (newtyvars, fn tyv => Type.var tyv))), newpatty)
-      val spatvb = Vector.fromList [{exp = subexp, 
-        lay = fn _ => Layout.empty, nest = [], pat = pat}]
+      val subexpval = varToExpVal (newvar,
+        Vector.map (newtyvars, fn tyv => Type.var tyv))
+      val subexp = Exp.make (Exp.Value (subexpval), newpatty)
+      val valbind = Dec.PatBind (pat,subexpval)
+      val spatvb = Vector.new1 ({valbind = valbind, 
+        lay = fn _ => Layout.empty, nest = []})
       val spatdec = Dec.Val ({rvbs = Vector.fromList [],
         tyvars = fn _ => newtyvars, vbs = spatvb})
     in
@@ -205,8 +210,8 @@ struct
                 Pat.ty rest))
               val argpat = Pat.make (argpatnode,argpatty)
             in
-              Pat.make (Pat.Con { arg = argpat, con = Con.cons, 
-                targs = targs})
+              Pat.make (Pat.Con {arg = SOME argpat, con = Con.cons, 
+                targs = targs},patty)
             end
           val conspat = Vector.foldr (argvec,nilpat,makeConsPat)
         in
@@ -250,7 +255,7 @@ struct
         in
           (A.Pat.make (patnode,patty), [])
         end
-      | C.Pat.Wild => (A.Pat.make (A.Pat.Value A.Pat.Val.Wild, 
+      | C.Pat.Wild => (A.Pat.make (A.Pat.Value $ A.Pat.Val.Atom A.Pat.Val.Wild, 
           C.Pat.ty pat),[])
       | C.Pat.Const cth =>
         let
@@ -270,6 +275,24 @@ struct
     in
       Lambda.make {arg = arg, argType = argType', body = body'}
     end
+      
+  and applyTyVarSubstsInExpVal substs (expval : A.Exp.Val.t) =
+    let
+      open A.Exp
+      fun applyTyVarSubstsInExpAtom substs (expatom : A.Exp.Val.atom) =
+        case expatom of
+          Val.Var (v,tyv) => Val.Var (v,Vector.map (tyv,
+            applyTyVarSubstsInType substs))
+        | _ => expatom
+    in
+      case expval of
+        Val.Atom atom => Val.Atom (applyTyVarSubstsInExpAtom substs atom)
+      | Val.Tuple atomv => Val.Tuple (Vector.map (atomv,
+          applyTyVarSubstsInExpAtom substs))
+      | Val.Record atomrec => (Val.Record o A.Record.fromVector) (Vector.map (
+          A.Record.toVector atomrec, fn (lbl,atom) => (lbl,
+            applyTyVarSubstsInExpAtom substs atom)))
+    end
 
   and applyTyVarSubstsInExp (substs : (Tyvar.t * Tyvar.t) vector)
     (exp : A.Exp.t) : A.Exp.t = 
@@ -277,27 +300,6 @@ struct
       open A
       val expty = Exp.ty exp
       val expnode = Exp.node exp
-      fun applyTyVarSubstsInExpAtom substs (expatom : Exp.Val.atom) =
-        let
-          open Exp
-        in
-          case expatom of
-            Val.Var (v,tyv) => Val.Var (v,Vector.map (tyv,
-              applyTyVarSubstsInType substs))
-          | _ => expatom
-        end
-      fun applyTyVarSubstsInExpVal substs (expval : Exp.Val.t) =
-        let
-          open Exp
-        in
-          case expval of
-            Val.Atom atom => Val.Atom (applyTyVarSubstsInExpAtom substs atom)
-          | Val.Tuple atomv => Val.Tuple (Vector.map (atomv,
-              applyTyVarSubstsInExpAtom substs))
-          | Val.Record atomrec => (Val.Record o Record.fromVector) (Vector.map (
-              Record.toVector atomrec, fn (lbl,atom) => (lbl,
-                applyTyVarSubstsInExpAtom substs atom)))
-        end
       val newexpty = applyTyVarSubstsInType substs expty
       val newexpnode = case expnode of
         Exp.App (Exp.Val.Var (f,tyargs),arg) =>
@@ -320,8 +322,6 @@ struct
         in
           Exp.Let (newdecs,newexp)
         end
-      | Exp.List (atomv) => Exp.List (Vector.map (atomv,
-          applyTyVarSubstsInExpAtom substs)) 
       | Exp.PrimApp {args,prim,targs} => 
         let
           val newargs = Vector.map (args, applyTyVarSubstsInExpVal substs)
@@ -356,6 +356,12 @@ struct
               fn tyvar => Tyvar.sameName (tyvar,old))
             then substs
             else (new,old) :: substs))
+      fun applyTyVarSubstsInValBind substs (valbind : A.Dec.valbind) =
+        case valbind of
+          Dec.ExpBind (patval,exp) => Dec.ExpBind (patval, 
+            applyTyVarSubstsInExp substs exp)
+        | Dec.PatBind (pat,expval) => Dec.PatBind (pat,
+            applyTyVarSubstsInExpVal substs expval)
     in
       case dec of
         Dec.Fun {decs,tyvars} =>
@@ -371,9 +377,9 @@ struct
           val substs = freeSubsts substs (tyvars())
           val rvbs' = Vector.map (rvbs, fn {lambda,var} => 
             {lambda = applyTyVarSubstsInLam substs lambda, var = var})
-          val vbs' = Vector.map (vbs, fn {exp,lay,nest,pat} =>
-            {exp = applyTyVarSubstsInExp substs exp,
-             lay = lay, nest = nest, pat = pat})
+          val vbs' = Vector.map (vbs, fn {valbind,lay,nest} =>
+            {valbind = applyTyVarSubstsInValBind substs valbind,
+               lay = lay, nest = nest})
         in
           Dec.Val {rvbs = rvbs', tyvars = tyvars, vbs = vbs'}
         end
@@ -391,14 +397,15 @@ struct
       val tyvarsubsts = Vector.zip (newtyvars,tyvars)
       val newexp = applyTyVarSubstsInExp tyvarsubsts exp
       val newexpty = applyTyVarSubstsInType tyvarsubsts expty
-      val subpatnode = Pat.Value (varToPatVal newvar)
-      val subpat = Pat.make (subpatnode,newexpty)
+      val subpatval = varToPatVal newvar
+      val subpat = Pat.make (Pat.Value (subpatval),newexpty)
+      val subvalbind = Dec.ExpBind (subpatval,newexp)
       (*
        * Bug: exp and expty still refer to old tyvars
        * Fixed. We now have newexp and newexpty.
        *)
-      val vbs = Vector.fromList [{exp = newexp, 
-        lay = fn _ => Layout.empty, nest = [], pat = subpat}]
+      val vbs = Vector.new1 ({valbind = subvalbind,
+        lay = fn _ => Layout.empty, nest = []})
       val dec = Dec.Val ({rvbs = Vector.fromList [],
         tyvars = fn _ => newtyvars, vbs = vbs})
     in
@@ -565,14 +572,6 @@ struct
           in
             doItExp consAppExp tyvars
           end
-          let
-            val (varv, predecs) = doItObjs expv (fn exp => 
-              doItExpToVar exp tyvars)
-            val expnode = Exp.List (Vector.map (varv, fn var => 
-              Exp.Val.Var (var,tyvarvToTyv tyvars)))
-          in
-            (predecs, Exp.make (expnode,expty))
-          end
         | C.Exp.Record exprec => 
           let
             val (lblvarv, predecs) = doItObjs (Record.toVector exprec) 
@@ -680,14 +679,40 @@ struct
           val  (subexpdecs, vbs', subpatdecs)= Vector.fold (vbs, ([],[],[]),
             fn ({exp,lay,nest,pat, ...},(pre, cur, post)) => 
               let
+                (*
+                 * The following code does not typecheck.
                 val (elabExp,elabPat,binder) = case C.Pat.node pat of
                     C.Pat.Con _ => (doItExpToValue,doItPat,A.Dec.PatBind)
                   | C.Pat.List _ => (doItExpToValue,doItPat,A.Dec.PatBind)
                   | C.Pat.Layered _ => (doItExpToValue,doItPat,A.Dec.PatBind)
                   | _ => (doItExp,doItPatToAtomicPat,A.Dec.ExpBind)
-                val (subexpdecs,newexp) = elabExp exp (tyvars())
-                val (newpat,spatdecs) = elabPat pat (tyvars())
-                val valbind = binder (newpat,newexp)
+                 * This makes a case for existential typing. In presence of
+                 * existential types, the above expression could be given the
+                 * following type:
+                 * ∃ T1,T2. (f: Exp.t → T1, g : Pat.t → T2, h : T1*T2 → Exp.valbind))
+                 *)
+                fun doItPatBind (pat,exp) =
+                  let
+                    val (subexpdecs,newexpval) = doItExpToValue exp (tyvars())
+                    val (subpat,subpatdecs) = doItPat pat (tyvars())
+                    val valbind = A.Dec.PatBind (subpat,newexpval)
+                  in
+                    (subexpdecs,valbind,subpatdecs)
+                  end
+                fun doItExpBind (pat,exp) =
+                  let
+                    val (subexpdecs,newexp) = doItExp exp (tyvars())
+                    val (subpatval,subpatdecs) = doItPatToAtomicPat pat (tyvars())
+                    val valbind = A.Dec.ExpBind (subpatval,newexp)
+                  in
+                    (subexpdecs,valbind,subpatdecs)
+                  end
+                val doItValBind = case C.Pat.node pat of
+                    C.Pat.Con _ => doItPatBind
+                  | C.Pat.List _ => doItPatBind
+                  | C.Pat.Layered _ => doItPatBind
+                  | _ => doItExpBind
+                val (subexpdecs,valbind,spatdecs) = doItValBind (pat,exp)
                 val vb' = {valbind = valbind, lay = lay, nest = nest}
               in
                 (List.concat [subexpdecs,pre], 
