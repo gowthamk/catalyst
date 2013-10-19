@@ -12,13 +12,19 @@ sig
   datatype simple_pred = True
                        |  Base of Predicate.BasePredicate.t 
                        |  Rel of Predicate.RelPredicate.t
-                       |  Conj of simple_pred * simple_pred 
-  
+
+  datatype vc_pred =  Simple of simple_pred
+                   |  Conj of simple_pred vector
+
   type tydbind = Var.t * TypeDesc.t
 
   type tydbinds = tydbind vector
 
-  datatype t = T of tydbinds * simple_pred * simple_pred
-
+  datatype t = T of tydbinds * vc_pred* vc_pred
+  
   val fromTypeCheck : VE.t * RefinementType.t * RefinementType.t -> t vector
+
+  val layout : t vector -> Layout.t
+
+  val layouts: t vector * (Layout.t -> unit) -> unit
 end

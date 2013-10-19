@@ -1,7 +1,7 @@
 functor VarEnv (S : VAR_ENV_STRUCTS) : VAR_ENV = 
 struct
   open S
-  
+  structure L = Layout  
   open SpecLang
 
   type tyscheme = RefinementTypeScheme.t
@@ -12,12 +12,12 @@ struct
   struct
     type t = Var.t
     val equal = varStrEq
-    val toString = Var.toString
+    val layout = L.str o Var.toString
   end
   structure Value:VALUE = 
   struct
     type t = tyscheme
-    val toString = RefinementTypeScheme.toString
+    val layout = RefinementTypeScheme.layout
   end
 
   structure VarMap = ApplicativeMap (structure Key = Key
@@ -40,5 +40,5 @@ struct
 
   val toVector = VarMap.toVector
 
-  val toString = VarMap.toString
+  val layout = VarMap.layout
 end

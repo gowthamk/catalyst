@@ -30,6 +30,8 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
       | Tconstr (tc,tdl) => "(" ^ (List.toString toString tdl) ^") " 
           ^ (Tycon.toString tc)
 
+    fun layout t = Layout.str (toString t)
+
     fun sameType (t1,t2) = 
       let 
         fun sameTypes (tl1,tl2) = (List.length tl1 = List.length tl2) 
@@ -54,6 +56,28 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
       end
 
     fun unifiable (t1,t2) = true
+
+    fun substTyvar ((tyd,tyvar),ty) = 
+      let
+        fun tyvarStrEq (v1,v2) = (Tyvar.toString v1 = 
+          Tyvar.toString v2)
+      in
+        case ty of
+          Tvar tvar => if tyvarStrEq (tvar,tyvar) 
+            then tyd else ty
+        | _ => ty
+      end
+
+    fun instantiateTyvars substs t = case t of
+        Tunknown => Tunknown
+      | Tvar tvar => Vector.foldr (substs,t,substTyvar)
+      | Tarrow (t1,t2) => Tarrow (instantiateTyvars substs t1,
+        instantiateTyvars substs t2)
+      | Trecord tdrec => Trecord (Record.fromVector (Vector.map (
+          Record.toVector tdrec, fn (fld,t) => 
+            (fld,instantiateTyvars substs t))))
+      | Tconstr (tycon,tlist) => Tconstr (tycon, List.map (tlist,
+          instantiateTyvars substs))
 
 	end
 	

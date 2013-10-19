@@ -513,11 +513,18 @@ in
             val consty = VE.find ve consvid
             val ve = VE.add (VE.remove (VE.remove ve consvid) consvid')
               (consvid',consty)
-            val _ = print $ VE.toString ve
+            val _ = print "Specification Ast:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              SpecLang.RelSpec.layout specast)
             val vcs = SpecVerify.doIt (ve,ancoreML)
+            fun layouts (vcs,output) = (
+              output $ Layout.str "Elaborated VarEnv:\n";
+              output $ VE.layout ve;
+              VC.layouts (vcs,output))
+            val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
+                                      Layouts layouts)
          in
-            Control.messageStr (Control.Top,
-              SpecLang.RelSpec.toString specast)
+          ()
          end
 end
 

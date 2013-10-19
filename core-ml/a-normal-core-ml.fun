@@ -201,12 +201,12 @@ in
                               PatBind (pat,expval) => seq [str "val",
                                 mayAlign [seq [layoutTyvars (tyvars ()),
                                                str " ", Pat.layout pat,
-                                               str " ="],
+                                               str " .="],
                                           exp_val_layt expval]]
                             | ExpBind (patval,exp) => seq [str "val",
                                 mayAlign [seq [layoutTyvars (tyvars ()),
                                                str " ", Pat.Val.layout patval,
-                                               str " ="],
+                                               str " =."],
                                           layoutExp exp]]))]
    and layoutExp (Exp {node, ...}) =
       case node of

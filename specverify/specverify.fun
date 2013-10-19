@@ -138,6 +138,11 @@ struct
             RefTy.Base (bv,extd,pred) => (TyDBinds.add clos exvar extd,
               Predicate.conj (pred',Predicate.applySubst (exvar,bv) pred))
           | _ => (clos,pred'))
+      (*
+       *val _ = print "TyDBinds:\n"
+       *val _ = Layout.print (TyDBinds.layout tyDB,print)
+       *val _ = print "\n"
+       *)
     in
       RefTy.mapBaseTy ty (fn (v,td,pred) => (v,td,
         Predicate.exists (tyDB,Predicate.conj(pred1,pred))))
@@ -198,7 +203,9 @@ struct
           (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
             let
               val _ = assert (TyD.sameType (td1,td2), "Typedescs from \
-                \ two branches of case did not match")
+                \ two branches of case did not match. Two types are:\n \
+                \ 1. "^(TyD.toString td1) ^"\n" ^ "\
+                \ 2. "^(TyD.toString td2) ^ "\n")
               val pred1' = Predicate.applySubst (bv2,bv1) pred1
             in
               Base (bv2,td2,Predicate.disj(pred1,pred2))
@@ -320,6 +327,11 @@ struct
           val (marker,markedVE) = markVE ve
           val (vcs1,extendedVE) = doItDecs (markedVE,decs)
           val (vcs2,subExpTy) = typeSynthExp (extendedVE,subExp)
+          (*
+           *val _ = print "Let expression\n"
+           *val _ = Layout.print (VE.layout extendedVE,print)
+           *val _ = print "\n"
+           *)
         in
           (Vector.concat [vcs1, vcs2], 
             wellFormedType (marker,extendedVE,subExpTy))

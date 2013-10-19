@@ -2,12 +2,12 @@ signature KEY =
 sig
   type t
   val equal : t*t -> bool
-  val toString : t -> string
+  val layout: t -> Layout.t
 end
 signature VALUE =
 sig
   type t
-  val toString : t -> string
+  val layout: t -> Layout.t
 end
 signature APPLICATIVE_MAP_STRUCTS =
 sig
@@ -25,5 +25,5 @@ sig
   val add : t -> Key.t -> Value.t -> t
   val remove : t -> Key.t -> t
   val toVector : t -> (Key.t * Value.t) vector
-  val toString : t -> string
+  val layout : t -> Layout.t
 end

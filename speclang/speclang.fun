@@ -1,14 +1,14 @@
 functor SpecLang (S : SPEC_LANG_STRUCTS) : SPEC_LANG = 
 struct
   open S
+  structure L = Layout
 
   fun $ (f,arg) = f arg
   infixr 5 $
   val assert = Control.assert
   fun varStrEq (v1,v2) = (Var.toString v1 = Var.toString v2)
-  fun varSubst (subst as (old,new)) v = if varStrEq (v,old) 
+  fun varSubst (subst as (new,old)) v = if varStrEq (v,old) 
     then new else v
-  fun tyvarStrEq (v1,v2) = (Tyvar.toString v1 = Tyvar.toString v2)
 
   structure RelLang =
   struct
@@ -99,8 +99,8 @@ struct
     structure Key = 
     struct
       type t = Var.t
-      val toString = Var.toString
-      fun equal (v1,v2) = (toString v1) = (toString v2)
+      val layout = L.str o Var.toString
+      fun equal (v1,v2) = (Var.toString v1) = (Var.toString v2)
     end
     structure Map = ApplicativeMap (structure Key = Key
                                    structure Value = TypeDesc)
@@ -169,14 +169,16 @@ struct
                |  Conj of t * t
                |  Disj of t * t
 
-    fun toString t = case t of
-        True => "T" 
-      | Base bp => BasePredicate.toString bp
-      | Rel rp => RelPredicate.toString rp 
-      | Exists (binds,t) => "E[" ^ (TyDBinds.toString binds) ^ "].[" ^ 
-          (toString t) ^ "]" 
-      | Conj (e1,e2) => (toString e1) ^ " /\\ " ^ (toString e2)
-      | Disj (e1,e2) => (toString e1) ^ " \\/ " ^ (toString e2)
+    fun layout t = case t of
+        True => L.str "true" 
+      | Base bp => L.str $ BasePredicate.toString bp
+      | Rel rp => L.str $ RelPredicate.toString rp 
+      | Exists (binds,t) => Pretty.nest ("exist",(TyDBinds.layout binds),
+          layout t)
+      | Conj (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
+          layout e2)],"/\\ ")
+      | Disj (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
+          layout e2)],"\\/ ")
 
     fun truee _ = True
 
@@ -240,12 +242,13 @@ struct
       end
 
     
-    fun toString rty = case rty of
-          Base(var,td,pred) => "{" ^ (Var.toString var) ^ ":" 
-            ^ (TypeDesc.toString td) ^ " | " ^ (Predicate.toString pred) ^ "}"
-        | Tuple tv => Vector.toString toString tv
-        | Arrow (t1,t2) => "(" ^ (toString t1) ^ ") -> (" 
-          ^ (toString t2) ^ ")"
+    fun layout rty = case rty of
+          Base(var,td,pred) => L.seq [L.str ("{" ^ (Var.toString var) 
+            ^ ":" ^ (TypeDesc.toString td) ^ " | "), 
+            Predicate.layout pred, L.str "}"]
+        | Tuple tv => L.vector $ Vector.map (tv,layout)
+        | Arrow (t1,t2) => L.align $ L.separateLeft ([layout t1, 
+            layout t2]," -> ")
 
     fun mapBaseTy t f = case t of
         Base (v,t,p) => Base $ f (v,t,p)
@@ -261,7 +264,7 @@ struct
           else (bv,t,Predicate.applySubsts substs pred))
 
     fun alphaRename refty newbv = case refty of
-        Base (bv,t,p) => Base (bv,t,
+        Base (bv,t,p) => Base (newbv,t,
           Predicate.applySubst (newbv,bv) p)
       | _ => Error.bug "alphaRename attempted on non-base type"
 
@@ -276,13 +279,13 @@ struct
         T {tyvars = tyvars, refty = refty}
       val specialize = fn (T {tyvars,refty}) =>
         refty
-      fun toString (T {tyvars,refty}) =
+      fun layout (T {tyvars,refty}) =
         let
-          val tyvstr = if Vector.isEmpty tyvars then ""
-            else Vector.toString Tyvar.name tyvars
-          val reftystr = RefinementType.toString refty
+          val tyvlyt = L.vector $ Vector.map (tyvars,fn tyv =>
+            L.str $ Tyvar.toString tyv)
+          val reftylyt = RefinementType.layout refty
         in
-          tyvstr ^ reftystr
+          L.seq [tyvlyt,reftylyt]
         end
       fun instantiate (T{tyvars,refty},tydvec) =
         let
@@ -295,13 +298,9 @@ struct
            * that is not generalized in this RefTyS.
            * We do not panic.
            *)
-          fun substTyvar ((tyd,tyvar),ty) = case ty of
-              TypeDesc.Tvar tvar => if tyvarStrEq (tvar,tyvar)
-                then tyd else ty
-            | _ => ty
         in
-          RefinementType.mapTyD refty (fn ty => Vector.foldr (substs,
-            ty, substTyvar))
+          RefinementType.mapTyD refty 
+            (TypeDesc.instantiateTyvars substs)
         end
     end
 
@@ -310,21 +309,19 @@ struct
     structure TypeSpec =
     struct
       datatype t = T of Var.t * RefinementType.t
-      val toString = fn T(var,refty) =>
-        (Var.toString var) ^ " : "  ^ 
-          (RefinementType.toString refty)
+      val layout = fn T(var,refty) => L.seq [
+        L.str ((Var.toString var) ^ " : "),
+        RefinementType.layout refty]
     end
     datatype t = T of {reldecs : StructuralRelation.t vector,
                        typespecs : TypeSpec.t vector}
-    val toString = fn T ({reldecs,typespecs,...}) =>
+    val layout = fn T ({reldecs,typespecs,...}) =>
       let 
-        val srs = Vector.toString StructuralRelation.toString reldecs          
-        val tss = Vector.toString TypeSpec.toString typespecs
+        val srs = Vector.toString StructuralRelation.toString reldecs
+        val tslyt = L.align $ Vector.toListMap (typespecs,
+          TypeSpec.layout)
       in
-        srs^tss
+        L.align [L.str srs,tslyt]
       end
-
-    fun layout spec = Layout.str (toString spec)
-    val layout = layout
   end 
 end

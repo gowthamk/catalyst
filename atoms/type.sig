@@ -24,6 +24,8 @@ signature TYPE_DESC =
 	  val makeTrecord: (Field.t * t) vector -> t
 	  val makeTunknown: unit -> t
     val toString : t -> string
+    val layout : t -> Layout.t
 	  val sameType : (t * t) -> bool
     val unifiable : (t * t) -> bool
+    val instantiateTyvars : (t * Tyvar.t) vector -> t -> t 
    end

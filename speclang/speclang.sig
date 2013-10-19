@@ -74,7 +74,7 @@ sig
                |  Conj of t * t
                |  Disj of t * t
 
-    val toString : t -> string
+    val layout : t -> Layout.t 
     val truee : unit -> t
     val conj : t*t -> t
     val conjR : t*RelPredicate.t -> t
@@ -101,7 +101,7 @@ sig
                | Arrow of t*t
                (* Records are tuples with fixed bound var *)
                (* Needs extension for {'a | r} list *)
-    val toString : t -> string
+    val layout : t -> Layout.t 
     val fromTyD : TypeDesc.t -> t
     val applySubsts : (Var.t * Var.t) vector -> t -> t
     val alphaRename : t -> Var.t -> t
@@ -118,7 +118,7 @@ sig
       val generalize : Tyvar.t vector * RefinementType.t -> t
       val specialize: t -> RefinementType.t
       val instantiate : t * TypeDesc.t vector -> RefinementType.t
-      val toString : t -> string
+      val layout : t -> Layout.t 
     end
 
   structure RelSpec : 
@@ -126,11 +126,10 @@ sig
     structure TypeSpec:
     sig
       datatype t = T of Var.t * RefinementType.t
-      val toString : t -> string
+      val layout : t -> Layout.t
     end
     datatype t = T of {reldecs : StructuralRelation.t vector,
                        typespecs : TypeSpec.t vector}
-    val toString : t -> string
     val layout : t -> Layout.t
   end
 end

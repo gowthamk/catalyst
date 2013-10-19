@@ -16,5 +16,5 @@ sig
   val add : t -> (Var.t * tyscheme) -> t
   val remove : t -> Var.t -> t
   val toVector : t -> (Var.t * tyscheme) vector
-  val toString : t -> string
+  val layout : t -> Layout.t
 end

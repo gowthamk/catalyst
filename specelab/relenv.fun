@@ -13,7 +13,7 @@ struct
   struct
     type t = RelLang.RelId.t
     val equal = relIdStrEq
-    val toString = RelLang.RelId.toString
+    val layout = Layout.str o RelLang.RelId.toString
   end
   structure Value:VALUE = 
   struct
@@ -32,6 +32,7 @@ struct
       in
         conmap
       end
+    fun layout t = (Layout.str o toString) t
   end
 
   structure RelMap = ApplicativeMap (structure Key = Key
@@ -54,5 +55,5 @@ struct
 
   val toVector = RelMap.toVector
 
-  val toString = RelMap.toString
+  val layout = RelMap.layout
 end
