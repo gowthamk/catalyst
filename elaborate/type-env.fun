@@ -862,7 +862,10 @@ structure Type =
       		| Record sr => TypeDesc.makeTrecord (Vector.map (Srecord.toVector sr, 
               fn (lbl, ty) => (lbl, toMyType ty)))
       		| Var a => TypeDesc.makeTvar a
-      		| _ => TypeDesc.makeTunknown()
+      		| _ => (print "Tunknown "; 
+            print (Layout.toString (layout t'));
+            print "\n";
+            TypeDesc.makeTunknown())
 
       (* Add a function to rename tyvars in type *)
       (* Author : GK *)

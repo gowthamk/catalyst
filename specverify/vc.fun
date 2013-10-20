@@ -141,6 +141,11 @@ struct
              * First, substitute actuals for formals in p2
              *)
             val p2 = P.applySubst (v1,v2) p2
+            (*
+             *val _ = print "AnteP: "
+             *val _ = L.print (P.layout p1,print)
+             *val _ = print "\n"
+             *)
             val envVCs = fn _ => havocVE ve
             val anteVCs = fn _ => havocPred p1
             val vcs = fn _ => join (envVCs (),anteVCs ())

@@ -20,15 +20,23 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
 
 	 	fun makeTunknown () = Tunknown
 
-    fun toString t = case t of
+    structure L = Layout
+
+    fun toStrings (ts: t list) =
+      case ts of                                        
+         [] => ""
+       | [t] => L.toString (L.seq [L.str " ", L.str (toString t)])
+       | _ => L.toString (L.seq [L.str " ", L.tuple (List.map (ts, 
+          L.str o toString))])
+
+    and toString t = case t of
         Tunknown => "<?>"
       | Tvar v  => Tyvar.toString v
       | Tarrow (t1,t2)=> "("^(toString t1)^") -> ("^(toString t2)^")"
       | Trecord tdrec => "{" ^ (Vector.toString (fn (lbl,td) => 
           (Field.toString lbl) ^ " : " ^ (toString td)) 
           (Record.toVector tdrec)) ^ "}"
-      | Tconstr (tc,tdl) => "(" ^ (List.toString toString tdl) ^") " 
-          ^ (Tycon.toString tc)
+      | Tconstr (tc,tdl) => (toStrings tdl)^" "^(Tycon.toString tc)
 
     fun layout t = Layout.str (toString t)
 

@@ -259,14 +259,16 @@ struct
       
     fun applySubsts substs refty = 
       mapBaseTy refty (fn (bv,t,pred) =>
-        if Vector.exists (substs,fn(ol,n) => varStrEq (ol,bv))
+        if Vector.exists (substs,fn(n,ol) => varStrEq (ol,bv))
           then Error.bug "Attempted substitution of bound var"
           else (bv,t,Predicate.applySubsts substs pred))
 
-    fun alphaRename refty newbv = case refty of
+    fun alphaRenameToVar refty newbv = case refty of
         Base (bv,t,p) => Base (newbv,t,
           Predicate.applySubst (newbv,bv) p)
       | _ => Error.bug "alphaRename attempted on non-base type"
+
+    fun alphaRename refty = alphaRenameToVar refty (genVar())
 
   end
 

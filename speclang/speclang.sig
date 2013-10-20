@@ -104,7 +104,8 @@ sig
     val layout : t -> Layout.t 
     val fromTyD : TypeDesc.t -> t
     val applySubsts : (Var.t * Var.t) vector -> t -> t
-    val alphaRename : t -> Var.t -> t
+    val alphaRename : t -> t
+    val alphaRenameToVar : t -> Var.t -> t
     val mapBaseTy : t -> ((Var.t * TypeDesc.t * Predicate.t) -> 
           (Var.t * TypeDesc.t * Predicate.t)) -> t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t

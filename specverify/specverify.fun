@@ -14,6 +14,7 @@ struct
   structure RefTyS = RefinementTypeScheme
   structure BP = Predicate.BasePredicate
   structure RP = Predicate.RelPredicate
+  structure L = Layout
 
   type subst = Var.t*Var.t
   type substs = subst Vector.t
@@ -89,6 +90,11 @@ struct
   val elabPatVal = fn (ve,tyvars,patval,expty) =>
     let
       open Pat.Val
+      val err = fn _ => String.concat 
+        ["Expression type is not row type.\n",
+          "Pattern is ",L.toString $ layout patval,"\n",
+          "Type of expression is ",L.toString $ RefTy.layout expty,
+            "\n" ]
       fun elabPatVal (ve,patval,expty) : VE.t = case (patval,expty) of
         (Atom (Wild),_) => ve
       | (Atom (Const c),_) => Error.bug ("unimpl constant pats")
@@ -96,7 +102,13 @@ struct
           (tyvars,expty))
       | (Tuple patatoms,RefTy.Tuple refTys) => Vector.fold2 
           (patatoms, refTys, ve, fn (patatom,refTy,ve) =>
-            elabPatVal (ve,Atom patatom,refTy))
+            (*
+             * Renaming {1:ty|P(1)} to {v:ty|P(v)}
+             *)
+            elabPatVal (ve,Atom patatom, RefTy.alphaRename refTy))
+      | (Tuple patatoms,_) => (
+          assert (Vector.length patatoms = 1, err());
+          elabPatVal (ve,Atom (Vector.sub (patatoms,0)),expty))
       | (Record patmrec, RefTy.Tuple refTys) => Vector.fold
           (Record.toVector patmrec, ve, fn ((lbl,patom),ve) =>
             let
@@ -108,9 +120,12 @@ struct
                 | NONE => RefTy.fromTyD $ TyD.makeTunknown () 
                   (* Unimpl : Nested records *)
             in
-              elabPatVal (ve, Atom patom, refTy)
+              (*
+               * Renaming record bound var.
+               *)
+              elabPatVal (ve, Atom patom, RefTy.alphaRename refTy)
             end)
-      | _ => Error.bug ("Expression type is not row type.")
+      | _ => Error.bug $ err()
     in
       elabPatVal (ve,patval,expty)
     end
@@ -161,7 +176,7 @@ struct
     in
       case (argTy,argExpVal) of
         (RefTy.Base (argvar,td,p),Atom (Var (v,typv))) => 
-          (Vector.new1 (v,RefTy.Base (argvar,td,p)),Vector.new1 (v,argvar))
+          (Vector.new1 (v,argTy),Vector.new1 (v,argvar))
       | (RefTy.Base (argvar,td,p),Atom (Const c)) => Error.bug $ 
           "Unimpl const args"
       | (RefTy.Tuple argTys,Tuple atomvec) => 
@@ -208,7 +223,7 @@ struct
                 \ 2. "^(TyD.toString td2) ^ "\n")
               val pred1' = Predicate.applySubst (bv2,bv1) pred1
             in
-              Base (bv2,td2,Predicate.disj(pred1,pred2))
+              Base (bv2,td2,Predicate.disj(pred1',pred2))
             end
         | (Tuple t1,Tuple t2) => (Tuple o Vector.map2) (t1,t2, 
             fn (r1,r2) => case (r1,r2) of
@@ -236,11 +251,12 @@ struct
           val vtys = VE.find ve v handle (VE.VarNotFound _) => Error.bug
             ((Var.toString v) ^ " not found in the current environment\n")
           val vty = RefTyS.instantiate (vtys,tydvec)  
-          (*
-           * Keep track of variable equality.
-           *)
           val qualifiedvty = case vty of RefTy.Base (bv,td,pred) => 
+              (*
+               * Keep track of variable equality.
+               *)
               RefTy.Base (bv,td,Predicate.conjP(pred,BP.varEq(bv,v)))
+            | RefTy.Tuple _ => vty (* Nothing to do here. *)
             | _ => vty (* Unimpl : refinements for fns *)
         in
           qualifiedvty
@@ -250,7 +266,7 @@ struct
             val atmTy = typeSynthValExp (ve,Val.Atom atm)
             val newbv = Var.fromString $ Int.toString (i+1) (* tuple BVs *)
           in
-            RefTy.alphaRename atmTy newbv
+            RefTy.alphaRenameToVar atmTy newbv
           end)
       | Val.Record atomrec => RefTy.Tuple $ Vector.map (Record.toVector atomrec, 
           fn (lbl,atm) => 
@@ -258,7 +274,7 @@ struct
               val atmTy = typeSynthValExp (ve,Val.Atom atm)
               val newbv = Var.fromString $ Field.toString lbl (* Record BVs *)
             in
-              RefTy.alphaRename atmTy newbv
+              RefTy.alphaRenameToVar atmTy newbv
             end)
     end
 
@@ -346,6 +362,8 @@ struct
     let
       val {arg,argType,body} = Lambda.dest lam
       val argRefTy = RefTy.fromTyD (Type.toMyType argType)
+      val _ = L.print (L.seq[Var.layout arg, L.str " :-> ",
+        RefTy.layout argRefTy], print)
       val extendedVE = VE.add ve (arg,toRefTyS argRefTy)
       (*
        * Γ[arg↦argTy] ⊢ body => bodyTy
@@ -357,21 +375,34 @@ struct
 
   and typeCheckLambda (ve : VE.t,lam : Lambda.t, ty : RefTy.t) : VC.t vector =
     let
-      val (argTy,resTy) = case ty of RefTy.Arrow v => v
+      val (argRefTy,resRefTy) = case ty of RefTy.Arrow v => v
         | _ => Error.bug "Function with non-arrow type"
-      val {arg,body,...} = Lambda.dest lam
-      val extendedVE = VE.add ve (arg, toRefTyS argTy)
-      (*
-       * Γ[arg↦argTy] ⊢ body => bodyTy
-       *)
-      val (bodyvcs,bodyTy) = typeSynthExp (extendedVE,body)
-      (*
-       * Γ[arg↦argTy] ⊢ bodyTy <: resTy
-       *)
-      val newvcs = VC.fromTypeCheck (extendedVE,bodyTy,resTy)
+      val {arg,argType,body} = Lambda.dest lam
+      val extendedVE = VE.add ve (arg, toRefTyS $ 
+        mergeTypes (Type.toMyType argType,argRefTy))
     in
-      Vector.concat [bodyvcs,newvcs]
+      (*
+       * Γ[arg↦argRefTy] ⊢ body <= resRefTy
+       *)
+      typeCheckExp (extendedVE,body,resRefTy)
     end
+
+  and typeCheckExp (ve : VE.t, exp: Exp.t, ty: RefTy.t) : VC.t vector =
+    case Exp.node exp of
+      Exp.Lambda l => typeCheckLambda (ve,l,ty)
+    | _ => 
+      let
+        (*
+         * Γ ⊢ exp => expRefTy
+         *)
+        val (expvcs,expRefTy) = typeSynthExp (ve,exp)
+        (*
+         * Γ ⊢ expRefTy <: ty
+         *)
+        val newvcs = VC.fromTypeCheck (ve,expRefTy,ty)
+      in
+        Vector.concat [expvcs,newvcs]
+      end
 
   and doItValBind (ve,tyvars,valbind) : (VC.t vector * VE.t) = 
     case valbind of
@@ -448,7 +479,7 @@ struct
                  * Extend ve' with a new dummy var to keep track of
                  * relationship between matched arguments and rhsvar.
                  *)
-                val RefTy.Base (bv,td,p) = RefTy.alphaRename resTy rhsvar
+                val RefTy.Base (bv,td,p) = RefTy.alphaRenameToVar resTy rhsvar
                 val _ = assert (Var.toString bv = Var.toString rhsvar, 
                   "RefTy alpha rename incorrect")
                 val newTyS = RefTyS.generalize (tyvars, RefTy.Base (genVar(),
