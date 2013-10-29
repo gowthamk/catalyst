@@ -233,7 +233,8 @@ sig
   val Z3_mk_bvnand : (z3_context * z3_ast * z3_ast) -> z3_ast
   val Z3_model_get_func_decl : (z3_context * z3_model * int) -> z3_func_decl
   val Z3_get_search_failure : (z3_context) -> int
-  val Z3_mk_constructor : (z3_context * z3_symbol * z3_symbol * int * z3_symbol array * z3_sort array * MLton.Pointer.t) -> z3_constructor
+  val Z3_mk_constructor : (z3_context * z3_symbol * z3_symbol * int * z3_symbol array * z3_sort array *
+    int array) -> z3_constructor
   val Z3_is_array_value : (z3_context * z3_model * z3_ast * MLton.Pointer.t) -> int
   val Z3_fixedpoint_init : (z3_context * z3_fixedpoint * MLton.Pointer.t) -> unit
   val Z3_is_well_sorted : (z3_context * z3_ast) -> int
@@ -418,7 +419,7 @@ sig
   val Z3_get_smtlib_num_sorts : (z3_context) -> int
   val Z3_eval_decl : (z3_context * z3_model * z3_func_decl * int * z3_ast array * MLton.Pointer.t) -> int
   val Z3_mk_unary_minus : (z3_context * z3_ast) -> z3_ast
-  val Z3_mk_datatype : (z3_context * z3_symbol * int * MLton.Pointer.t) -> z3_sort
+  val Z3_mk_datatype : (z3_context * z3_symbol * int * z3_constructor array) -> z3_sort
   val Z3_mk_bvmul : (z3_context * z3_ast * z3_ast) -> z3_ast
   val Z3_mk_pattern : (z3_context * int * z3_ast array) -> z3_pattern
   val Z3_sort_to_ast : (z3_context * z3_sort) -> z3_ast

@@ -57,83 +57,172 @@ fun declareSet ctx (name,elem_sort) =
 fun declareSets ctx (names,ty) = 
   List.map (fn (name) => declareSet ctx (name,ty)) names
 
-fun assertSingleton (ctx, set, el : z3_ast, elty) =
+fun mkBoundVar ctx (index,ty) =
+  Z3_mk_bound (ctx,index,ty)
+
+fun assertSetProp (ctx, numbvs, elty, propfn) =
   let
-    val bv_sym = Z3_mk_string_symbol (ctx, "bv")
-    val bvs = Array.fromList [bv_sym]
-    val bvtys = Array.fromList [elty]
-    val bv_ast = Z3_mk_const (ctx, bv_sym, elty) 
-    val args = Array.fromList [bv_ast]
-    val fnapp = Z3_mk_app (ctx, set, 1, args)
-    val eq = Z3_mk_eq (ctx,bv_ast,el)
-    val iff = Z3_mk_iff (ctx,eq,fnapp)
-    val pattern = Z3_mk_pattern (ctx,1,Array.fromList [fnapp])
-    val _ = print $ Z3_pattern_to_string (ctx, pattern)
-    val forall = Z3_mk_forall (ctx, 0, 1, Array.fromList [pattern], 1, 
-       bvtys, bvs, iff)
-    val _ = print "Hello\n"
+    val bvs = Array.tabulate (numbvs, fn i => mkBoundVar ctx (i,elty))
+    (* De-brujin. Therefore: bv_n,bv_n-1,...,bv_0 *)
+    val bvnames = Array.tabulate (numbvs, fn i => Z3_mk_string_symbol 
+      (ctx,"bv"^(Int.toString (numbvs-i-1))))
+    val bvtys = Array.tabulate (numbvs, fn i => elty)
+    val (patterns,prop) = propfn (ctx,bvs)
+    val patterns = Array.fromList []
+    (*val _ = Array.app (fn pat => print $ Z3_pattern_to_string 
+      (ctx,pat)) patterns*)
+    val forall = Z3_mk_forall (ctx, 0, 
+                  Array.length patterns, 
+                  patterns,
+                  numbvs,
+                  bvtys, 
+                  bvnames, 
+                  prop)
+    val _ = print $ "(assert "^(Z3_ast_to_string (ctx,forall))^")"
+    val _ = print "\n"
   in
     Z3_assert_cnstr (ctx, forall)
   end
+
+fun assertNegSetProp (ctx, numbvs, elty, propfn) =
+  let
+    val bvs = Array.tabulate (numbvs, fn i => mkBoundVar ctx (i,elty))
+    (* De-brujin. Therefore: bv_n,bv_n-1,...,bv_0 *)
+    val bvnames = Array.tabulate (numbvs, fn i => Z3_mk_string_symbol 
+      (ctx,"bv"^(Int.toString (numbvs-i-1))))
+    val bvtys = Array.tabulate (numbvs, fn i => elty)
+    val (patterns,prop) = propfn (ctx,bvs)
+    val patterns = Array.fromList []
+    (*val _ = Array.app (fn pat => print $ Z3_pattern_to_string 
+      (ctx,pat)) patterns*)
+    val forall = Z3_mk_forall (ctx, 0, 
+                  Array.length patterns, 
+                  patterns,
+                  numbvs,
+                  bvtys, 
+                  bvnames, 
+                  prop)
+    val neg = Z3_mk_not (ctx,forall)
+    val _ = print $ "(assert "^(Z3_ast_to_string (ctx,neg))^")"
+    val _ = print "\n"
+  in
+    Z3_assert_cnstr (ctx, neg)
+  end
+
+fun assertEmpty (ctx, set, elty) =
+  assertSetProp (ctx, 1, elty, fn (ctx,bvs) =>
+    let
+      val bv = Array.sub (bvs,0)
+      val fnapp = Z3_mk_app (ctx, set, 1, bvs)
+      val flse = Z3_mk_false ctx
+      val prop = Z3_mk_eq (ctx,fnapp,flse)
+      val pattern = Z3_mk_pattern (ctx,1,Array.fromList [fnapp])
+    in
+      (Array.fromList [pattern], prop)
+    end)
+
+fun assertSingleton (ctx, set, el : z3_ast, elty) =
+  assertSetProp (ctx, 1, elty, fn (ctx,bvs) =>
+    let
+      val bv = Array.sub (bvs,0)
+      val fnapp = Z3_mk_app (ctx, set, 1, bvs)
+      val eq = Z3_mk_eq (ctx,bv,el)
+      val iff = Z3_mk_iff (ctx,eq,fnapp)
+      val pattern = Z3_mk_pattern (ctx,1,Array.fromList [fnapp])
+    in
+      (Array.fromList [pattern], iff)
+    end)
 
 fun assertUnion (ctx, set, set1, set2, elty) = 
-  let
-    val bv_sym = Z3_mk_string_symbol (ctx, "bv")
-    val bvs = Array.fromList [bv_sym]
-    val bvtys = Array.fromList [elty]
-    val bv_ast = Z3_mk_const (ctx, bv_sym, elty) 
-    val args = Array.fromList [bv_ast]
-    val fnapp = Z3_mk_app (ctx, set, 1, args)
-    val fnapp1 = Z3_mk_app (ctx, set1, 1, args)
-    val fnapp2 = Z3_mk_app (ctx, set2, 1, args)
-    val disj = Z3_mk_or (ctx,2,Array.fromList [fnapp1,fnapp2])
-    val iff = Z3_mk_iff (ctx,fnapp,disj)
-    val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
-    val pats = Array.fromList $ List.map mk_pat [fnapp,fnapp1,fnapp2]
-    val _  = Array.app (fn pat => print $ Z3_pattern_to_string 
-      (ctx, pat)) pats
-    val forall = Z3_mk_forall (ctx, 0, 3, pats, 1, 
-       bvtys , bvs, iff)
-  in
-    Z3_assert_cnstr (ctx, forall)
-  end
+  assertSetProp (ctx, 1, elty, fn (ctx,bvs) =>
+    let
+      val fnapp = Z3_mk_app (ctx, set, 1, bvs)
+      val fnapp1 = Z3_mk_app (ctx, set1, 1, bvs)
+      val fnapp2 = Z3_mk_app (ctx, set2, 1, bvs)
+      val disj = Z3_mk_or (ctx,2,Array.fromList [fnapp1,fnapp2])
+      val iff = Z3_mk_iff (ctx,fnapp,disj)
+      val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
+      val pats = Array.fromList $ List.map mk_pat [fnapp,fnapp1,fnapp2]
+    in
+      (pats, iff)
+    end)
 
+fun assertCrossPrd (ctx, set, set1, set2, tuplety, pairfn, elty) =
+  assertSetProp (ctx, 2, elty, fn (ctx,bvs) =>
+    let
+      val bvpair = Z3_mk_app (ctx,pairfn,2,bvs)
+      val bv1 = Array.sub(bvs,0)
+      val bv2 = Array.sub(bvs,1)
+      val fnapp = Z3_mk_app (ctx, set, 1, Array.fromList [bvpair])
+      val fnapp1 = Z3_mk_app (ctx, set1, 1, Array.fromList [bv1])
+      val fnapp2 = Z3_mk_app (ctx, set2, 1, Array.fromList [bv2])
+      val conj = Z3_mk_and(ctx,2,Array.fromList [fnapp1,fnapp2])
+      val iff = Z3_mk_iff (ctx,fnapp,conj)
+      (*val _ = print $ Z3_ast_to_string (ctx,iff)
+      val _ = print "\n"*)
+      val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
+      val pats = Array.fromList $ List.map mk_pat [fnapp]
+    in
+      (pats, iff)
+    end)
 
 fun assertSetEq (ctx, set1, set2, elty) = 
-  let
-    val bv_sym = Z3_mk_string_symbol (ctx, "bv")
-    val bvs = Array.fromList [bv_sym]
-    val bvtys = Array.fromList [elty]
-    val bv_ast = Z3_mk_const (ctx, bv_sym, elty) 
-    val args = Array.fromList [bv_ast]
-    val fnapp1 = Z3_mk_app (ctx, set1, 1, args)
-    val fnapp2 = Z3_mk_app (ctx, set2, 1, args)
-    val iff = Z3_mk_iff (ctx,fnapp1,fnapp2)
-    val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
-    val pats = Array.fromList $ List.map mk_pat [fnapp1,fnapp2]
-    val forall = Z3_mk_forall (ctx, 0, 2, pats, 1, 
-       bvtys , bvs, iff)
-  in
-    Z3_assert_cnstr (ctx, forall)
-  end
+  assertSetProp (ctx, 1, elty, fn (ctx,bvs) =>
+    let
+      val fnapp1 = Z3_mk_app (ctx, set1, 1, bvs)
+      val fnapp2 = Z3_mk_app (ctx, set2, 1, bvs)
+      val iff = Z3_mk_iff (ctx,fnapp1,fnapp2)
+      val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
+      val pats = Array.fromList $ List.map mk_pat [fnapp1,fnapp2]
+    in
+      (pats, iff)
+    end)
 
 fun assertSetNotEq (ctx, set1, set2, elty) = 
+  assertNegSetProp (ctx, 1, elty, fn (ctx,bvs) =>
+    let
+      val fnapp1 = Z3_mk_app (ctx, set1, 1, bvs)
+      val fnapp2 = Z3_mk_app (ctx, set2, 1, bvs)
+      val iff = Z3_mk_iff (ctx,fnapp1,fnapp2)
+      val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
+      val pats = Array.fromList $ List.map mk_pat [fnapp1,fnapp2]
+    in
+      (pats, iff)
+    end)
+
+fun declareTupleSort ctx elty = 
   let
-    val bv_sym = Z3_mk_string_symbol (ctx, "bv")
-    val bvs = Array.fromList [bv_sym]
-    val bvtys = Array.fromList [elty]
-    val bv_ast = Z3_mk_const (ctx, bv_sym, elty) 
-    val args = Array.fromList [bv_ast]
-    val fnapp1 = Z3_mk_app (ctx, set1, 1, args)
-    val fnapp2 = Z3_mk_app (ctx, set2, 1, args)
-    val iff = Z3_mk_iff (ctx,fnapp1,fnapp2)
-    val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
-    val pats = Array.fromList $ List.map mk_pat [fnapp1,fnapp2]
-    val forall = Z3_mk_forall (ctx, 0, 2, pats, 1, 
-       bvtys , bvs, iff)
-    val negated = Z3_mk_not (ctx,forall)
+    val bool_sort          = Z3_mk_bool_sort ctx
+    val mkSym              = fn str => Z3_mk_string_symbol (ctx,str)
+    val pair_sym           = mkSym "Pair"
+    val recog_sym          = mkSym "is_pair"
+    val first_sym          = mkSym "first"
+    val second_sym         = mkSym "second"
+    val fld_names          = Array.fromList [first_sym,second_sym]
+    val mkpair_sym         = mkSym "mkpair"
+    val sorts              = Array.fromList [elty,elty]
+    val sort_refs          = Array.fromList [0,0]
+    val pair_cons          = Z3_mk_constructor (ctx, mkpair_sym,
+                              recog_sym,2,fld_names,sorts,sort_refs)
+    val tuple_ty           = Z3_mk_datatype (ctx, pair_sym, 1, 
+                              Array.fromList [pair_cons])
+    val pair_fn            = Z3_mk_func_decl (ctx, mkSym "mk-pair",
+                              2, sorts, tuple_ty)
+    val is_pair_fn         = Z3_mk_func_decl (ctx, mkSym "is_pair_decl",
+                              1, Array.fromList [tuple_ty], bool_sort)
+    val first_fn           = Z3_mk_func_decl (ctx, mkSym "first_decl",
+                              1, Array.fromList [tuple_ty], elty)
+    val second_fn          = Z3_mk_func_decl (ctx, mkSym "second_decl",
+                              1, Array.fromList [tuple_ty], elty)
+    val _                  = Z3_query_constructor (ctx, pair_cons, 2, 
+                              ref pair_fn, ref is_pair_fn, Array.fromList 
+                              [first_fn,second_fn])
+    val _ = print $ Z3_sort_to_string (ctx,tuple_ty)
+    val _ = print "\n"
+    val _ = print $ Z3_func_decl_to_string (ctx,pair_fn)
+    val _ = print "\n"
   in
-    Z3_assert_cnstr (ctx, negated)
+    (tuple_ty, pair_fn)
   end
 
 fun reverse_proof () =
@@ -144,8 +233,6 @@ fun reverse_proof () =
     (* functions in this context *)
     val declareSet         = declareSet ctx
     val declareSets        = declareSets ctx
-    val mkSym              = fn str => Z3_mk_string_symbol (ctx,str)
-    val bool_sort          = Z3_mk_bool_sort ctx
     val t_sym              = Z3_mk_string_symbol (ctx,"T")
     val t_sort             = Z3_mk_uninterpreted_sort (ctx,t_sym)
     val [rmemxs, rmeml,
@@ -154,44 +241,33 @@ fun reverse_proof () =
                               "Rmemxs1", "Rmemv","Rmemx1"],t_sort)
     (* Declare constants *)
     val x_sym              = Z3_mk_string_symbol (ctx,"x")
-    val x1_sym             = Z3_mk_string_symbol (ctx,"x1")
     val x                  = Z3_mk_const (ctx,x_sym,t_sort)
     (* Declare tuple type *) 
-    (*val pair_sym           = mkSym "Pair"
-    val recog_sym          = mkSym "is_pair"
-    val first_sym          = mkSym "first"
-    val second_sym         = mkSym "second"
-    val fld_names          = Array.fromList [first_sym,second_sym]
-    val mk-pair_sym        = mkSym "mk-pair"
-    val sorts              = Array.fromList [t_sort,t_sort]
-    val sort_refs          = Array.fromList [0,0]
-    val pair_cons          = Z3_mk_constructor (ctx, mk-pair_sym,
-                              recog_sym,2,fld_names,sorts,sort_refs)
-    val tuple_ty           = Z3_mk_datatype (ctx, pair_sym, 1, 
-                              Array.fromList [pair_cons])
-    val pair_fn            = Z3_mk_func_decl (ctx, mkSym "pair_decl",
-                              2, sorts, tuple_ty)
-    val is_pair_fn         = Z3_mk_func_decl (ctx, mkSym "is_pair_decl",
-                              1, Array.fromList [tuple_ty], bool_sort)
-    val first_fn           = Z3_mk_func_decl (ctx, mkSym "first_decl",
-                              1, Array.fromList [tuple_ty], t_sort)
-    val second_fn          = Z3_mk_func_decl (ctx, mkSym "second_decl",
-                              1, Array.fromList [tuple_ty], t_sort)
-    val _                  = Z3_query_constructor (ctx, pair_cons, 2, 
-                              ref pair_fn, ref is_pair_fn, Array.fromList 
-                              [first_fn,second_fn])
+    val (tuple_sort,pair_cons) = declareTupleSort ctx t_sort
     val [robsxs, robsl,
          roasxs1, roasx1,
          roasv]            = declareSets (["Robsxs", "Robsl", "Roasxs1", 
-                                "Roasx1", "Roasv"],t_sort)*)
+                                "Roasx1", "Roasv"],tuple_sort)
     val setx               = declareSet ("setx",t_sort)
+    val setc               = declareSet ("setc",tuple_sort)
     val _                  = assertSingleton (ctx,setx,x,t_sort)
     val _                  = assertUnion (ctx,rmeml,setx,rmemxs,t_sort)
+    val _                  = assertCrossPrd (ctx,setc,setx,rmemxs,
+                              tuple_sort, pair_cons, t_sort)
+    val _                  = assertUnion (ctx,robsl,setc,robsxs,tuple_sort)
     val _                  = assertSetEq (ctx,rmemxs,rmemxs1,t_sort)
-    val rmemx1             = declareSet ("rmemx1",t_sort)
+    val _                  = assertSetEq (ctx,robsxs,roasxs1,tuple_sort)
     val _                  = assertSingleton (ctx,rmemx1,x,t_sort)
+    val _                  = assertEmpty (ctx,roasx1,tuple_sort)
     val _                  = assertUnion (ctx,rmemv,rmemxs1,rmemx1,t_sort)
-    val _                  = assertSetNotEq (ctx,rmemv,rmeml,t_sort)
+    val seta               = declareSet ("seta",tuple_sort)
+    val _                  = assertUnion (ctx,seta,roasxs1,roasx1,tuple_sort)
+    val setb               = declareSet ("setb",tuple_sort)
+    val _                  = assertCrossPrd (ctx,setb,rmemx1,rmemxs1,
+                              tuple_sort, pair_cons, t_sort)
+    val _                  = assertUnion (ctx,roasv,seta,setb,tuple_sort)
+    (*val _                  = assertSetNotEq (ctx,rmemv,rmeml,t_sort)*)
+    val _                  = assertSetNotEq (ctx,roasv,robsl,tuple_sort)
     val res                = Z3_check ctx
     val _                  = Z3_del_context ctx
   in

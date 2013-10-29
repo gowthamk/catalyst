@@ -1156,7 +1156,8 @@ struct
 
   fun Z3_mk_datatype (c,name,num_constructors,constructors) = 
   let
-    val dyn_Z3_mk_datatype = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * MLton.Pointer.t) -> z3_sort;
+    val dyn_Z3_mk_datatype = _import * : DynLink.fptr -> (z3_context * z3_symbol
+      * int * z3_constructor array) -> z3_sort;
     val Z3_mk_datatype_ptr = DynLink.dlsym(hndl, "Z3_mk_datatype")
   in
     dyn_Z3_mk_datatype Z3_mk_datatype_ptr (c,name,num_constructors,constructors)
@@ -2636,7 +2637,8 @@ struct
 
   fun Z3_mk_constructor (c,name,recognizer,num_fields,field_names,sorts,sort_refs) = 
   let
-    val dyn_Z3_mk_constructor = _import * : DynLink.fptr -> (z3_context * z3_symbol * z3_symbol * int * z3_symbol array * z3_sort array * MLton.Pointer.t) -> z3_constructor;
+    val dyn_Z3_mk_constructor = _import * : DynLink.fptr -> (z3_context * z3_symbol * z3_symbol * int * z3_symbol array * z3_sort array *
+      int array) -> z3_constructor;
     val Z3_mk_constructor_ptr = DynLink.dlsym(hndl, "Z3_mk_constructor")
   in
     dyn_Z3_mk_constructor Z3_mk_constructor_ptr (c,name,recognizer,num_fields,field_names,sorts,sort_refs)
