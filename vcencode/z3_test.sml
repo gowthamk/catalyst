@@ -63,14 +63,13 @@ fun mkBoundVar ctx (index,ty) =
 fun assertSetProp (ctx, numbvs, elty, propfn) =
   let
     val bvs = Array.tabulate (numbvs, fn i => mkBoundVar ctx (i,elty))
-    (* De-brujin. Therefore: bv_n,bv_n-1,...,bv_0 *)
+    (* 
+     * De-brujin. Therefore: bv_n,bv_n-1,...,bv_0 
+     *)
     val bvnames = Array.tabulate (numbvs, fn i => Z3_mk_string_symbol 
       (ctx,"bv"^(Int.toString (numbvs-i-1))))
     val bvtys = Array.tabulate (numbvs, fn i => elty)
     val (patterns,prop) = propfn (ctx,bvs)
-    val patterns = Array.fromList []
-    (*val _ = Array.app (fn pat => print $ Z3_pattern_to_string 
-      (ctx,pat)) patterns*)
     val forall = Z3_mk_forall (ctx, 0, 
                   Array.length patterns, 
                   patterns,
@@ -78,8 +77,8 @@ fun assertSetProp (ctx, numbvs, elty, propfn) =
                   bvtys, 
                   bvnames, 
                   prop)
-    val _ = print $ "(assert "^(Z3_ast_to_string (ctx,forall))^")"
-    val _ = print "\n"
+    (*val _ = print $ "(assert "^(Z3_ast_to_string (ctx,forall))^")"
+    val _ = print "\n"*)
   in
     Z3_assert_cnstr (ctx, forall)
   end
@@ -87,14 +86,13 @@ fun assertSetProp (ctx, numbvs, elty, propfn) =
 fun assertNegSetProp (ctx, numbvs, elty, propfn) =
   let
     val bvs = Array.tabulate (numbvs, fn i => mkBoundVar ctx (i,elty))
-    (* De-brujin. Therefore: bv_n,bv_n-1,...,bv_0 *)
+    (* 
+     * De-brujin. Therefore: bv_n,bv_n-1,...,bv_0 
+     *)
     val bvnames = Array.tabulate (numbvs, fn i => Z3_mk_string_symbol 
       (ctx,"bv"^(Int.toString (numbvs-i-1))))
     val bvtys = Array.tabulate (numbvs, fn i => elty)
     val (patterns,prop) = propfn (ctx,bvs)
-    val patterns = Array.fromList []
-    (*val _ = Array.app (fn pat => print $ Z3_pattern_to_string 
-      (ctx,pat)) patterns*)
     val forall = Z3_mk_forall (ctx, 0, 
                   Array.length patterns, 
                   patterns,
@@ -103,8 +101,8 @@ fun assertNegSetProp (ctx, numbvs, elty, propfn) =
                   bvnames, 
                   prop)
     val neg = Z3_mk_not (ctx,forall)
-    val _ = print $ "(assert "^(Z3_ast_to_string (ctx,neg))^")"
-    val _ = print "\n"
+    (*val _ = print $ "(assert "^(Z3_ast_to_string (ctx,neg))^")"
+    val _ = print "\n"*)
   in
     Z3_assert_cnstr (ctx, neg)
   end
@@ -158,8 +156,6 @@ fun assertCrossPrd (ctx, set, set1, set2, tuplety, pairfn, elty) =
       val fnapp2 = Z3_mk_app (ctx, set2, 1, Array.fromList [bv2])
       val conj = Z3_mk_and(ctx,2,Array.fromList [fnapp1,fnapp2])
       val iff = Z3_mk_iff (ctx,fnapp,conj)
-      (*val _ = print $ Z3_ast_to_string (ctx,iff)
-      val _ = print "\n"*)
       val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
       val pats = Array.fromList $ List.map mk_pat [fnapp]
     in
@@ -206,23 +202,21 @@ fun declareTupleSort ctx elty =
                               recog_sym,2,fld_names,sorts,sort_refs)
     val tuple_ty           = Z3_mk_datatype (ctx, pair_sym, 1, 
                               Array.fromList [pair_cons])
-    val pair_fn            = Z3_mk_func_decl (ctx, mkSym "mk-pair",
+    val pair_fn            = ref $ Z3_mk_func_decl (ctx, mkSym "mk-pair",
                               2, sorts, tuple_ty)
-    val is_pair_fn         = Z3_mk_func_decl (ctx, mkSym "is_pair_decl",
+    val is_pair_fn         = ref $ Z3_mk_func_decl (ctx, mkSym "is_pair_decl",
                               1, Array.fromList [tuple_ty], bool_sort)
     val first_fn           = Z3_mk_func_decl (ctx, mkSym "first_decl",
                               1, Array.fromList [tuple_ty], elty)
     val second_fn          = Z3_mk_func_decl (ctx, mkSym "second_decl",
                               1, Array.fromList [tuple_ty], elty)
+    val proj_decls         = Array.fromList [first_fn, second_fn]
     val _                  = Z3_query_constructor (ctx, pair_cons, 2, 
-                              ref pair_fn, ref is_pair_fn, Array.fromList 
-                              [first_fn,second_fn])
-    val _ = print $ Z3_sort_to_string (ctx,tuple_ty)
-    val _ = print "\n"
-    val _ = print $ Z3_func_decl_to_string (ctx,pair_fn)
-    val _ = print "\n"
+                              pair_fn, is_pair_fn, proj_decls)
+    val first_fn           = Array.sub (proj_decls,0)
+    val second_fn          = Array.sub (proj_decls,1)
   in
-    (tuple_ty, pair_fn)
+    (tuple_ty, !pair_fn)
   end
 
 fun reverse_proof () =
