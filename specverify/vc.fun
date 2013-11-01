@@ -7,6 +7,9 @@ struct
   structure RP = Predicate.RelPredicate
   structure RefTy = RefinementType
   structure RefTyS = RefinementTypeScheme
+  structure RelTy = RelLang.RelType
+  structure RelTyS = RelLang.RelTypeScheme
+  structure RI = RelLang.RelId
   structure TyD = TypeDesc
   structure Env = TyDBinds
   structure L = Layout
@@ -22,7 +25,8 @@ struct
                    |  Conj of simple_pred vector
 
   datatype t = T of tydbinds * vc_pred* vc_pred
-
+  
+  val assert = Control.assert
   fun $ (f,arg) = f arg
   infixr 5 $
   fun vectorAppend (vec,e) = Vector.concat [vec,Vector.new1 e]
@@ -138,7 +142,12 @@ struct
         (Base (v1,t1,p1), Base (v2,t2,p2)) => 
           let
             (*
-             * First, substitute actuals for formals in p2
+             * First, make sure that base types are same.
+             *)
+            val _ = assert (TyD.sameType (t1,t2), (TyD.toString t1)
+              ^" is not sub-type of "^(TyD.toString t2))
+            (*
+             * Second, substitute actuals for formals in p2
              *)
             val p2 = P.applySubst (v1,v2) p2
             (*
@@ -146,6 +155,11 @@ struct
              *val _ = L.print (P.layout p1,print)
              *val _ = print "\n"
              *)
+            (*
+             * Third, add base type of actuals to env
+             *)
+            val ve = VE.add ve (v1,RefTyS.generalize (Vector.new0 (),
+              RefTy.fromTyD t1))
             val envVCs = fn _ => havocVE ve
             val anteVCs = fn _ => havocPred p1
             val vcs = fn _ => join (envVCs (),anteVCs ())
@@ -159,6 +173,119 @@ struct
           (t1v,t2v, fn (t1,t2) => fromTypeCheck (ve,t1,t2))
       | (Arrow (t11,t12),Arrow (t21,t22)) => Vector.concat
           [fromTypeCheck (ve,t21,t11), fromTypeCheck (ve,t12,t22)]
+    end
+
+  datatype rinst = RInst of RelLang.RelId.t * TypeDesc.t vector
+
+  structure RelInstTable : APPLICATIVE_MAP where
+    type Key.t = rinst and type Value.t = RelLang.RelId.t =
+  struct
+    structure Key = 
+    struct
+      type t = rinst
+      val layout = fn _ => L.empty
+      val idStrEq = fn (id1,id2) => (RI.toString id1 = RI.toString id2)
+      fun equal (RInst (id1,tyds1), RInst (id2,tyds2)) =
+        (idStrEq (id1,id2)) andalso
+        (Vector.length tyds1 = Vector.length tyds2) andalso
+        (Vector.forall2 (tyds1,tyds2, TyD.sameType))
+    end
+    structure Map = ApplicativeMap (structure Key = Key
+                                   structure Value = RelLang.RelId)
+    open Map
+  end
+
+  fun elaborate (re,vc) =
+    let
+      val T (tydbinds,anteP,conseqP) = vc
+
+      val tyDB = Vector.fold (tydbinds,TyDBinds.empty, 
+        fn ((v,tyd),tyDB) => TyDBinds.add tyDB v tyd)
+
+      val count = ref 0
+      val genSym = fn idbase => 
+        let
+          val symbase = "_"^(RI.toString idbase)
+          val id = symbase ^ (Int.toString (!count))
+          val _ = count := !count + 1
+        in
+          RI.fromString id 
+      end
+      val inv = fn (x,y) => (y,x)
+      fun mapFoldTuple b f (x,y) =
+        ((fn (b',x') => 
+            ((fn (b'',y') => (b'',(x',y'))) o (f b')) y) 
+          o (f b)) x 
+      fun mapSnd f (x,y) = (x,f y)
+
+      fun elabRExpr (tab:RelInstTable.t) rexpr =  
+        let
+          fun getSymForRInst rinst = 
+            (SOME $ RelInstTable.find tab (RInst rinst)) 
+              handle RelInstTable.KeyNotFound _ => NONE
+          fun addSymForRInst rinst rid =
+            RelInstTable.add tab (RInst rinst) rid
+          val mapper = mapFoldTuple tab elabRExpr
+          fun tyArgsinTypeOf (v:Var.t) =
+            (case TyDBinds.find tyDB v of
+              TyD.Tconstr (tycon,targs) => Vector.fromList targs
+            | _ => Error.bug ("Relation instantiated over variable\
+              \ of non-algebraic datatype")) 
+            handle TyDBinds.KeyNotFound _ => Error.bug ("Type of\
+              \ variable "^(Var.toString v)^" not found in TyDBinds")
+        in
+          case rexpr of
+            RelLang.T _ => (tab,rexpr)
+          | RelLang.X t => mapSnd RelLang.X (mapper t)
+          | RelLang.U t => mapSnd RelLang.U (mapper t)
+          | RelLang.R (relId,v) => 
+            let
+              val rinst = (relId,tyArgsinTypeOf v)
+            in
+              case getSymForRInst rinst of 
+                SOME relId' => (tab,RelLang.R (relId',v))
+              | NONE => (fn r' => (addSymForRInst rinst r', 
+                  RelLang.R (r',v))) (genSym relId)
+            end
+        end
+
+      fun elabRPred (tab : RelInstTable.t) rpred = case rpred of
+          RP.Eq t => mapSnd RP.Eq (mapFoldTuple tab elabRExpr t)
+        | RP.Sub t => mapSnd RP.Sub (mapFoldTuple tab elabRExpr t)
+        | RP.SubEq t => mapSnd RP.SubEq (mapFoldTuple tab elabRExpr t)
+
+      fun elabSimplePred (rinstTab : RelInstTable.t) sp = 
+        case sp of
+          Rel rpred => mapSnd Rel (elabRPred rinstTab rpred)
+        | _ => (rinstTab,sp)
+
+      fun elabVCPred (rinstTab : RelInstTable.t) (vcpred:vc_pred) :
+        (RelInstTable.t*vc_pred) = 
+        case vcpred of
+          Simple sp  => mapSnd Simple (elabSimplePred rinstTab sp)
+        | Conj spvec => mapSnd Conj ((inv o Vector.mapAndFold) 
+           (spvec, rinstTab, fn (sp,rt) => inv $ elabSimplePred rt sp))
+
+      val (rinstTab,(anteP',conseqP')) = mapFoldTuple (RelInstTable.empty) 
+        elabVCPred (anteP,conseqP) 
+
+      val newtydbinds = Vector.map (RelInstTable.toVector rinstTab,
+        fn (RInst (relId,tydvec),relId') =>
+          let
+            val {ty,map} = RE.find re relId handle RE.RelNotFound _ =>
+              Error.bug ("Unknown Relation: "^(RelLang.RelId.toString relId))
+            val RelTy.Tuple tydvec = RelTyS.instantiate (ty,tydvec)
+            val boolTyD = TyD.makeTconstr (Tycon.bool,[])
+            val relArgTyd = TyD.Trecord $ Record.tuple tydvec
+            val relTyD = TyD.makeTarrow (relArgTyd,boolTyD)
+            val relvid = Var.fromString $ RI.toString relId'
+          in
+            (relvid,relTyD)
+          end)
+
+      val tydbinds' = Vector.concat [tydbinds,newtydbinds]
+    in
+      T (tydbinds',anteP',conseqP')
     end
 
   fun layout (vcs : t vector) =

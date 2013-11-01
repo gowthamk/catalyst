@@ -10,6 +10,24 @@ sig
   sig
     structure RelId : ID
 
+    structure RelType :
+    sig
+      datatype t = Tuple of TypeDesc.t vector
+      val toString : t -> string
+      val equal : (t*t) -> bool
+    end
+
+    structure RelTypeScheme :
+    sig
+      datatype t = T of {tyvars : Tyvar.t vector,
+                         relty : RelType.t}
+      val generalize : Tyvar.t vector * RelType.t -> t
+      val specialize: t -> RelType.t
+      val instantiate : t * TypeDesc.t vector -> RelType.t
+      val toString : t -> string
+      val equal : (t*t) -> bool
+    end
+
     datatype elem = Int of int
                   | Bool of bool
                   | Var of Var.t
@@ -33,7 +51,6 @@ sig
   sig
     
     datatype t = T of {id : RelLang.RelId.t,
-                       ty : unit,
                        map : (Con.t * Var.t vector option * RelLang.term)
                              vector}
     val conMapToString : (Con.t * Var.t vector option * RelLang.term) vector -> string

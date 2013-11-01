@@ -21,7 +21,10 @@ local
   elaborate_varenv.sig
   elaborate_varenv.fun
 in
+  signature APPLICATIVE_MAP
+  functor ApplicativeMap
   signature VAR_ENV
+  signature REL_ENV
   signature ELABORATE_VAR_ENV
   functor ElaborateVarEnv
 end

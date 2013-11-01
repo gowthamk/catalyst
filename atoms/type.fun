@@ -63,7 +63,10 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
         | (_,_) => false
       end
 
-    fun unifiable (t1,t2) = true
+    fun unifiable (t1,t2) = case (t1,t2) of
+        (Tunknown,_) => false
+      | (_,Tunknown) => true
+      | _ => true
 
     fun substTyvar ((tyd,tyvar),ty) = 
       let

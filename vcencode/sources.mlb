@@ -7,20 +7,28 @@
  *)
 
 local
-  $(SML_LIB)/basis/basis.mlb
+  (* 
+  $(SML_LIB)/smlnj-lib/Util/smlnj-lib.mlb
   $(SML_LIB)/basis/mlton.mlb
   $(SML_LIB)/basis/c-types.mlb
-  $(SML_LIB)/smlnj-lib/Util/smlnj-lib.mlb
+  *)
+  $(SML_LIB)/basis/basis.mlb
 
-  z3_ffi.sig 
+  ../atoms/sources.mlb
+  ../control/sources.mlb
+  ../lib/mlton/sources.mlb
+  ../specverify/sources.mlb
+  z3_ffi.sig
+  z3_encode.sig
   ann "allowFFI true" in
     dylibloader.sml
     z3_ffi.sml
+    z3_encode.fun
   end
-  z3_test.sml
+  (*z3_test.sml*)
+  vcencode.sig
+  vcencode.fun
 in
-  signature DYN_LINK
-  structure DynLink
-  signature Z3_FFI_INTERFACE
-  structure Z3_FFI
+  signature VC_ENCODE
+  functor VCEncode
 end

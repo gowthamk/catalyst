@@ -115,11 +115,14 @@ structure ANormalize = ANormalize (structure CoreML = CoreML
 structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
                                    structure ANormalCoreML = ANormalCoreML)
 structure VE = ElaborateVarEnv.VE
+structure RE = ElaborateVarEnv.RE
 
 structure SpecVerify = SpecVerify (structure VE = VE
+                                   structure RE = RE
                                    structure ANormalCoreML = ANormalCoreML)
 
 structure VC = SpecVerify.VC
+structure VCE = VCEncode (structure VC = VC)
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
 (* ------------------------------------------------- *)
@@ -503,7 +506,7 @@ in
             fun $ (f,arg) = f arg
             infixr 5 $
             val speclang = specast
-            val ve = ElaborateVarEnv.elaborate ancoreML speclang
+            val (ve,re) = ElaborateVarEnv.elaborate ancoreML speclang
             (* 
              * Hack : ML has ::, but not cons. So, ty(::) <- ty(cons) 
              * and remove cons from ve.
@@ -516,6 +519,10 @@ in
             val _ = print "Specification Ast:\n"
             val _ = Control.message (Control.Top, fn _ =>
               SpecLang.RelSpec.layout specast)
+            val _ = print "Rel Env:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              RE.layout re)
+            val _ = print "\n"
             val vcs = SpecVerify.doIt (ve,ancoreML)
             fun layouts (vcs,output) = (
               output $ Layout.str "Elaborated VarEnv:\n";
@@ -523,6 +530,17 @@ in
               VC.layouts (vcs,output))
             val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
                                       Layouts layouts)
+            val elabvcs = Vector.map (vcs, fn vc => VC.elaborate (re,vc))
+            val _ = Control.saveToFile ({suffix = "evcs"}, No, elabvcs,
+                                      Layouts VC.layouts)
+            exception CantDischargeVC of string
+            fun dischargeVC (i,vc) = case VCE.discharge vc of
+                VCE.Success => ()
+              | VCE.Undef => raise (CantDischargeVC ("Solver timeout"
+                  ^" while trying to discharge VC #"^(Int.toString i)))
+              | VCE.Fail => raise (CantDischargeVC ("VC # "
+                  ^(Int.toString i)^" is not valid."))
+            val _ = Vector.foreachi (elabvcs,dischargeVC)
          in
           ()
          end

@@ -16,6 +16,8 @@ signature ELABORATE_VAR_ENV =
 sig
   include ELABORATE_VAR_ENV_STRUCTS
   structure VE : VAR_ENV
+  structure RE : REL_ENV
+  sharing VE.SpecLang = RE.SpecLang
 
-  val elaborate : ANormalCoreML.Program.t -> SpecLang.RelSpec.t -> VE.t 
+  val elaborate : ANormalCoreML.Program.t -> SpecLang.RelSpec.t -> (VE.t * RE.t) 
 end

@@ -21,8 +21,56 @@ struct
                   | X of expr * expr
                   | U of expr * expr
                   | R of RelId.t * Var.t
+
     datatype term = Expr of expr
-                  | Star of RelId.t 
+                  | Star of RelId.t
+    structure RelType =
+    struct
+      datatype t = Tuple of TypeDesc.t vector
+
+      fun toString (Tuple tydv) = Vector.toString 
+        TypeDesc.toString tydv
+
+      fun equal (Tuple tydv1, Tuple tydv2) = 
+        Vector.forall2 (tydv1,tydv2,TypeDesc.sameType)
+        
+    end
+
+    structure RelTypeScheme = 
+    struct
+      datatype t = T of {tyvars : Tyvar.t vector,
+                         relty : RelType.t}
+
+      fun generalize (tyvars,tyd) =
+        T {tyvars=tyvars,relty=tyd}
+
+      fun specialize (T{relty,...}) = relty
+
+      fun toString (T{tyvars, relty}) = 
+        (Vector.toString Tyvar.toString tyvars)^" "^
+          (RelType.toString relty)
+
+      fun instantiate (T{tyvars,relty = RelType.Tuple tys},tydvec) =
+        let
+          val len = Vector.length
+          val _ = assert (len tyvars = len tydvec,
+            "insufficient number of type args for reltys inst")
+          val instTyD = TypeDesc.instantiateTyvars $ Vector.zip 
+            (tydvec,tyvars)
+          val tydvec' = Vector.map (tys, instTyD)
+        in
+          RelType.Tuple tydvec'
+        end 
+
+      fun equal (T{tyvars=tyv1,relty=relty1},
+        T{tyvars=tyv2,relty=relty2}) =
+        (Vector.length tyv1 = Vector.length tyv2) andalso
+        (Vector.forall2 (tyv1,tyv2, fn (tyvar1,tyvar2) => 
+          TypeDesc.sameType (TypeDesc.makeTvar tyvar1, 
+            TypeDesc.makeTvar tyvar2))) andalso
+        (RelType.equal (relty1,relty2))
+    end
+
     val elemToString = fn el => case el of
         Int i => Int.toString i
       | Bool b => Bool.toString b
@@ -68,7 +116,6 @@ struct
   structure StructuralRelation =
   struct
     datatype t = T of {id : RelLang.RelId.t,
-                       ty : unit,
                        map : (Con.t * Var.t vector option * RelLang.term) vector}
 
     fun conMapToString map =
@@ -86,7 +133,7 @@ struct
         conmap
       end
 
-    val toString = fn T{id,ty,map} =>
+    val toString = fn T{id,map} =>
       let val relid = Var.toString id
           val conmap = conMapToString map
       in

@@ -1,8 +1,11 @@
 functor RelEnv (S : REL_ENV_STRUCTS) : REL_ENV = 
 struct
   open S
+  open SpecLang
 
-  type reldesc = { ty : unit,
+  structure TyD = TypeDesc
+
+  type reldesc = { ty : RelLang.RelTypeScheme.t,
                   map : (Con.t * Var.t vector option * RelLang.expr) 
                     vector}
 
@@ -20,6 +23,7 @@ struct
     type t = reldesc
     val toString = fn ({ty,map}) =>
       let
+        val tyDS = RelLang.RelTypeScheme.toString ty
         val conmap = "{" ^ (Vector.toString (fn (c,vlo,rexpr) =>
             let
               val cstr = Con.toString c
@@ -30,7 +34,7 @@ struct
               cstr ^ vseq ^ " => " ^ trmstr
             end) map) ^ "}\n"
       in
-        conmap
+        "{type = "^tyDS^", map = "^conmap^"}"
       end
     fun layout t = (Layout.str o toString) t
   end

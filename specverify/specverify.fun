@@ -1,10 +1,18 @@
 functor SpecVerify (S : SPEC_VERIFY_STRUCTS) : SPEC_VERIFY = 
 struct
+  (**
+   * Caution: The way tuples are handled is wrong.
+   * For eg: calling uncurried concat with {1:A|1=v1}*{2:A|2=v2}
+   * results in {v:A|R(v) = R(1) U R(2)} in a context where 1 and 
+   * 2 does not exist. Solution is to not anonymize tuples.
+   * Unimpl : Solution.
+   *)
   open S
  
   structure SpecLang = VE.SpecLang
   structure VC = VerificationCondition (open SpecLang
                                         structure VE = VE
+                                        structure RE = RE
                                         (*structure ANormalCoreML = 
                                           ANormalCoreML*))
   open SpecLang
@@ -378,13 +386,21 @@ struct
       val (argRefTy,resRefTy) = case ty of RefTy.Arrow v => v
         | _ => Error.bug "Function with non-arrow type"
       val {arg,argType,body} = Lambda.dest lam
-      val extendedVE = VE.add ve (arg, toRefTyS $ 
-        mergeTypes (Type.toMyType argType,argRefTy))
+      val extendedVE = VE.add ve (arg, toRefTyS argRefTy)
+        (*mergeTypes (Type.toMyType argType,argRefTy))*)
+      (*
+       * Substitute specfication vars with real vars
+       * Unimpl: tuples
+       *)
+      val resRefTy' = case argRefTy of 
+          RefTy.Base (bv,_,_) => RefTy.applySubsts 
+            (Vector.new1 (arg,bv)) resRefTy
+        | _ => resRefTy
     in
       (*
        * Γ[arg↦argRefTy] ⊢ body <= resRefTy
        *)
-      typeCheckExp (extendedVE,body,resRefTy)
+      typeCheckExp (extendedVE,body,resRefTy')
     end
 
   and typeCheckExp (ve : VE.t, exp: Exp.t, ty: RefTy.t) : VC.t vector =
@@ -512,7 +528,7 @@ struct
               val vcs = (Vector.concatV o Vector.map) (decs,
                 fn ({lambda,var}) => 
                   let
-                    val fty = RefTyS.specialize $ VE.find ve var
+                    val fty = RefTyS.specialize $ VE.find extendedVE var
                       handle (VE.VarNotFound _) => Error.bug "ImpossibleCase!"
                     (*
                      * For recursive function lambdas are checked against 

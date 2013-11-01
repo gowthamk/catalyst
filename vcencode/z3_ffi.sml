@@ -60,7 +60,7 @@ struct
 
   fun Z3_mk_distinct (c,num_args,args) = 
   let
-    val dyn_Z3_mk_distinct = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_distinct = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_distinct_ptr = DynLink.dlsym(hndl, "Z3_mk_distinct")
   in
     dyn_Z3_mk_distinct Z3_mk_distinct_ptr (c,num_args,args)
@@ -172,7 +172,7 @@ struct
 
   fun Z3_mk_set_intersect (c,num_args,args) = 
   let
-    val dyn_Z3_mk_set_intersect = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_set_intersect = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_set_intersect_ptr = DynLink.dlsym(hndl, "Z3_mk_set_intersect")
   in
     dyn_Z3_mk_set_intersect Z3_mk_set_intersect_ptr (c,num_args,args)
@@ -236,7 +236,7 @@ struct
 
   fun Z3_mk_quantifier_ex (c,is_forall,weight,quantifier_id,skolem_id,num_patterns,patterns,num_no_patterns,no_patterns,num_decls,sorts,decl_names,body) = 
   let
-    val dyn_Z3_mk_quantifier_ex = _import * : DynLink.fptr -> (z3_context * int * int * z3_symbol * z3_symbol * int * z3_pattern array * int * z3_ast array * int * z3_sort array * z3_symbol array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_quantifier_ex = _import * : DynLink.fptr -> (z3_context * int * int * z3_symbol * z3_symbol * int * z3_pattern vector * int * z3_ast vector * int * z3_sort vector * z3_symbol vector * z3_ast) -> z3_ast;
     val Z3_mk_quantifier_ex_ptr = DynLink.dlsym(hndl, "Z3_mk_quantifier_ex")
   in
     dyn_Z3_mk_quantifier_ex Z3_mk_quantifier_ex_ptr (c,is_forall,weight,quantifier_id,skolem_id,num_patterns,patterns,num_no_patterns,no_patterns,num_decls,sorts,decl_names,body)
@@ -316,7 +316,7 @@ struct
 
   fun Z3_substitute_vars (c,a,num_exprs,to) = 
   let
-    val dyn_Z3_substitute_vars = _import * : DynLink.fptr -> (z3_context * z3_ast * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_substitute_vars = _import * : DynLink.fptr -> (z3_context * z3_ast * int * z3_ast vector) -> z3_ast;
     val Z3_substitute_vars_ptr = DynLink.dlsym(hndl, "Z3_substitute_vars")
   in
     dyn_Z3_substitute_vars Z3_substitute_vars_ptr (c,a,num_exprs,to)
@@ -340,7 +340,7 @@ struct
 
   fun Z3_mk_func_decl (c,s,domain_size,domain,range) = 
   let
-    val dyn_Z3_mk_func_decl = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_sort array * z3_sort) -> z3_func_decl;
+    val dyn_Z3_mk_func_decl = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_sort vector * z3_sort) -> z3_func_decl;
     val Z3_mk_func_decl_ptr = DynLink.dlsym(hndl, "Z3_mk_func_decl")
   in
     dyn_Z3_mk_func_decl Z3_mk_func_decl_ptr (c,s,domain_size,domain,range)
@@ -364,7 +364,7 @@ struct
 
   fun Z3_mk_enumeration_sort (c,name,n,enum_names,enum_consts,enum_testers) = 
   let
-    val dyn_Z3_mk_enumeration_sort = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_symbol array * MLton.Pointer.t * MLton.Pointer.t) -> z3_sort;
+    val dyn_Z3_mk_enumeration_sort = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_symbol vector * MLton.Pointer.t * MLton.Pointer.t) -> z3_sort;
     val Z3_mk_enumeration_sort_ptr = DynLink.dlsym(hndl, "Z3_mk_enumeration_sort")
   in
     dyn_Z3_mk_enumeration_sort Z3_mk_enumeration_sort_ptr (c,name,n,enum_names,enum_consts,enum_testers)
@@ -396,7 +396,7 @@ struct
 
   fun Z3_fixedpoint_query_relations (c,d,num_relations,relations) = 
   let
-    val dyn_Z3_fixedpoint_query_relations = _import * : DynLink.fptr -> (z3_context * z3_fixedpoint * int * z3_func_decl array) -> int;
+    val dyn_Z3_fixedpoint_query_relations = _import * : DynLink.fptr -> (z3_context * z3_fixedpoint * int * z3_func_decl vector) -> int;
     val Z3_fixedpoint_query_relations_ptr = DynLink.dlsym(hndl, "Z3_fixedpoint_query_relations")
   in
     dyn_Z3_fixedpoint_query_relations Z3_fixedpoint_query_relations_ptr (c,d,num_relations,relations)
@@ -420,7 +420,7 @@ struct
 
   fun Z3_parse_smtlib_string (c,str,num_sorts,sort_names,sorts,num_decls,decl_names,decls) = 
   let
-    val dyn_Z3_parse_smtlib_string = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol array * z3_sort array * int * z3_symbol array * z3_func_decl array) -> unit;
+    val dyn_Z3_parse_smtlib_string = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol vector * z3_sort vector * int * z3_symbol vector * z3_func_decl vector) -> unit;
     val Z3_parse_smtlib_string_ptr = DynLink.dlsym(hndl, "Z3_parse_smtlib_string")
   in
     dyn_Z3_parse_smtlib_string Z3_parse_smtlib_string_ptr (c,str,num_sorts,sort_names,sorts,num_decls,decl_names,decls)
@@ -476,7 +476,7 @@ struct
 
   fun Z3_mk_quantifier (c,is_forall,weight,num_patterns,patterns,num_decls,sorts,decl_names,body) = 
   let
-    val dyn_Z3_mk_quantifier = _import * : DynLink.fptr -> (z3_context * int * int * int * z3_pattern array * int * z3_sort array * z3_symbol array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_quantifier = _import * : DynLink.fptr -> (z3_context * int * int * int * z3_pattern vector * int * z3_sort vector * z3_symbol vector * z3_ast) -> z3_ast;
     val Z3_mk_quantifier_ptr = DynLink.dlsym(hndl, "Z3_mk_quantifier")
   in
     dyn_Z3_mk_quantifier Z3_mk_quantifier_ptr (c,is_forall,weight,num_patterns,patterns,num_decls,sorts,decl_names,body)
@@ -620,7 +620,7 @@ struct
 
   fun Z3_mk_or (c,num_args,args) = 
   let
-    val dyn_Z3_mk_or = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_or = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_or_ptr = DynLink.dlsym(hndl, "Z3_mk_or")
   in
     dyn_Z3_mk_or Z3_mk_or_ptr (c,num_args,args)
@@ -636,7 +636,7 @@ struct
 
   fun Z3_mk_app (c,d,num_args,args) = 
   let
-    val dyn_Z3_mk_app = _import * : DynLink.fptr -> (z3_context * z3_func_decl * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_app = _import * : DynLink.fptr -> (z3_context * z3_func_decl * int * z3_ast vector) -> z3_ast;
     val Z3_mk_app_ptr = DynLink.dlsym(hndl, "Z3_mk_app")
   in
     dyn_Z3_mk_app Z3_mk_app_ptr (c,d,num_args,args)
@@ -956,7 +956,7 @@ struct
 
   fun Z3_mk_quantifier_const_ex (c,is_forall,weight,quantifier_id,skolem_id,num_bound,bound,num_patterns,patterns,num_no_patterns,no_patterns,body) = 
   let
-    val dyn_Z3_mk_quantifier_const_ex = _import * : DynLink.fptr -> (z3_context * int * int * z3_symbol * z3_symbol * int * z3_app array * int * z3_pattern array * int * z3_ast array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_quantifier_const_ex = _import * : DynLink.fptr -> (z3_context * int * int * z3_symbol * z3_symbol * int * z3_app vector * int * z3_pattern vector * int * z3_ast vector * z3_ast) -> z3_ast;
     val Z3_mk_quantifier_const_ex_ptr = DynLink.dlsym(hndl, "Z3_mk_quantifier_const_ex")
   in
     dyn_Z3_mk_quantifier_const_ex Z3_mk_quantifier_const_ex_ptr (c,is_forall,weight,quantifier_id,skolem_id,num_bound,bound,num_patterns,patterns,num_no_patterns,no_patterns,body)
@@ -988,7 +988,7 @@ struct
 
   fun Z3_mk_tuple_sort (c,mk_tuple_name,num_fields,field_names,field_sorts,mk_tuple_decl,proj_decl) = 
   let
-    val dyn_Z3_mk_tuple_sort = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_symbol array * z3_sort array * MLton.Pointer.t * MLton.Pointer.t) -> z3_sort;
+    val dyn_Z3_mk_tuple_sort = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_symbol vector * z3_sort vector * MLton.Pointer.t * MLton.Pointer.t) -> z3_sort;
     val Z3_mk_tuple_sort_ptr = DynLink.dlsym(hndl, "Z3_mk_tuple_sort")
   in
     dyn_Z3_mk_tuple_sort Z3_mk_tuple_sort_ptr (c,mk_tuple_name,num_fields,field_names,field_sorts,mk_tuple_decl,proj_decl)
@@ -1020,7 +1020,7 @@ struct
 
   fun Z3_mk_fresh_func_decl (c,prefix,domain_size,domain,range) = 
   let
-    val dyn_Z3_mk_fresh_func_decl = _import * : DynLink.fptr -> (z3_context * string * int * z3_sort array * z3_sort) -> z3_func_decl;
+    val dyn_Z3_mk_fresh_func_decl = _import * : DynLink.fptr -> (z3_context * string * int * z3_sort vector * z3_sort) -> z3_func_decl;
     val Z3_mk_fresh_func_decl_ptr = DynLink.dlsym(hndl, "Z3_mk_fresh_func_decl")
   in
     dyn_Z3_mk_fresh_func_decl Z3_mk_fresh_func_decl_ptr (c,prefix,domain_size,domain,range)
@@ -1124,7 +1124,7 @@ struct
 
   fun Z3_mk_datatypes (c,num_sorts,sort_names,sorts,constructor_lists) = 
   let
-    val dyn_Z3_mk_datatypes = _import * : DynLink.fptr -> (z3_context * int * z3_symbol array * MLton.Pointer.t * MLton.Pointer.t) -> unit;
+    val dyn_Z3_mk_datatypes = _import * : DynLink.fptr -> (z3_context * int * z3_symbol vector * MLton.Pointer.t * MLton.Pointer.t) -> unit;
     val Z3_mk_datatypes_ptr = DynLink.dlsym(hndl, "Z3_mk_datatypes")
   in
     dyn_Z3_mk_datatypes Z3_mk_datatypes_ptr (c,num_sorts,sort_names,sorts,constructor_lists)
@@ -1140,7 +1140,7 @@ struct
 
   fun Z3_mk_pattern (c,num_patterns,terms) = 
   let
-    val dyn_Z3_mk_pattern = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_pattern;
+    val dyn_Z3_mk_pattern = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_pattern;
     val Z3_mk_pattern_ptr = DynLink.dlsym(hndl, "Z3_mk_pattern")
   in
     dyn_Z3_mk_pattern Z3_mk_pattern_ptr (c,num_patterns,terms)
@@ -1157,7 +1157,7 @@ struct
   fun Z3_mk_datatype (c,name,num_constructors,constructors) = 
   let
     val dyn_Z3_mk_datatype = _import * : DynLink.fptr -> (z3_context * z3_symbol
-      * int * z3_constructor array) -> z3_sort;
+      * int * z3_constructor vector) -> z3_sort;
     val Z3_mk_datatype_ptr = DynLink.dlsym(hndl, "Z3_mk_datatype")
   in
     dyn_Z3_mk_datatype Z3_mk_datatype_ptr (c,name,num_constructors,constructors)
@@ -1173,7 +1173,7 @@ struct
 
   fun Z3_eval_decl (c,m,d,num_args,args,v) = 
   let
-    val dyn_Z3_eval_decl = _import * : DynLink.fptr -> (z3_context * z3_model * z3_func_decl * int * z3_ast array * MLton.Pointer.t) -> int;
+    val dyn_Z3_eval_decl = _import * : DynLink.fptr -> (z3_context * z3_model * z3_func_decl * int * z3_ast vector * MLton.Pointer.t) -> int;
     val Z3_eval_decl_ptr = DynLink.dlsym(hndl, "Z3_eval_decl")
   in
     dyn_Z3_eval_decl Z3_eval_decl_ptr (c,m,d,num_args,args,v)
@@ -1525,7 +1525,7 @@ struct
 
   fun Z3_parse_smtlib2_string (c,str,num_sorts,sort_names,sorts,num_decls,decl_names,decls) = 
   let
-    val dyn_Z3_parse_smtlib2_string = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol array * z3_sort array * int * z3_symbol array * z3_func_decl array) -> z3_ast;
+    val dyn_Z3_parse_smtlib2_string = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol vector * z3_sort vector * int * z3_symbol vector * z3_func_decl vector) -> z3_ast;
     val Z3_parse_smtlib2_string_ptr = DynLink.dlsym(hndl, "Z3_parse_smtlib2_string")
   in
     dyn_Z3_parse_smtlib2_string Z3_parse_smtlib2_string_ptr (c,str,num_sorts,sort_names,sorts,num_decls,decl_names,decls)
@@ -1621,7 +1621,7 @@ struct
 
   fun Z3_mk_and (c,num_args,args) = 
   let
-    val dyn_Z3_mk_and = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_and = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_and_ptr = DynLink.dlsym(hndl, "Z3_mk_and")
   in
     dyn_Z3_mk_and Z3_mk_and_ptr (c,num_args,args)
@@ -1797,7 +1797,7 @@ struct
 
   fun Z3_parse_smtlib_file (c,file_name,num_sorts,sort_names,sorts,num_decls,decl_names,decls) = 
   let
-    val dyn_Z3_parse_smtlib_file = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol array * z3_sort array * int * z3_symbol array * z3_func_decl array) -> unit;
+    val dyn_Z3_parse_smtlib_file = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol vector * z3_sort vector * int * z3_symbol vector * z3_func_decl vector) -> unit;
     val Z3_parse_smtlib_file_ptr = DynLink.dlsym(hndl, "Z3_parse_smtlib_file")
   in
     dyn_Z3_parse_smtlib_file Z3_parse_smtlib_file_ptr (c,file_name,num_sorts,sort_names,sorts,num_decls,decl_names,decls)
@@ -1813,7 +1813,7 @@ struct
 
   fun Z3_mk_exists_const (c,weight,num_bound,bound,num_patterns,patterns,body) = 
   let
-    val dyn_Z3_mk_exists_const = _import * : DynLink.fptr -> (z3_context * int * int * z3_app array * int * z3_pattern array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_exists_const = _import * : DynLink.fptr -> (z3_context * int * int * z3_app vector * int * z3_pattern vector * z3_ast) -> z3_ast;
     val Z3_mk_exists_const_ptr = DynLink.dlsym(hndl, "Z3_mk_exists_const")
   in
     dyn_Z3_mk_exists_const Z3_mk_exists_const_ptr (c,weight,num_bound,bound,num_patterns,patterns,body)
@@ -1917,7 +1917,7 @@ struct
 
   fun Z3_check_assumptions (c,num_assumptions,assumptions,m,proof,core_size,core) = 
   let
-    val dyn_Z3_check_assumptions = _import * : DynLink.fptr -> (z3_context * int * z3_ast array * MLton.Pointer.t * MLton.Pointer.t * MLton.Pointer.t * MLton.Pointer.t) -> int;
+    val dyn_Z3_check_assumptions = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector * MLton.Pointer.t * MLton.Pointer.t * MLton.Pointer.t * MLton.Pointer.t) -> int;
     val Z3_check_assumptions_ptr = DynLink.dlsym(hndl, "Z3_check_assumptions")
   in
     dyn_Z3_check_assumptions Z3_check_assumptions_ptr (c,num_assumptions,assumptions,m,proof,core_size,core)
@@ -1997,7 +1997,7 @@ struct
 
   fun Z3_theory_mk_func_decl (c,t,n,domain_size,domain,range) = 
   let
-    val dyn_Z3_theory_mk_func_decl = _import * : DynLink.fptr -> (z3_context * z3_theory * z3_symbol * int * z3_sort array * z3_sort) -> z3_func_decl;
+    val dyn_Z3_theory_mk_func_decl = _import * : DynLink.fptr -> (z3_context * z3_theory * z3_symbol * int * z3_sort vector * z3_sort) -> z3_func_decl;
     val Z3_theory_mk_func_decl_ptr = DynLink.dlsym(hndl, "Z3_theory_mk_func_decl")
   in
     dyn_Z3_theory_mk_func_decl Z3_theory_mk_func_decl_ptr (c,t,n,domain_size,domain,range)
@@ -2029,7 +2029,7 @@ struct
 
   fun Z3_substitute (c,a,num_exprs,from,to) = 
   let
-    val dyn_Z3_substitute = _import * : DynLink.fptr -> (z3_context * z3_ast * int * z3_ast array * z3_ast array) -> z3_ast;
+    val dyn_Z3_substitute = _import * : DynLink.fptr -> (z3_context * z3_ast * int * z3_ast vector * z3_ast vector) -> z3_ast;
     val Z3_substitute_ptr = DynLink.dlsym(hndl, "Z3_substitute")
   in
     dyn_Z3_substitute Z3_substitute_ptr (c,a,num_exprs,from,to)
@@ -2397,7 +2397,7 @@ struct
 
   fun Z3_mk_set_union (c,num_args,args) = 
   let
-    val dyn_Z3_mk_set_union = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_set_union = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_set_union_ptr = DynLink.dlsym(hndl, "Z3_mk_set_union")
   in
     dyn_Z3_mk_set_union Z3_mk_set_union_ptr (c,num_args,args)
@@ -2461,7 +2461,7 @@ struct
 
   fun Z3_update_term (c,a,num_args,args) = 
   let
-    val dyn_Z3_update_term = _import * : DynLink.fptr -> (z3_context * z3_ast * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_update_term = _import * : DynLink.fptr -> (z3_context * z3_ast * int * z3_ast vector) -> z3_ast;
     val Z3_update_term_ptr = DynLink.dlsym(hndl, "Z3_update_term")
   in
     dyn_Z3_update_term Z3_update_term_ptr (c,a,num_args,args)
@@ -2589,7 +2589,7 @@ struct
 
   fun Z3_mk_exists (c,weight,num_patterns,patterns,num_decls,sorts,decl_names,body) = 
   let
-    val dyn_Z3_mk_exists = _import * : DynLink.fptr -> (z3_context * int * int * z3_pattern array * int * z3_sort array * z3_symbol array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_exists = _import * : DynLink.fptr -> (z3_context * int * int * z3_pattern vector * int * z3_sort vector * z3_symbol vector * z3_ast) -> z3_ast;
     val Z3_mk_exists_ptr = DynLink.dlsym(hndl, "Z3_mk_exists")
   in
     dyn_Z3_mk_exists Z3_mk_exists_ptr (c,weight,num_patterns,patterns,num_decls,sorts,decl_names,body)
@@ -2597,7 +2597,7 @@ struct
 
   fun Z3_mk_constructor_list (c,num_constructors,constructors) = 
   let
-    val dyn_Z3_mk_constructor_list = _import * : DynLink.fptr -> (z3_context * int * z3_constructor array) -> z3_constructor_list;
+    val dyn_Z3_mk_constructor_list = _import * : DynLink.fptr -> (z3_context * int * z3_constructor vector) -> z3_constructor_list;
     val Z3_mk_constructor_list_ptr = DynLink.dlsym(hndl, "Z3_mk_constructor_list")
   in
     dyn_Z3_mk_constructor_list Z3_mk_constructor_list_ptr (c,num_constructors,constructors)
@@ -2637,8 +2637,8 @@ struct
 
   fun Z3_mk_constructor (c,name,recognizer,num_fields,field_names,sorts,sort_refs) = 
   let
-    val dyn_Z3_mk_constructor = _import * : DynLink.fptr -> (z3_context * z3_symbol * z3_symbol * int * z3_symbol array * z3_sort array *
-      int array) -> z3_constructor;
+    val dyn_Z3_mk_constructor = _import * : DynLink.fptr -> (z3_context * z3_symbol * z3_symbol * int * z3_symbol vector * z3_sort vector *
+      int vector) -> z3_constructor;
     val Z3_mk_constructor_ptr = DynLink.dlsym(hndl, "Z3_mk_constructor")
   in
     dyn_Z3_mk_constructor Z3_mk_constructor_ptr (c,name,recognizer,num_fields,field_names,sorts,sort_refs)
@@ -2790,7 +2790,7 @@ struct
 
   fun Z3_get_implied_equalities (c,s,num_terms,terms,class_ids) = 
   let
-    val dyn_Z3_get_implied_equalities = _import * : DynLink.fptr -> (z3_context * z3_solver * int * z3_ast array * MLton.Pointer.t) -> int;
+    val dyn_Z3_get_implied_equalities = _import * : DynLink.fptr -> (z3_context * z3_solver * int * z3_ast vector * MLton.Pointer.t) -> int;
     val Z3_get_implied_equalities_ptr = DynLink.dlsym(hndl, "Z3_get_implied_equalities")
   in
     dyn_Z3_get_implied_equalities Z3_get_implied_equalities_ptr (c,s,num_terms,terms,class_ids)
@@ -2830,7 +2830,7 @@ struct
 
   fun Z3_mk_add (c,num_args,args) = 
   let
-    val dyn_Z3_mk_add = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_add = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_add_ptr = DynLink.dlsym(hndl, "Z3_mk_add")
   in
     dyn_Z3_mk_add Z3_mk_add_ptr (c,num_args,args)
@@ -2846,7 +2846,7 @@ struct
 
   fun Z3_benchmark_to_smtlib_string (c,name,logic,status,attributes,num_assumptions,assumptions,formula) = 
   let
-    val dyn_Z3_benchmark_to_smtlib_string = _import * : DynLink.fptr -> (z3_context * string * string * string * string * int * z3_ast array * z3_ast) -> string;
+    val dyn_Z3_benchmark_to_smtlib_string = _import * : DynLink.fptr -> (z3_context * string * string * string * string * int * z3_ast vector * z3_ast) -> string;
     val Z3_benchmark_to_smtlib_string_ptr = DynLink.dlsym(hndl, "Z3_benchmark_to_smtlib_string")
   in
     dyn_Z3_benchmark_to_smtlib_string Z3_benchmark_to_smtlib_string_ptr (c,name,logic,status,attributes,num_assumptions,assumptions,formula)
@@ -2886,7 +2886,7 @@ struct
 
   fun Z3_parse_smtlib2_file (c,file_name,num_sorts,sort_names,sorts,num_decls,decl_names,decls) = 
   let
-    val dyn_Z3_parse_smtlib2_file = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol array * z3_sort array * int * z3_symbol array * z3_func_decl array) -> z3_ast;
+    val dyn_Z3_parse_smtlib2_file = _import * : DynLink.fptr -> (z3_context * string * int * z3_symbol vector * z3_sort vector * int * z3_symbol vector * z3_func_decl vector) -> z3_ast;
     val Z3_parse_smtlib2_file_ptr = DynLink.dlsym(hndl, "Z3_parse_smtlib2_file")
   in
     dyn_Z3_parse_smtlib2_file Z3_parse_smtlib2_file_ptr (c,file_name,num_sorts,sort_names,sorts,num_decls,decl_names,decls)
@@ -3302,7 +3302,7 @@ struct
 
   fun Z3_fixedpoint_set_predicate_representation (c,d,f,num_relations,relation_kinds) = 
   let
-    val dyn_Z3_fixedpoint_set_predicate_representation = _import * : DynLink.fptr -> (z3_context * z3_fixedpoint * z3_func_decl * int * z3_symbol array) -> unit;
+    val dyn_Z3_fixedpoint_set_predicate_representation = _import * : DynLink.fptr -> (z3_context * z3_fixedpoint * z3_func_decl * int * z3_symbol vector) -> unit;
     val Z3_fixedpoint_set_predicate_representation_ptr = DynLink.dlsym(hndl, "Z3_fixedpoint_set_predicate_representation")
   in
     dyn_Z3_fixedpoint_set_predicate_representation Z3_fixedpoint_set_predicate_representation_ptr (c,d,f,num_relations,relation_kinds)
@@ -3310,7 +3310,7 @@ struct
 
   fun Z3_mk_forall_const (c,weight,num_bound,bound,num_patterns,patterns,body) = 
   let
-    val dyn_Z3_mk_forall_const = _import * : DynLink.fptr -> (z3_context * int * int * z3_app array * int * z3_pattern array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_forall_const = _import * : DynLink.fptr -> (z3_context * int * int * z3_app vector * int * z3_pattern vector * z3_ast) -> z3_ast;
     val Z3_mk_forall_const_ptr = DynLink.dlsym(hndl, "Z3_mk_forall_const")
   in
     dyn_Z3_mk_forall_const Z3_mk_forall_const_ptr (c,weight,num_bound,bound,num_patterns,patterns,body)
@@ -3350,7 +3350,7 @@ struct
 
   fun Z3_mk_quantifier_const (c,is_forall,weight,num_bound,bound,num_patterns,patterns,body) = 
   let
-    val dyn_Z3_mk_quantifier_const = _import * : DynLink.fptr -> (z3_context * int * int * int * z3_app array * int * z3_pattern array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_quantifier_const = _import * : DynLink.fptr -> (z3_context * int * int * int * z3_app vector * int * z3_pattern vector * z3_ast) -> z3_ast;
     val Z3_mk_quantifier_const_ptr = DynLink.dlsym(hndl, "Z3_mk_quantifier_const")
   in
     dyn_Z3_mk_quantifier_const Z3_mk_quantifier_const_ptr (c,is_forall,weight,num_bound,bound,num_patterns,patterns,body)
@@ -3358,7 +3358,7 @@ struct
 
   fun Z3_tactic_par_or (c,num,ts) = 
   let
-    val dyn_Z3_tactic_par_or = _import * : DynLink.fptr -> (z3_context * int * z3_tactic array) -> z3_tactic;
+    val dyn_Z3_tactic_par_or = _import * : DynLink.fptr -> (z3_context * int * z3_tactic vector) -> z3_tactic;
     val Z3_tactic_par_or_ptr = DynLink.dlsym(hndl, "Z3_tactic_par_or")
   in
     dyn_Z3_tactic_par_or Z3_tactic_par_or_ptr (c,num,ts)
@@ -3494,7 +3494,7 @@ struct
 
   fun Z3_mk_mul (c,num_args,args) = 
   let
-    val dyn_Z3_mk_mul = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_mul = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_mul_ptr = DynLink.dlsym(hndl, "Z3_mk_mul")
   in
     dyn_Z3_mk_mul Z3_mk_mul_ptr (c,num_args,args)
@@ -3646,7 +3646,7 @@ struct
 
   fun Z3_mk_map (c,f,n,args) = 
   let
-    val dyn_Z3_mk_map = _import * : DynLink.fptr -> (z3_context * z3_func_decl * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_map = _import * : DynLink.fptr -> (z3_context * z3_func_decl * int * z3_ast vector) -> z3_ast;
     val Z3_mk_map_ptr = DynLink.dlsym(hndl, "Z3_mk_map")
   in
     dyn_Z3_mk_map Z3_mk_map_ptr (c,f,n,args)
@@ -3822,7 +3822,7 @@ struct
 
   fun Z3_mk_sub (c,num_args,args) = 
   let
-    val dyn_Z3_mk_sub = _import * : DynLink.fptr -> (z3_context * int * z3_ast array) -> z3_ast;
+    val dyn_Z3_mk_sub = _import * : DynLink.fptr -> (z3_context * int * z3_ast vector) -> z3_ast;
     val Z3_mk_sub_ptr = DynLink.dlsym(hndl, "Z3_mk_sub")
   in
     dyn_Z3_mk_sub Z3_mk_sub_ptr (c,num_args,args)
@@ -3950,7 +3950,7 @@ struct
 
   fun Z3_mk_forall (c,weight,num_patterns,patterns,num_decls,sorts,decl_names,body) = 
   let
-    val dyn_Z3_mk_forall = _import * : DynLink.fptr -> (z3_context * int * int * z3_pattern array * int * z3_sort array * z3_symbol array * z3_ast) -> z3_ast;
+    val dyn_Z3_mk_forall = _import * : DynLink.fptr -> (z3_context * int * int * z3_pattern vector * int * z3_sort vector * z3_symbol vector * z3_ast) -> z3_ast;
     val Z3_mk_forall_ptr = DynLink.dlsym(hndl, "Z3_mk_forall")
   in
     dyn_Z3_mk_forall Z3_mk_forall_ptr (c,weight,num_patterns,patterns,num_decls,sorts,decl_names,body)
@@ -4174,7 +4174,7 @@ struct
 
   fun Z3_mk_injective_function (c,s,domain_size,domain,range) = 
   let
-    val dyn_Z3_mk_injective_function = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_sort array * z3_sort) -> z3_func_decl;
+    val dyn_Z3_mk_injective_function = _import * : DynLink.fptr -> (z3_context * z3_symbol * int * z3_sort vector * z3_sort) -> z3_func_decl;
     val Z3_mk_injective_function_ptr = DynLink.dlsym(hndl, "Z3_mk_injective_function")
   in
     dyn_Z3_mk_injective_function Z3_mk_injective_function_ptr (c,s,domain_size,domain,range)
@@ -4183,7 +4183,7 @@ struct
   fun Z3_query_constructor (c,constr,num_fields,constructor,tester,accessors) = 
   let
     val dyn_Z3_query_constructor = _import * : DynLink.fptr -> (z3_context * z3_constructor * int * 
-      z3_func_decl ref * z3_func_decl ref * z3_func_decl array) -> unit;
+      z3_func_decl ref * z3_func_decl ref * z3_func_decl vector) -> unit;
     val Z3_query_constructor_ptr = DynLink.dlsym(hndl, "Z3_query_constructor")
   in
     dyn_Z3_query_constructor Z3_query_constructor_ptr (c,constr,num_fields,constructor,tester,accessors)
@@ -4207,7 +4207,7 @@ struct
 
   fun Z3_solver_check_assumptions (c,s,num_assumptions,assumptions) = 
   let
-    val dyn_Z3_solver_check_assumptions = _import * : DynLink.fptr -> (z3_context * z3_solver * int * z3_ast array) -> int;
+    val dyn_Z3_solver_check_assumptions = _import * : DynLink.fptr -> (z3_context * z3_solver * int * z3_ast vector) -> int;
     val Z3_solver_check_assumptions_ptr = DynLink.dlsym(hndl, "Z3_solver_check_assumptions")
   in
     dyn_Z3_solver_check_assumptions Z3_solver_check_assumptions_ptr (c,s,num_assumptions,assumptions)

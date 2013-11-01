@@ -1,7 +1,9 @@
 signature SPEC_VERIFY_STRUCTS =
 sig
   structure VE : VAR_ENV
+  structure RE : REL_ENV
   structure ANormalCoreML : A_NORMAL_CORE_ML
+  sharing VE.SpecLang = RE.SpecLang
   sharing VE.Var = ANormalCoreML.Var
   sharing VE.SpecLang.Con = ANormalCoreML.Con
   sharing VE.SpecLang.TypeDesc = ANormalCoreML.TypeDesc

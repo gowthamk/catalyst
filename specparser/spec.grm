@@ -88,10 +88,10 @@ decsandtys : reldec SEMICOLON decsandtys
 
 reldec : RELATION ID patmatchseq 
           (StructuralRelation.T {id=RelId.fromString ID,
-                ty=(), map = Vector.fromList patmatchseq})
+                map = Vector.fromList patmatchseq})
        | RELATION ID EQUALOP rterm
           (StructuralRelation.T{id=RelId.fromString ID,
-                ty=(), map = Vector.fromList [(defaultCons,NONE,rterm)]})
+                map = Vector.fromList [(defaultCons,NONE,rterm)]})
 
 patmatchseq : patmatch PIPE patmatchseq (patmatch :: patmatchseq)
             | patmatch ([patmatch])

@@ -363,12 +363,12 @@ end
  in ( LrTable.NT 2, ( result, defaultPos, defaultPos), rest671)
 end
 |  ( 5, ( ( _, ( MlyValue.patmatchseq patmatchseq, _, patmatchseq1right)) :: ( _, ( MlyValue.ID ID, _, _)) :: ( _, ( _, RELATION1left, _)) :: rest671)) => let val  result = MlyValue.reldec ((*#line 90.12 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)StructuralRelation.T {id=RelId.fromString ID,
-                ty=(), map = Vector.fromList patmatchseq}(*#line 365.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+                map = Vector.fromList patmatchseq}(*#line 365.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 3, ( result, RELATION1left, patmatchseq1right), rest671)
 end
 |  ( 6, ( ( _, ( MlyValue.rterm rterm, _, rterm1right)) :: _ :: ( _, ( MlyValue.ID ID, _, _)) :: ( _, ( _, RELATION1left, _)) :: rest671)) => let val  result = MlyValue.reldec ((*#line 93.12 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)StructuralRelation.T{id=RelId.fromString ID,
-                ty=(), map = Vector.fromList [(defaultCons,NONE,rterm)]}(*#line 370.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+                map = Vector.fromList [(defaultCons,NONE,rterm)]}(*#line 370.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 3, ( result, RELATION1left, rterm1right), rest671)
 end

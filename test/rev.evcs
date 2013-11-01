@@ -56,7 +56,7 @@ Flag settings:
    inlineLeafA: {loops = true, repeat = true, size = Some 20}
    inlineLeafB: {loops = true, repeat = true, size = Some 40}
    inlineNonRec: {small = 60, product = 320}
-   input file: rev.vcs
+   input file: rev.evcs
    spec file: test/rev.spec
    keep CoreML: true
    keep Env: false
@@ -110,24 +110,6 @@ Flag settings:
    warn unrecognized annotation: true
    warn deprecated features: true
    zone cut depth: 100
-Elaborated VarEnv:
-
-:: :-> ('a_2)({1:'a_2 | true}, {2: 'a_2 list | true})
-	      -> {v_6: 'a_2 list | true
-				   /\ Robs(v_6) = (({(1)} X Rmem(2)) U (Robs(2) U {()}))
-				   /\ Rob(v_6) = ({(1)} X Rmem(2))
-				   /\ Rmem(v_6) = ({(1)} U (Rmem(2) U {()}))
-				   /\ Rhd(v_6) = {(1)}}
-rev :-> (){l1:<?> | true}
-	   -> {l2:<?> | Rmem(l2) = Rmem(l1)}
-concat :-> (){l1:<?> | true}
-	      -> {l2:<?> | true}
-		  -> {l:<?> | Rmem(l) = (Rmem(l1) U Rmem(l2))}
-nil :-> ('a_2){v_0: 'a_2 list | true
-				/\ Robs(v_0) = {()}
-				/\ Rob(v_0) = {()}
-				/\ Rmem(v_0) = {()}
-				/\ Rhd(v_0) = {()}}
 Verification Conditions:
 
 bindings(v_6 :  'a_4258 list,
@@ -137,27 +119,35 @@ bindings(v_6 :  'a_4258 list,
 	 anc_1032 :  'a_4258 list,
 	 anc_1033 :  'a_4258 list,
 	 l1 :  'a_4258 list,
-	 l2 :  'a_4258 list)
+	 l2 :  'a_4258 list,
+	 _Rhd7 : ({(1 :  'a_4258 list, 2 : 'a_4258)}) -> ( bool),
+	 _Rmem6 : ({(1 :  'a_4258 list, 2 : 'a_4258)}) -> ( bool),
+	 _Rob5 : ({(1 :  'a_4258 list, 2 : 'a_4258, 3 : 'a_4258)}) -> ( bool),
+	 _Robs4 : ({(1 :  'a_4258 list, 2 : 'a_4258, 3 : 'a_4258)}) -> ( bool),
+	 _Rhd3 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rmem2 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rob1 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool),
+	 _Robs0 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool))
 in
-      Robs(nil) = {()}
-      Rob(nil) = {()}
-      Rmem(nil) = {()}
-      Rhd(nil) = {()}
+      _Robs0(nil) = {()}
+      _Rob1(nil) = {()}
+      _Rmem2(nil) = {()}
+      _Rhd3(nil) = {()}
       anc_1033 = x_1
       anc_1032 = x_0
       l2 = x_1
       l2 = anc_1033
       l1 = x_0
       l1 = anc_1032
-      Robs(l1) = {()}
-      Rob(l1) = {()}
-      Rmem(l1) = {()}
-      Rhd(l1) = {()}
+      _Robs4(l1) = {()}
+      _Rob5(l1) = {()}
+      _Rmem6(l1) = {()}
+      _Rhd7(l1) = {()}
       v_6 = x_1
       v_6 = anc_1033
       v_6 = l2
    =>
-      Rmem(v_6) = (Rmem(x_0) U Rmem(x_1))
+      _Rmem6(v_6) = (_Rmem6(x_0) U _Rmem6(x_1))
 end
 bindings(v_6 :  'a_4258 list,
 	 x_1 :  'a_4258 list,
@@ -171,52 +161,68 @@ bindings(v_6 :  'a_4258 list,
 	 xs :  'a_4258 list,
 	 sv_4103 :  'a_4258 list,
 	 anc_1035 : 'a_4258,
-	 anc_1038 :  'a_4258 list)
+	 anc_1038 :  'a_4258 list,
+	 _Rhd7 : ({(1 :  'a_4258 list, 2 : 'a_4258)}) -> ( bool),
+	 _Rob6 : ({(1 :  'a_4258 list, 2 : 'a_4258, 3 : 'a_4258)}) -> ( bool),
+	 _Rmem5 : ({(1 :  'a_4258 list, 2 : 'a_4258)}) -> ( bool),
+	 _Robs4 : ({(1 :  'a_4258 list, 2 : 'a_4258, 3 : 'a_4258)}) -> ( bool),
+	 _Rhd3 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rmem2 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rob1 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool),
+	 _Robs0 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool))
 in
-      Robs(nil) = {()}
-      Rob(nil) = {()}
-      Rmem(nil) = {()}
-      Rhd(nil) = {()}
+      _Robs0(nil) = {()}
+      _Rob1(nil) = {()}
+      _Rmem2(nil) = {()}
+      _Rhd3(nil) = {()}
       anc_1033 = x_1
       anc_1032 = x_0
       l2 = x_1
       l2 = anc_1033
       l1 = x_0
       l1 = anc_1032
-      Robs(l1) = (({(x)} X Rmem(xs)) U (Robs(xs) U {()}))
-      Rob(l1) = ({(x)} X Rmem(xs))
-      Rmem(l1) = ({(x)} U (Rmem(xs) U {()}))
-      Rhd(l1) = {(x)}
-      Rmem(anc_1038) = (Rmem(xs) U Rmem(l2))
+      _Robs4(l1) = (({(x)} X _Rmem5(xs)) U (_Robs4(xs) U {()}))
+      _Rob6(l1) = ({(x)} X _Rmem5(xs))
+      _Rmem5(l1) = ({(x)} U (_Rmem5(xs) U {()}))
+      _Rhd7(l1) = {(x)}
+      _Rmem5(anc_1038) = (_Rmem5(xs) U _Rmem5(l2))
       anc_1035 = x
-      Robs(v_6) = (({(anc_1035)} X Rmem(anc_1038)) U (Robs(anc_1038) U {()}))
-      Rob(v_6) = ({(anc_1035)} X Rmem(anc_1038))
-      Rmem(v_6) = ({(anc_1035)} U (Rmem(anc_1038) U {()}))
-      Rhd(v_6) = {(anc_1035)}
+      _Robs4(v_6) = (({(anc_1035)} X _Rmem5(anc_1038)) U (_Robs4(anc_1038) U {()}))
+      _Rob6(v_6) = ({(anc_1035)} X _Rmem5(anc_1038))
+      _Rmem5(v_6) = ({(anc_1035)} U (_Rmem5(anc_1038) U {()}))
+      _Rhd7(v_6) = {(anc_1035)}
    =>
-      Rmem(v_6) = (Rmem(x_0) U Rmem(x_1))
+      _Rmem5(v_6) = (_Rmem5(x_0) U _Rmem5(x_1))
 end
 bindings(l :  'a_4259 list,
 	 x_2 :  'a_4259 list,
 	 nil :  'a_2 list,
-	 l :  'a_4259 list)
+	 l :  'a_4259 list,
+	 _Rhd7 : ({(1 :  'a_4259 list, 2 : 'a_4259)}) -> ( bool),
+	 _Rmem6 : ({(1 :  'a_4259 list, 2 : 'a_4259)}) -> ( bool),
+	 _Rob5 : ({(1 :  'a_4259 list, 2 : 'a_4259, 3 : 'a_4259)}) -> ( bool),
+	 _Robs4 : ({(1 :  'a_4259 list, 2 : 'a_4259, 3 : 'a_4259)}) -> ( bool),
+	 _Rhd3 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rmem2 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rob1 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool),
+	 _Robs0 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool))
 in
-      Robs(nil) = {()}
-      Rob(nil) = {()}
-      Rmem(nil) = {()}
-      Rhd(nil) = {()}
+      _Robs0(nil) = {()}
+      _Rob1(nil) = {()}
+      _Rmem2(nil) = {()}
+      _Rhd3(nil) = {()}
       l = x_2
-      Robs(l) = {()}
-      Rob(l) = {()}
-      Rmem(l) = {()}
-      Rhd(l) = {()}
-      Robs(l) = {()}
-      Rob(l) = {()}
-      Rmem(l) = {()}
-      Rhd(l) = {()}
+      _Robs4(l) = {()}
+      _Rob5(l) = {()}
+      _Rmem6(l) = {()}
+      _Rhd7(l) = {()}
+      _Robs4(l) = {()}
+      _Rob5(l) = {()}
+      _Rmem6(l) = {()}
+      _Rhd7(l) = {()}
       l = nil
    =>
-      Rmem(l) = Rmem(x_2)
+      _Rmem6(l) = _Rmem6(x_2)
 end
 bindings(l :  'a_4259 list,
 	 x_2 :  'a_4259 list,
@@ -228,29 +234,37 @@ bindings(l :  'a_4259 list,
 	 anc_1026 :  'a_4259 list,
 	 anc_1029 : 'a_4259,
 	 anc_1030 :  'a_4259 list,
-	 anc_1031 :  'a_4259 list)
+	 anc_1031 :  'a_4259 list,
+	 _Rhd7 : ({(1 :  'a_4259 list, 2 : 'a_4259)}) -> ( bool),
+	 _Rob6 : ({(1 :  'a_4259 list, 2 : 'a_4259, 3 : 'a_4259)}) -> ( bool),
+	 _Rmem5 : ({(1 :  'a_4259 list, 2 : 'a_4259)}) -> ( bool),
+	 _Robs4 : ({(1 :  'a_4259 list, 2 : 'a_4259, 3 : 'a_4259)}) -> ( bool),
+	 _Rhd3 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rmem2 : ({(1 :  'a_2 list, 2 : 'a_2)}) -> ( bool),
+	 _Rob1 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool),
+	 _Robs0 : ({(1 :  'a_2 list, 2 : 'a_2, 3 : 'a_2)}) -> ( bool))
 in
-      Robs(nil) = {()}
-      Rob(nil) = {()}
-      Rmem(nil) = {()}
-      Rhd(nil) = {()}
+      _Robs0(nil) = {()}
+      _Rob1(nil) = {()}
+      _Rmem2(nil) = {()}
+      _Rhd3(nil) = {()}
       l = x_2
-      Robs(l) = (({(x)} X Rmem(xs)) U (Robs(xs) U {()}))
-      Rob(l) = ({(x)} X Rmem(xs))
-      Rmem(l) = ({(x)} U (Rmem(xs) U {()}))
-      Rhd(l) = {(x)}
-      Robs(anc_1031) = (({(anc_1029)} X Rmem(anc_1030)) U (Robs(anc_1030) U {()}))
-      Rob(anc_1031) = ({(anc_1029)} X Rmem(anc_1030))
-      Rmem(anc_1031) = ({(anc_1029)} U (Rmem(anc_1030) U {()}))
-      Rhd(anc_1031) = {(anc_1029)}
-      Robs(anc_1030) = {()}
-      Rob(anc_1030) = {()}
-      Rmem(anc_1030) = {()}
-      Rhd(anc_1030) = {()}
+      _Robs4(l) = (({(x)} X _Rmem5(xs)) U (_Robs4(xs) U {()}))
+      _Rob6(l) = ({(x)} X _Rmem5(xs))
+      _Rmem5(l) = ({(x)} U (_Rmem5(xs) U {()}))
+      _Rhd7(l) = {(x)}
+      _Robs4(anc_1031) = (({(anc_1029)} X _Rmem5(anc_1030)) U (_Robs4(anc_1030) U {()}))
+      _Rob6(anc_1031) = ({(anc_1029)} X _Rmem5(anc_1030))
+      _Rmem5(anc_1031) = ({(anc_1029)} U (_Rmem5(anc_1030) U {()}))
+      _Rhd7(anc_1031) = {(anc_1029)}
+      _Robs4(anc_1030) = {()}
+      _Rob6(anc_1030) = {()}
+      _Rmem5(anc_1030) = {()}
+      _Rhd7(anc_1030) = {()}
       anc_1030 = nil
       anc_1029 = x
-      Rmem(anc_1026) = Rmem(xs)
-      Rmem(l) = (Rmem(anc_1026) U Rmem(anc_1031))
+      _Rmem5(anc_1026) = _Rmem5(xs)
+      _Rmem5(l) = (_Rmem5(anc_1026) U _Rmem5(anc_1031))
    =>
-      Rmem(l) = Rmem(x_2)
+      _Rmem5(l) = _Rmem5(x_2)
 end

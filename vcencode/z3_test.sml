@@ -55,7 +55,7 @@ fun declareSet ctx (name,elem_sort) =
   end
 
 fun declareSets ctx (names,ty) = 
-  List.map (fn (name) => declareSet ctx (name,ty)) names
+  List.map (names, fn (name) => declareSet ctx (name,ty))
 
 fun mkBoundVar ctx (index,ty) =
   Z3_mk_bound (ctx,index,ty)
@@ -140,7 +140,7 @@ fun assertUnion (ctx, set, set1, set2, elty) =
       val disj = Z3_mk_or (ctx,2,Array.fromList [fnapp1,fnapp2])
       val iff = Z3_mk_iff (ctx,fnapp,disj)
       val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
-      val pats = Array.fromList $ List.map mk_pat [fnapp,fnapp1,fnapp2]
+      val pats = Array.fromList $ List.map ([fnapp,fnapp1,fnapp2],mk_pat)
     in
       (pats, iff)
     end)
@@ -157,7 +157,7 @@ fun assertCrossPrd (ctx, set, set1, set2, tuplety, pairfn, elty) =
       val conj = Z3_mk_and(ctx,2,Array.fromList [fnapp1,fnapp2])
       val iff = Z3_mk_iff (ctx,fnapp,conj)
       val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
-      val pats = Array.fromList $ List.map mk_pat [fnapp]
+      val pats = Array.fromList $ List.map ([fnapp],mk_pat)
     in
       (pats, iff)
     end)
@@ -169,7 +169,7 @@ fun assertSetEq (ctx, set1, set2, elty) =
       val fnapp2 = Z3_mk_app (ctx, set2, 1, bvs)
       val iff = Z3_mk_iff (ctx,fnapp1,fnapp2)
       val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
-      val pats = Array.fromList $ List.map mk_pat [fnapp1,fnapp2]
+      val pats = Array.fromList $ List.map ([fnapp1,fnapp2],mk_pat)
     in
       (pats, iff)
     end)
@@ -181,7 +181,7 @@ fun assertSetNotEq (ctx, set1, set2, elty) =
       val fnapp2 = Z3_mk_app (ctx, set2, 1, bvs)
       val iff = Z3_mk_iff (ctx,fnapp1,fnapp2)
       val mk_pat = fn ast => Z3_mk_pattern (ctx,1,Array.fromList [ast])
-      val pats = Array.fromList $ List.map mk_pat [fnapp1,fnapp2]
+      val pats = Array.fromList $ List.map ([fnapp1,fnapp2],mk_pat)
     in
       (pats, iff)
     end)
