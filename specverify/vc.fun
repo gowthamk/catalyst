@@ -24,7 +24,7 @@ struct
   datatype vc_pred =  Simple of simple_pred
                    |  Conj of simple_pred vector
 
-  datatype t = T of tydbinds * vc_pred* vc_pred
+  datatype t = T of tydbinds * vc_pred* simple_pred
   
   val assert = Control.assert
   fun $ (f,arg) = f arg
@@ -163,11 +163,14 @@ struct
             val envVCs = fn _ => havocVE ve
             val anteVCs = fn _ => havocPred p1
             val vcs = fn _ => join (envVCs (),anteVCs ())
-            val conseqP = fn _ => coercePTtoT p2
+            val conseqPs = fn _ => case coercePTtoT p2 of
+                Conj spv => spv | Simple sp => Vector.new1 (sp)
           in
             case p2 of P.True => Vector.new0()
-              | _ => Vector.map (vcs(), fn (tybinds,anteP) => 
-                T (tybinds,anteP,conseqP()))
+              | _ => Vector.fromList $ vectorFoldrFoldr 
+                (vcs(), conseqPs(), [],
+                  fn ((tybinds,anteP),conseqP,vcacc) => 
+                    (T (tybinds,anteP,conseqP))::vcacc)
           end
       | (Tuple t1v,Tuple t2v) => (Vector.concatV o Vector.map2) 
           (t1v,t2v, fn (t1,t2) => fromTypeCheck (ve,t1,t2))
@@ -266,8 +269,8 @@ struct
         | Conj spvec => mapSnd Conj ((inv o Vector.mapAndFold) 
            (spvec, rinstTab, fn (sp,rt) => inv $ elabSimplePred rt sp))
 
-      val (rinstTab,(anteP',conseqP')) = mapFoldTuple (RelInstTable.empty) 
-        elabVCPred (anteP,conseqP) 
+      val (rinstTab,anteP') = elabVCPred RelInstTable.empty anteP
+      val (rinstTab,conseqP') = elabSimplePred rinstTab conseqP
 
       val newtydbinds = Vector.map (RelInstTable.toVector rinstTab,
         fn (RInst (relId,tydvec),relId') =>
@@ -304,12 +307,12 @@ struct
         | Conj simpv => L.align $ Vector.toListMap (simpv,
             laytSimplePred)
 
-      fun layoutVC (T (tybinds,vcp1,vcp2)) = 
+      fun layoutVC (T (tybinds,vcp,sp)) = 
         Pretty.nest ("bindings",laytTyDBinds tybinds,
           L.align [
-            L.indent(laytVCPred vcp1,3),
+            L.indent(laytVCPred vcp,3),
             L.str "=>",
-            L.indent (laytVCPred vcp2,3)])
+            L.indent (laytSimplePred sp,3)])
     in
       L.align $ Vector.toListMap (vcs, layoutVC)
     end

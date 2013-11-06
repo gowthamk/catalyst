@@ -538,7 +538,7 @@ in
                 VCE.Success => ()
               | VCE.Undef => raise (CantDischargeVC ("Solver timeout"
                   ^" while trying to discharge VC #"^(Int.toString i)))
-              | VCE.Fail => raise (CantDischargeVC ("VC # "
+              | VCE.Failure => raise (CantDischargeVC ("VC # "
                   ^(Int.toString i)^" is not valid."))
             val _ = Vector.foreachi (elabvcs,dischargeVC)
          in

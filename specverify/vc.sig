@@ -23,7 +23,7 @@ sig
 
   type tydbinds = tydbind vector
 
-  datatype t = T of tydbinds * vc_pred* vc_pred
+  datatype t = T of tydbinds * vc_pred* simple_pred
   
   val fromTypeCheck : VE.t * RefinementType.t * RefinementType.t -> t vector
 

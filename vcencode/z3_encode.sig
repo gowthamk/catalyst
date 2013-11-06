@@ -1,39 +1,47 @@
-signature Z3_CTX_STRUCTS = 
-sig
-  include Z3_FFI_INTERFACE
-end
-signature Z3_CTX = 
-sig
-  include Z3_CTX_STRUCTS
-  val mkDefaultContext : unit -> z3_context
-  val checkContext : z3_context -> int
-  val delContext : z3_context -> unit
-end
 signature Z3_ENCODE_STRUCTS = 
 sig
-  include Z3_FFI_INTERFACE
-  val freshContext : z3_context
+  structure Z3_FFI : Z3_FFI_INTERFACE
 end
 signature Z3_ENCODE = 
 sig
   include Z3_ENCODE_STRUCTS
+  type context
   type sort
   type set
   type ast
   type struc_rel
   type assertion
   exception InvalidOperation
-  val bool_sort : sort
-  val int_sort : sort
-  val mkUninterpretedSort : unit -> sort
-  val mkConst : (string * sort) -> ast
-  val mkStrucRel : string * sort vector -> struc_rel
-  val mkEmptySet : (string * sort vector) -> set
-  val mkSingletonSet : (string * ast vector) -> set
-  val mkUnion : set * set -> set
-  val mkCrossPrd : set * set -> set 
-  val mkSetEqAssertion : set * set -> assertion
-  val mkConstEqAssertion : ast * ast -> assertion
-  val mkNot : assertion -> assertion
-  val dischargeAssertion : assertion -> unit
+  val mkDefaultContext : unit -> context
+  val generateAPI : context -> 
+    {
+      bool_sort : sort,
+      int_sort : sort,
+      const_false : ast,
+      const_true : ast,
+      falsee : assertion,
+      truee : assertion,
+      sortToString : sort -> string,
+      constToString : ast -> string,
+      strucRelToString : struc_rel -> string,
+      mkUninterpretedSort :  unit -> sort,
+      mkConst : (string * sort) -> ast,
+      mkInt : int -> ast,
+      mkStrucRel :  (string * sort vector) -> struc_rel,
+      mkStrucRelApp : struc_rel * ast -> set,
+      mkNullSet : unit -> set,
+      mkSingletonSet : ast vector -> set,
+      mkUnion :  (set * set) -> set,
+      mkCrossPrd :  (set * set) -> set ,
+      mkSetEqAssertion :  (set * set) -> assertion,
+      mkSubSetAssertion : (set * set) -> assertion,
+      mkConstEqAssertion :  (ast * ast) -> assertion,
+      mkNot :  assertion -> assertion,
+      mkIff : assertion * assertion -> assertion,
+      mkAnd : assertion vector -> assertion,
+      mkOr : assertion vector -> assertion,
+      dischargeAssertion :  assertion -> unit
+    }
+  val checkContext : context -> int
+  val delContext : context -> unit
 end
