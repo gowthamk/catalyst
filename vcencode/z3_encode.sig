@@ -1,6 +1,7 @@
 signature Z3_ENCODE_STRUCTS = 
 sig
   structure Z3_FFI : Z3_FFI_INTERFACE
+  val z3_log : string -> unit
 end
 signature Z3_ENCODE = 
 sig

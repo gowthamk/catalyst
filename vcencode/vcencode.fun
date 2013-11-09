@@ -8,7 +8,8 @@ struct
   structure RP = Predicate.RelPredicate
   structure L = Layout
   datatype result = Success | Undef | Failure
-  structure Z3_Encode = Z3_Encode (structure Z3_FFI = Z3_FFI)
+  structure Z3_Encode = Z3_Encode (structure Z3_FFI = Z3_FFI
+                                   val z3_log = z3_log)
   exception TyDNotFound
   exception ConstNotFound
   exception RelNotFound
@@ -40,6 +41,9 @@ struct
   fun discharge (VC.T (tydbinds,anteP,conseqP)) =
     let
       val ctx = Z3_Encode.mkDefaultContext ()
+      (*
+       * APIs for the current context.
+       *)
       val api = Z3_Encode.generateAPI ctx
       val bool_sort = #bool_sort api
       val int_sort = #int_sort api
@@ -64,16 +68,12 @@ struct
       val mkAnd = #mkAnd api
       val mkOr = #mkOr api
       val dischargeAssertion = #dischargeAssertion api
-      fun strEq (str1,str2) = (str1 = str2)
-      val varStrEq = fn (v1,v2) => strEq (Var.toString v1,
-        Var.toString v2)
-      val relStrEq = fn (v1,v2) => strEq (RI.toString v1,
-        RI.toString v2)
-      val tyMap = HashTable.mkTable (MLton.hash, 
-        TyD.sameType) (117, TyDNotFound)
       (*
-       * Bootstrap tyMap
+       * Maps to keep track of encoded values
        *)
+      fun strEq (str1,str2) = (str1 = str2)
+      val tyMap = HashTable.mkTable (MLton.hash, TyD.sameType) 
+        (117, TyDNotFound)
       val intTyD = TyD.makeTconstr (Tycon.intInf,[])
       val boolTyD = TyD.makeTconstr (Tycon.bool,[])
       val _ = HashTable.insert tyMap (intTyD,int_sort)
@@ -91,7 +91,13 @@ struct
       fun getStrucRelForRelId rid = (fn rstr => HashTable.lookup relMap
         rstr handle RelNotFound => Error.bug ("Rel "^rstr^" undec\
           \lared despite processing tydbinds")) (RI.toString rid)
-
+      (*
+       * Encoding functions
+       * encodeConst and encodeStrucRel rely on uniqueness of 
+       * bindings in tydbinds. In case of duplicate bindings,
+       * duplication declarations show up in Z3 VC, but most
+       * recent binding is used.
+       *)
       fun encodeTyD tyD = case HashTable.find tyMap tyD of
           SOME sort => sort
         | NONE => (case tyD of TyD.Tvar _ =>  addTyD tyD

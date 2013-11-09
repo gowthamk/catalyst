@@ -126,8 +126,13 @@ struct
 
   fun havocVE (ve : VE.t) : (tydbinds*vc_pred) vector =
     let
-      val vevec = Vector.map (VE.toVector ve,
-        fn (v,refTyS) => (v,RefTyS.specialize refTyS))
+      (*
+       * Remove polymorphic functions and constructors
+       *)
+      val vevec = Vector.keepAllMap (VE.toVector ve,
+        fn (v,RefTyS.T{tyvars,refty}) => case Vector.length tyvars of
+            0 =>  SOME (v,refty)
+          | _ => NONE)
       val init = Vector.new1 (Vector.new0 (),truee())
     in
       Vector.fold (vevec,init,fn (tyBind,vcs1) => 
@@ -189,9 +194,14 @@ struct
       val layout = fn _ => L.empty
       val idStrEq = fn (id1,id2) => (RI.toString id1 = RI.toString id2)
       fun equal (RInst (id1,tyds1), RInst (id2,tyds2)) =
-        (idStrEq (id1,id2)) andalso
-        (Vector.length tyds1 = Vector.length tyds2) andalso
-        (Vector.forall2 (tyds1,tyds2, TyD.sameType))
+        let
+          val eq = (idStrEq (id1,id2)) andalso
+              (Vector.length tyds1 = Vector.length tyds2) andalso
+              (Vector.forall2 (tyds1,tyds2, TyD.sameType))
+        in
+          eq
+        end
+        
     end
     structure Map = ApplicativeMap (structure Key = Key
                                    structure Value = RelLang.RelId)
@@ -208,7 +218,7 @@ struct
       val count = ref 0
       val genSym = fn idbase => 
         let
-          val symbase = "_"^(RI.toString idbase)
+          val symbase = (*"_"^*)(RI.toString idbase)
           val id = symbase ^ (Int.toString (!count))
           val _ = count := !count + 1
         in

@@ -259,13 +259,17 @@ struct
           val vtys = VE.find ve v handle (VE.VarNotFound _) => Error.bug
             ((Var.toString v) ^ " not found in the current environment\n")
           val vty = RefTyS.instantiate (vtys,tydvec)  
-          val qualifiedvty = case vty of RefTy.Base (bv,td,pred) => 
-              (*
-               * Keep track of variable equality.
-               *)
-              RefTy.Base (bv,td,Predicate.conjP(pred,BP.varEq(bv,v)))
-            | RefTy.Tuple _ => vty (* Nothing to do here. *)
-            | _ => vty (* Unimpl : refinements for fns *)
+          (*
+           * Keep track of variable equality.
+           * We currently cannot keep track of equality if rhs
+           * is a nullary constructor or a function. Unimpl.
+           *)
+          val qualifiedvty = case (Vector.length tydvec, vty) of 
+              (0,RefTy.Base (bv,td,pred)) => RefTy.Base 
+                (bv,td,Predicate.conjP(pred,BP.varEq(bv,v)))
+            | (_,RefTy.Tuple _) => vty (* Nothing to do here. *)
+            | _ => vty (* Unimpl : refinements for fns. Cannot keep
+                   track of equality for functions now.*)
         in
           qualifiedvty
         end

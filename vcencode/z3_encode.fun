@@ -8,7 +8,15 @@ struct
                 | T of string * z3_sort
   datatype ast = AST of z3_ast * sort
   (*
-   * Set Invariant : len(ty) = 1 + len(domain(pred)) 
+   * Set Invariant : len(ty) = len(domain(pred)) 
+   * Null constructor is motivated by two reasons:
+   * 1. To get away with not knowing the type of Null
+   * set until we use it in an operation, where its type
+   * is inferred and, consequently, gets converted to an 
+   * empty set.
+   * 2. What if it gets used in an operation with another
+   * null set? The result can be statically determined 
+   * without even having to go to Z3 - second motivation.
    *)
   datatype set = Null
                | Set of {ty : sort vector,
@@ -16,6 +24,7 @@ struct
   datatype struc_rel = SR of {rel : ast -> set}
   type assertion = z3_ast
   type context = z3_context
+  val log = z3_log
 
   fun $ (f,arg) = f arg
   infixr 5 $
@@ -44,7 +53,13 @@ struct
       ctx
     end
 
-  val checkContext = Z3_check
+  fun checkContext ctx = 
+    let
+      val _ = log "(check-sat)"
+      val _ = log "\n\n"
+    in
+      Z3_check ctx
+    end 
   val delContext = Z3_del_context
 
   fun generateAPI ctx = 
@@ -63,8 +78,16 @@ struct
 
       val truee = Z3_mk_true ctx
 
-      fun mkUninterpretedSort () = (fn name => T (name, 
-        Z3_mk_uninterpreted_sort (ctx, mkSym name))) (genTypeName ())
+      fun mkUninterpretedSort () = 
+        let
+          val name = genTypeName ()
+          val z3_sort = Z3_mk_uninterpreted_sort (ctx, mkSym name)
+          val _ = log ("(declare-sort "^(Z3_sort_to_string 
+            (ctx,z3_sort))^")")
+          val _ = log "\n"
+        in
+          T (name, z3_sort)
+        end
 
       fun typeCheckAst (AST (ast,sort),sort') = case (sort,sort') of
           (Int _,Int _) => true
@@ -91,21 +114,54 @@ struct
       fun mkEq (AST (x1,_),AST (x2,_)) = Z3_mk_eq (ctx,x1,x2)
 
       fun mkConst (name,sort) =
-        AST (Z3_mk_const (ctx, mkSym name, sortToZ3Sort sort),sort)
+        let
+          val z3_sort = sortToZ3Sort sort
+          val const = Z3_mk_const (ctx, mkSym name, z3_sort)
+          val _ = log $ "(declare-const "^(Z3_ast_to_string (ctx,const))
+            ^" "^(Z3_sort_to_string (ctx,z3_sort))^")"
+          val _ = log "\n"
+        in
+          AST (const,sort)
+        end
 
       fun mkBoundVar ctx (index,sort) = 
         AST (Z3_mk_bound (ctx,index,sortToZ3Sort sort),sort)
 
+      (*
+       * Encoding Sets and Structural Relations. 
+       * An n-arity set is eta-equivalent of an n-arity boolean 
+       * Z3 function. Set s = \(x1,x2,..,xn).z3_f(x1,x2,...,xn)
+       * Eg: s = s1 ∪ s2 is encoded as  
+       * ∀x1,x2,..,xn, s(x1,x2,..,xn) = s1(x1,x2,..,xn) 
+       *                              ∨ s2 (x1,x2,..,xn)
+       * An n-arity structural relation is a curried version of
+       * eta-equivalent of n-arity boolean Z3 function.
+       * Relation Rmem = \x1.\(x2,...,xn).z3_f(x1,x2,...,xn)
+       * Relation application will, therefore, produce a function
+       * that accepts n-1 arguments and produces an n-arity set.
+       * Eg: Rmem(l) = Rmem(l1) U Rmem(l2) is encoded as 
+       * ∀x1,..,xn-1, Rmem(l,x1,..,xn-1) = Rmem(l1,x1,..,xn-1) 
+       *                                 ∨ Rmem(l2,x1,..,xn-1)
+       *)
       fun mkSet (name,sorts) =
         let
           val nargs = Vector.length sorts
           val z3_sorts = Vector.map (sorts, sortToZ3Sort)
           val func = Z3_mk_func_decl (ctx, mkSym name, nargs,
             z3_sorts, bool_sort)
+          val _ = log $ Z3_func_decl_to_string (ctx,func)
+          val _ = log "\n"
           val pred = fn asts => 
             let
+              (*val astStr = fn _ => Vector.toString astToString asts
+              val sortStr = fn _ => Vector.toString sortToString sorts
+              val errMsg = (fn _ => "Type Mismatch. Set: "^name^". Args:\
+                \ "^(astStr())^". Expected type: "^(sortStr()))*)
+              val errMsg = fn _ => ("Type error. Set: "^name)
+              val _ = assert (Vector.length asts = Vector.length sorts,
+                errMsg ())
               val _ = assert (Vector.forall2 (asts,sorts,typeCheckAst),
-                "Arguments of wrong type to set "^name)
+                errMsg ())
               val z3_asts = Vector.map (asts,astToZ3Ast)
             in
               Z3_mk_app (ctx, func, nargs, z3_asts)
@@ -118,16 +174,21 @@ struct
         let
           val nargs = Vector.length sorts
           val domainTy = Vector.sub (sorts,0)
+          val Set {ty,pred} = mkSet (name,sorts)
           val rel = fn ast => 
             let
               val _ = assert (typeCheckAst (ast,domainTy),
                 "Type error at app of relation "^name)
-              val setName = name ^ (astToString ast)
-              val Set {ty,pred} = mkSet (setName,sorts)
+              (*
+               * Constructing (n-1)-arity set from an n-arity
+               * boolean function. 
+               * n >= 2 invariant follows from structural relations.
+               *)
+              val ty' = Vector.dropPrefix (sorts,1)
               val pred' = fn asts => pred $ Vector.concat 
                 [Vector.new1 ast, asts]
             in
-              Set {ty = ty, pred = pred'}
+              Set {ty = ty', pred = pred'}
             end
         in
           SR {rel = rel}
@@ -159,7 +220,13 @@ struct
           forall
         end
 
-      fun dischargeAssertion asr = Z3_assert_cnstr (ctx,asr)
+      fun dischargeAssertion asr = 
+        let
+          val _ = log $ "(assert "^(Z3_ast_to_string (ctx,asr))^")"
+          val _ = log "\n"
+        in
+           Z3_assert_cnstr (ctx,asr)
+        end
 
       fun assertSetProp (sorts,prop) =
         dischargeAssertion $ mkSetProp (sorts,prop)

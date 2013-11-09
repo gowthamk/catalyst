@@ -122,7 +122,15 @@ structure SpecVerify = SpecVerify (structure VE = VE
                                    structure ANormalCoreML = ANormalCoreML)
 
 structure VC = SpecVerify.VC
-structure VCE = VCEncode (structure VC = VC)
+
+val (z3_log,z3_log_close) = (fn stream => 
+  (fn str => (Out.output (stream,str);
+      Out.flush stream), 
+   fn () => Out.close stream)) 
+   (Out.openOut "catalyst.z3")
+
+structure VCE = VCEncode (structure VC = VC
+                          val z3_log = z3_log)
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
 (* ------------------------------------------------- *)
@@ -519,6 +527,9 @@ in
             val _ = print "Specification Ast:\n"
             val _ = Control.message (Control.Top, fn _ =>
               SpecLang.RelSpec.layout specast)
+            val _ = print "Var Env:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              VE.layout ve)
             val _ = print "Rel Env:\n"
             val _ = Control.message (Control.Top, fn _ =>
               RE.layout re)
@@ -533,14 +544,20 @@ in
             val elabvcs = Vector.map (vcs, fn vc => VC.elaborate (re,vc))
             val _ = Control.saveToFile ({suffix = "evcs"}, No, elabvcs,
                                       Layouts VC.layouts)
-            exception CantDischargeVC of string
+            exception CantDischargeVC
             fun dischargeVC (i,vc) = case VCE.discharge vc of
                 VCE.Success => ()
-              | VCE.Undef => raise (CantDischargeVC ("Solver timeout"
-                  ^" while trying to discharge VC #"^(Int.toString i)))
-              | VCE.Failure => raise (CantDischargeVC ("VC # "
-                  ^(Int.toString i)^" is not valid."))
+              | VCE.Undef => (print ("Solver timeout  while trying to \
+                  \discharge VC #"^(Int.toString i)); 
+                  z3_log_close ();
+                  raise CantDischargeVC)
+              | VCE.Failure => (print ("VC # " ^(Int.toString i)^
+                " is invalid."); 
+                  z3_log_close ();
+                  raise CantDischargeVC)
             val _ = Vector.foreachi (elabvcs,dischargeVC)
+            (*val _ = dischargeVC (0,Vector.sub (elabvcs,0))*)
+            val _ = z3_log_close ()
          in
           ()
          end
