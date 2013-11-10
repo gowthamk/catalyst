@@ -2,6 +2,7 @@ functor Z3_Encode (S : Z3_ENCODE_STRUCTS) :> Z3_ENCODE =
 struct
   open S
   open Z3_FFI
+  structure L = Layout
   exception InvalidOperation
   datatype sort = Int of z3_sort
                 | Bool of z3_sort
@@ -153,11 +154,14 @@ struct
           val _ = log "\n"
           val pred = fn asts => 
             let
-              (*val astStr = fn _ => Vector.toString astToString asts
-              val sortStr = fn _ => Vector.toString sortToString sorts
-              val errMsg = (fn _ => "Type Mismatch. Set: "^name^". Args:\
-                \ "^(astStr())^". Expected type: "^(sortStr()))*)
-              val errMsg = fn _ => ("Type error. Set: "^name)
+              (* Following results in Size exception. Reason unknown. *)
+              (*val astStr = fn _ =>(L.toString $ L.vector $ Vector.map 
+                (asts, fn ast => L.str $ astToString ast))*)
+              (*val sortStrs = List.map (Vector.toList sorts, fn s => 
+                (sortToString s))
+              val sortStr = fn _ => (List.fold (sortStrs, "(", fn (s,acc) =>
+                acc^","^s))^")"*)
+              val errMsg = (fn _ => "Type Mismatch. Set: "^name^".\n")
               val _ = assert (Vector.length asts = Vector.length sorts,
                 errMsg ())
               val _ = assert (Vector.forall2 (asts,sorts,typeCheckAst),
@@ -335,7 +339,7 @@ struct
         | (Set {ty=sorts1,pred=pred1}, Set {ty=sorts2,pred=pred2}) =>
           let
             val sorts = Vector.concat [sorts1,sorts2]
-            val s as Set {ty,pred} = mkSet (genSetName (), sorts1)
+            val s as Set {ty,pred} = mkSet (genSetName (), sorts)
             val _ = assertSetProp (ty, fn bvAsts =>
               let
                 val bvAsts1 = Vector.prefix (bvAsts,Vector.length 
