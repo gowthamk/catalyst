@@ -141,6 +141,9 @@ tyatom : basety (basety)
 basety : ID (RefinementType.Base ((Var.fromString ID), 
                 TypeDesc.makeTunknown(), 
                 Predicate.truee()))
+       | LCURLY ID RCURLY (RefinementType.Base ((Var.fromString ID), 
+                TypeDesc.makeTunknown(), 
+                Predicate.truee()))
        | LCURLY ID PIPE pred RCURLY (RefinementType.Base ((Var.fromString ID), 
                 TypeDesc.makeTunknown(), pred))
 

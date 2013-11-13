@@ -242,7 +242,7 @@ struct
       | Exists (tyDB,t) => if (TyDBinds.mem tyDB old)
             then Error.bug "Attempted substitution on existentially \
               \ quantified variable"
-            else applySubst subst t
+            else Exists (tyDB,applySubst subst t)
       | Conj (t1,t2) => Conj (applySubst subst t1, applySubst subst t2)
       | Disj (t1,t2) => Disj (applySubst subst t1, applySubst subst t2)
 

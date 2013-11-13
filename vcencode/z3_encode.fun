@@ -48,6 +48,7 @@ struct
   fun mkDefaultContext () =
     let
       val cfg = Z3_mk_config ()
+      val _   = Z3_global_param_set ("smt.macro-finder","true")
       val ctx = Z3_mk_context cfg
       val _   = Z3_del_config cfg
     in

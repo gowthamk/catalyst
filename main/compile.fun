@@ -546,20 +546,20 @@ in
                                       Layouts VC.layouts)
             exception CantDischargeVC
             fun dischargeVC (i,vc) = case VCE.discharge vc of
-                VCE.Success => ()
+                VCE.Success => print ("VC# "^(Int.toString i)^" discharged\n")
               | VCE.Undef => (print ("Solver timeout  while trying to \
                   \discharge VC #"^(Int.toString i)); 
                   z3_log_close ();
                   raise CantDischargeVC)
               | VCE.Failure => (print ("VC # " ^(Int.toString i)^
-                " is invalid."); 
+                " is invalid!"); 
                   z3_log_close ();
                   raise CantDischargeVC)
             val _ = Vector.foreachi (elabvcs,dischargeVC)
             (*val _ = dischargeVC (0,Vector.sub (elabvcs,0))*)
             val _ = z3_log_close ()
          in
-          ()
+            print $ (!Control.inputFile)^" is correct w.r.t given specification!\n"
          end
 end
 

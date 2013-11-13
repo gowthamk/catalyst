@@ -63,9 +63,18 @@ struct
       fun mergeErrorMsg (tyd,tyd') = "Cannot merge ML type " ^ (TyD.toString tyd)
         ^ " with type given in spec: " ^ (TyD.toString tyd')
       fun doMerge (tyd:TyD.t) (refTy:RefTy.t) = case (tyd,refTy) of
-          (_,Base (bv,tyd',pred)) => (assert (unifiable (tyd,tyd'),
-            mergeErrorMsg(tyd,tyd'));
-            (Vector.new0 () ,Base (bv,tyd,pred)))
+          (_,Base (bv,tyd',pred)) => 
+            let
+              val _ = assert (unifiable (tyd,tyd'),
+                mergeErrorMsg(tyd,tyd'))
+              (*
+               * User-provided BVs might have same name as some program
+               * vars. Sanitize by alpha-renaming boundvars.
+               *)
+              val Base (bv',_,pred') = alphaRename refTy
+            in
+              (Vector.new1 (bv',bv) ,Base (bv',tyd,pred'))
+            end 
         | (Trecord tydr, Tuple reftyv) => 
             let
               val (vcs,reftyv') = (Vector.unzip o Vector.map2) 
@@ -221,6 +230,12 @@ struct
     fun unifyWithDisj (refTy1 : RefTy.t,refTy2 : RefTy.t) : RefTy.t =
       let
         open RefTy
+        (*val _ = print "To be unified with Disj:\n"
+        val _ = Control.message (Control.Top, fn _ => 
+          RefTy.layout refTy1)
+        val _ = Control.message (Control.Top, fn _ => 
+          RefTy.layout refTy2)
+        val _ = print "\n"*)
       in
         case (refTy1,refTy2) of
           (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
@@ -339,6 +354,10 @@ struct
               end)
             val (wfTypes,wfType) = Vector.splitLast wfTypes
             val unifiedType = Vector.fold (wfTypes, wfType, unifyWithDisj)
+            (*val _ = print "Type unified with Disj is:\n"
+            val _ = Control.message (Control.Top, fn _ => 
+              RefTy.layout unifiedType)
+            val _ = print "\n\n"*)
           in
             (*
              * 1. alphaRename boundvars forall wfTypes to a single var
