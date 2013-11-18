@@ -87,13 +87,11 @@ struct
       VE.add (VE.remove ve convid) (convid,newTyS)
     end
 
-  local
-    open RelLang.RelType
-  in
-    fun crossPrdTyD (Tuple tyds1, Tuple tyds2) =
-      Tuple $ Vector.concat [tyds1,tyds2]
-  end
-
+  (*
+   * Synthesizes the type of rexpr in the given relational env.
+   * Rel Env is constructed during elaboration, hence this function
+   * is also part of elaboration.
+   *)
   fun typeSynthRExpr (re,tyDB,rexpr) : RelLang.RelType.t =
     let
       open RelLang
@@ -106,16 +104,8 @@ struct
     in
       case rexpr of 
         T elemvec => Tuple $ Vector.map (elemvec, typeSynthRElem)
-      | X (e1,e2) => crossPrdTyD (typeSynthRExpr e1, typeSynthRExpr e2)
-      | U (e1,e2) => 
-        let
-          val t1 = typeSynthRExpr e1
-          val t2 = typeSynthRExpr e2
-          val _ = assert(RelTy.equal (t1,t2), "Union operation on\
-              \incompatible types.")
-        in
-          t1
-        end
+      | X (e1,e2) => crossPrdType (typeSynthRExpr e1, typeSynthRExpr e2)
+      | U (e1,e2) => unionType (typeSynthRExpr e1, typeSynthRExpr e2)
       | R (relId,arg) => 
         let
           val relName = RelId.toString relId
@@ -176,12 +166,16 @@ struct
               val tyDB = Vector.fold (unifyConArgs ve con vars, TyDBinds.empty,
                 fn ((_,var,tyD,_),tyDB) => TyDBinds.add tyDB var tyD)
               val rexprTyD = typeSynthRExpr (re,tyDB,rexpr)
-              val relTyD = crossPrdTyD (RelTy.Tuple $ Vector.new1 datTyD, rexprTyD)
+              val relTyD = RelTy.crossPrdType (RelTy.Tuple $ 
+                Vector.new1 datTyD, rexprTyD)
               val relTyS = RelTyS.generalize (tyvars,relTyD)
-              val _ = case relTySOp of NONE => () 
-                | SOME relTyS' => assert (RelTyS.equal (relTyS,relTyS'), 
-                    "Type of relation "^(RelLang.RelId.toString id)
-                      ^" is inconsistent.")
+              val relTyS = case relTySOp of NONE => relTyS
+                (*
+                 * Type of current rexpr should be union-compatible
+                 * with type of other rexprs of this relation.
+                 *)
+                | SOME relTyS' => RelTyS.unionTypeScheme 
+                  (relTyS',relTyS)
             in
               SOME relTyS
             end)

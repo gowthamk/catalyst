@@ -15,6 +15,8 @@ sig
       datatype t = Tuple of TypeDesc.t vector
       val toString : t -> string
       val equal : (t*t) -> bool
+      val unionType : (t*t) -> t
+      val crossPrdType : (t*t) -> t
     end
 
     structure RelTypeScheme :
@@ -25,7 +27,8 @@ sig
       val specialize: t -> RelType.t
       val instantiate : t * TypeDesc.t vector -> RelType.t
       val toString : t -> string
-      val equal : (t*t) -> bool
+      val unionTypeScheme : (t*t) -> t
+      val crossPrdTypeScheme : (t*t) -> t
     end
 
     datatype elem = Int of int

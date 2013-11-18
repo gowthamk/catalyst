@@ -64,6 +64,11 @@ struct
     end 
   val delContext = Z3_del_context
 
+  (*
+   * This function implements an object with encapsulated
+   * state (ctx). 
+   * Reference : http://mlton.org/ObjectOrientedProgramming
+   *)
   fun generateAPI ctx = 
     let
       val mkSym = fn name => Z3_mk_string_symbol (ctx,name)

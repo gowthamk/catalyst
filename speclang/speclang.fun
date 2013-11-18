@@ -26,14 +26,29 @@ struct
                   | Star of RelId.t
     structure RelType =
     struct
+      (*
+       * Type of rexpr is always a tuple.
+       * Type is empty tuple if and only if rexpr is {()}
+       *)
       datatype t = Tuple of TypeDesc.t vector
 
       fun toString (Tuple tydv) = Vector.toString 
         TypeDesc.toString tydv
 
       fun equal (Tuple tydv1, Tuple tydv2) = 
+        (Vector.length tydv1 = Vector.length tydv2) andalso
         Vector.forall2 (tydv1,tydv2,TypeDesc.sameType)
         
+      fun unionType (t1 as Tuple tydv1, t2 as Tuple tydv2) =
+        case (Vector.length tydv1, Vector.length tydv2) of
+          (0,_) => t2 | (_,0) => t1
+        | (n1,n2) => (assert (equal (t1,t2),"Union \
+            \ incompatible types\n"); t1)
+
+      fun crossPrdType (t1 as Tuple tyds1, t2 as Tuple tyds2) =
+        case (Vector.length tyds1, Vector.length tyds2) of
+          (0,_) => t1 | (_,0) => t2 
+        | _ => Tuple $ Vector.concat [tyds1,tyds2]
     end
 
     structure RelTypeScheme = 
@@ -62,13 +77,25 @@ struct
           RelType.Tuple tydvec'
         end 
 
-      fun equal (T{tyvars=tyv1,relty=relty1},
-        T{tyvars=tyv2,relty=relty2}) =
-        (Vector.length tyv1 = Vector.length tyv2) andalso
+      fun equalTyvars (tyv1,tyv2) = 
+        (Vector.length tyv1 = Vector.length tyv2) andalso 
         (Vector.forall2 (tyv1,tyv2, fn (tyvar1,tyvar2) => 
-          TypeDesc.sameType (TypeDesc.makeTvar tyvar1, 
-            TypeDesc.makeTvar tyvar2))) andalso
-        (RelType.equal (relty1,relty2))
+            TypeDesc.sameType (TypeDesc.makeTvar tyvar1, 
+              TypeDesc.makeTvar tyvar2)))
+
+      fun unionTypeScheme (T{tyvars=tyv1,relty=relty1},
+        T{tyvars=tyv2,relty=relty2}) = 
+        let
+          val _ = assert (equalTyvars (tyv1,tyv2), "Union \
+                \ incompatible type schemes\n")
+        in
+          T {tyvars = tyv1, relty = RelType.unionType (relty1,relty2)}
+        end
+
+      fun crossPrdTypeScheme (T{tyvars=tyv1,relty=relty1},
+        T{tyvars=tyv2,relty=relty2}) =
+        T {tyvars = Vector.concat [tyv1,tyv2], 
+           relty = RelType.crossPrdType (relty1,relty2)}
     end
 
     val elemToString = fn el => case el of
