@@ -61,6 +61,7 @@ val defaultCons = Con.default
   | elemseq of elem list
   | typespec of TypeSpec.t 
   | refty of RefinementType.t
+  | reftyseq of RefinementType.t list
   | tyatom of RefinementType.t
   | basety of RefinementType.t
   | pred of Predicate.t
@@ -134,8 +135,14 @@ typespec : ID COLON refty (TypeSpec.T ((Var.fromString ID),refty))
 refty : tyatom (tyatom)
       | tyatom ARROW refty (RefinementType.Arrow(tyatom1,refty))
 
+reftyseq : refty ([refty])
+         | refty COMMA reftyseq (refty::reftyseq)
+
 tyatom : basety (basety)
-       | LPAREN refty RPAREN (refty)
+       | LPAREN reftyseq RPAREN (case reftyseq of 
+                  [refty] => refty
+                | _ => RefinementType.Tuple 
+                  (Vector.fromList reftyseq))
 
 (* Needs extension to specify ML type *)
 basety : ID (RefinementType.Base ((Var.fromString ID), 

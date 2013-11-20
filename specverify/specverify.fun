@@ -12,14 +12,13 @@ struct
   structure SpecLang = VE.SpecLang
   structure VC = VerificationCondition (open SpecLang
                                         structure VE = VE
-                                        structure RE = RE
-                                        (*structure ANormalCoreML = 
-                                          ANormalCoreML*))
+                                        structure RE = RE)
   open SpecLang
   open ANormalCoreML
   structure TyD = TypeDesc
   structure RefTy = RefinementType
   structure RefTyS = RefinementTypeScheme
+  structure P = Predicate
   structure BP = Predicate.BasePredicate
   structure RP = Predicate.RelPredicate
   structure L = Layout
@@ -76,6 +75,9 @@ struct
               (Vector.new1 (bv',bv) ,Base (bv',tyd,pred'))
             end 
         | (Trecord tydr, Tuple reftyv) => 
+            (*
+             * (x,y) -> {v|p(x,y)} -~-> (1,2) -> {v|p(1,2)}
+             *)
             let
               val (vcs,reftyv') = (Vector.unzip o Vector.map2) 
                 (Record.toVector tydr, reftyv, 
@@ -183,8 +185,11 @@ struct
   (*
    * For functions with dependent types, bound variables within argument
    * types are refered from refinements of result types. At application
-   * sites, the formal boundvars are substituted for actual program vars.
+   * sites, actual program vars are substituted for formal boundvars.
    * unifyArgs returns such substitutions.
+   * unifyArgs also returns new type bindings for actual vars. This is for
+   * the sake of constructor pattern matches, where the returned type binds
+   * contain type bindings for matched pattern vars.
    *)
   fun unifyArgs (argTy : RefTy.t,argExpVal : Exp.Val.t) : 
       ((Var.t*RefTy.t) vector * substs) =
@@ -222,7 +227,46 @@ struct
           in
             (Vector.concatV reftyss, Vector.concatV substss)
           end
-      | (RefTy.Tuple _, Atom _) => Error.bug "Unimplemented Tuple-Atom"
+      | (RefTy.Tuple argTys, Atom (Var (v,_))) => 
+          let
+            val base = Var.toString v
+            val itos = Int.toString
+            val f = fn (x,y,z) => (x, Vector.concatV y, 
+              Vector.concatV z)
+            val (newvars,newbinds,substs) = f $ Vector.unzip3 $ 
+              Vector.mapi (argTys, fn (i,argTy) => 
+                let
+                  val v = getUniqueId (base^"_"^(itos i)^"_")
+                  val (binds,substs) = unifyArgs (argTy,Atom 
+                    (Var (v, Vector.new0 ())))
+                in
+                  (v,binds,substs)
+                end)
+            val (argTys',newbinds') = Vector.map2AndFold 
+              (argTys, newvars, newbinds, fn (argTy,v,newbinds) => 
+                case argTy of RefTy.Base (bv,t,p) => 
+                  (RefTy.Base (bv,t, P.conjP (p,BP.varEq (bv,v))), newbinds)
+              | _ => 
+                let
+                  val {no=newbinds',yes=bindv} = Vector.partition (newbinds,
+                    fn (v',_) => varEq (v',v))
+                  val _ = assert (Vector.length bindv = 1, "Multiple\
+                    \ binds for single var found\n")
+                  val (_,nestArgTy) = Vector.sub (bindv,0)
+                in
+                  (nestArgTy,newbinds')
+                end)
+            val argTy' = RefTy.Tuple argTys'
+            val binds' = Vector.concat [newbinds',
+              Vector.new1 (v,argTy')]
+          in
+            (*
+             * Contains duplicate substitutions in case of
+             * nested tuples. This is because we deliberately violate
+             * boundvar scope invariant. Unimpl: fix it.
+             *)
+            (binds',substs)
+          end
       | (RefTy.Arrow _, _) => (Vector.new0 (), Vector.new0 ())
       | _ => raise Fail $ "Invalid argTy-argExpVal pair encountered"
     end
@@ -410,7 +454,6 @@ struct
         | _ => Error.bug "Function with non-arrow type"
       val {arg,argType,body} = Lambda.dest lam
       val extendedVE = VE.add ve (arg, toRefTyS argRefTy)
-        (*mergeTypes (Type.toMyType argType,argRefTy))*)
       (*
        * Substitute specfication vars with real vars
        * Unimpl: tuples
