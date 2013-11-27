@@ -1,12 +1,5 @@
 functor SpecVerify (S : SPEC_VERIFY_STRUCTS) : SPEC_VERIFY = 
 struct
-  (**
-   * Caution: The way tuples are handled is wrong.
-   * For eg: calling uncurried concat with {1:A|1=v1}*{2:A|2=v2}
-   * results in {v:A|R(v) = R(1) U R(2)} in a context where 1 and 
-   * 2 does not exist. Solution is to not anonymize tuples.
-   * Unimpl : Solution.
-   *)
   open S
  
   structure SpecLang = VE.SpecLang
@@ -41,6 +34,8 @@ struct
   fun getUniqueMarker () = getUniqueId "_mark_"
   fun dummyRefTyS () = RefTyS.generalize (Vector.new0(),RefTy.fromTyD
     (TyD.makeTunknown()))
+  val newLongVar = fn (var,fld) => Var.fromString $
+    (Var.toString var)^"."^(Var.toString fld)
   fun varEq (v1,v2) = ((Var.toString v1) = (Var.toString v2))
   fun markVE ve = 
     let
@@ -59,49 +54,66 @@ struct
     let
       open TyD
       open RefTy
+      fun isTupleTyD (row : 'a Record.t) = 
+        (*
+         * SML tuples are records with consecutive numeric
+         * fields starting with 1.
+         *)
+        let 
+          val lbltydv = Record.toVector row 
+        in
+          case Vector.length lbltydv of 0 => true 
+          | _ => Vector.foralli (lbltydv, fn (i,(lbl,_)) => 
+              Field.toString lbl = Int.toString (i+1))
+        end
       fun mergeErrorMsg (tyd,tyd') = "Cannot merge ML type " ^ (TyD.toString tyd)
         ^ " with type given in spec: " ^ (TyD.toString tyd')
-      fun doMerge (tyd:TyD.t) (refTy:RefTy.t) = case (tyd,refTy) of
-          (_,Base (bv,tyd',pred)) => 
+      fun doMerge (tyd:TyD.t) (argBind as (argv: Var.t, refTy:RefTy.t)) = 
+        case (tyd,refTy) of
+          (_,Base (_,tyd',_)) => 
             let
               val _ = assert (unifiable (tyd,tyd'),
                 mergeErrorMsg(tyd,tyd'))
-              (*
-               * User-provided BVs might have same name as some program
-               * vars. Sanitize by alpha-renaming boundvars.
-               *)
-              val Base (bv',_,pred') = alphaRename refTy
             in
-              (Vector.new1 (bv',bv) ,Base (bv',tyd,pred'))
+              (Vector.new0 (), argBind)
             end 
-        | (Trecord tydr, Tuple reftyv) => 
-            (*
-             * (x,y) -> {v|p(x,y)} -~-> (1,2) -> {v|p(1,2)}
-             *)
-            let
-              val (vcs,reftyv') = (Vector.unzip o Vector.map2) 
-                (Record.toVector tydr, reftyv, 
-                  fn ((lbl,tyd'),Base (bv,tyd,pred)) => 
+        | (Trecord tydr, Tuple argBinds') => (case isTupleTyD tydr of
+            true =>
+              let
+                val (substss,newArgBinds') = (Vector.unzip o Vector.map2) 
+                  (Record.toVector tydr, argBinds', 
+                  fn ((lbl,tyd'),argBind' as (argv',refty')) => 
                     let
-                      val _ = assert (unifiable (tyd',tyd), 
-                        mergeErrorMsg(tyd',tyd))
-                      val bv' = Var.fromString $ Field.toString lbl
-                      val pred' = Predicate.applySubst (bv',bv) pred
+                      (*
+                       * Argvar for tuple fields used in spec should be 
+                       * substituted with field label.
+                       *)
+                      val newargv' = Var.fromString $ Field.toString lbl
+                      val (substs,newArgBind) = doMerge tyd' (newargv',refty')
+                      val substs = Vector.concat [Vector.new1 (newargv',argv'), 
+                        substs]
                     in
-                      ((bv',bv), Base (bv',tyd',pred'))
+                      (substs,newArgBind)
                     end)
-            in
-              (vcs, Tuple reftyv')
-            end
-        | (Tarrow (tyd1,tyd2), Arrow (refTy1,refTy2)) => 
+                val substs = Vector.map (Vector.concatV substss,
+                  fn (n,ol) =>  (newLongVar (argv,n), ol))
+                val newArgBind = (argv, Tuple newArgBinds')
+              in
+                (substs, newArgBind)
+              end
+          | false => raise (Fail "Unimpl"))
+        | (Tarrow (tyd1,tyd2), Arrow (argBind,resTy)) => 
             let
-              val (substs,refTy'1) = doMerge tyd1 refTy1
-              val (_,refTy'2) = doMerge tyd2 (RefTy.applySubsts substs refTy2)
+              val (substs,argBind') = doMerge tyd1 argBind
+              val dummyArgVar = argv
+              val (_,(_,resTy')) = doMerge tyd2 (dummyArgVar, 
+                RefTy.applySubsts substs resTy)
+              val newArgBind = (argv, Arrow (argBind',resTy'))
             in
-              (Vector.new0 (), Arrow (refTy'1,refTy'2))
+              (Vector.new0 (), newArgBind)
             end
         | _ => raise Fail $ "Types Merge Error"
-      val (_,refTy') = doMerge tyd refTy
+      val (_,(_,refTy')) = doMerge tyd (genVar (), refTy)
     in
       refTy'
     end
@@ -119,30 +131,22 @@ struct
       | (Atom (Const c),_) => Error.bug ("unimpl constant pats")
       | (Atom (Var v),_) => VE.add ve (v, RefTyS.generalize 
           (tyvars,expty))
-      | (Tuple patatoms,RefTy.Tuple refTys) => Vector.fold2 
-          (patatoms, refTys, ve, fn (patatom,refTy,ve) =>
-            (*
-             * Renaming {1:ty|P(1)} to {v:ty|P(v)}
-             *)
-            elabPatVal (ve,Atom patatom, RefTy.alphaRename refTy))
+      | (Tuple patatoms,RefTy.Tuple refTyBinds) => Vector.fold2 
+          (patatoms, refTyBinds, ve, fn (patatom,(_,refTy),ve) =>
+            elabPatVal (ve, Atom patatom, refTy))
       | (Tuple patatoms,_) => (
           assert (Vector.length patatoms = 1, err());
           elabPatVal (ve,Atom (Vector.sub (patatoms,0)),expty))
-      | (Record patmrec, RefTy.Tuple refTys) => Vector.fold
+      | (Record patmrec, RefTy.Tuple refTyBinds) => Vector.fold
           (Record.toVector patmrec, ve, fn ((lbl,patom),ve) =>
             let
-              val indx = Vector.index (refTys, fn refTy =>
-                case refTy of RefTy.Base (bv,_,_) => 
-                  Field.toString lbl = Var.toString bv
-                | _ => false)
-              val refTy = case indx of SOME i => Vector.sub (refTys,i)
-                | NONE => RefTy.fromTyD $ TyD.makeTunknown () 
-                  (* Unimpl : Nested records *)
+              val indx = Vector.index (refTyBinds, fn (fldvar,_) =>
+                  Field.toString lbl = Var.toString fldvar)
+              val refTyBind as (_,refTy) = case indx of 
+                  SOME i => Vector.sub (refTyBinds,i)
+                | NONE => Error.bug $ "Record field not found\n"^(err ())
             in
-              (*
-               * Renaming record bound var.
-               *)
-              elabPatVal (ve, Atom patom, RefTy.alphaRename refTy)
+              elabPatVal (ve, Atom patom, refTy)
             end)
       | _ => Error.bug $ err()
     in
@@ -171,7 +175,7 @@ struct
           case exty of
             RefTy.Base (bv,extd,pred) => (TyDBinds.add clos exvar extd,
               Predicate.conj (pred',Predicate.applySubst (exvar,bv) pred))
-          | _ => (clos,pred'))
+          | _ => Error.bug "Unimpl: elaboration needed")
       (*
        *val _ = print "TyDBinds:\n"
        *val _ = Layout.print (TyDBinds.layout tyDB,print)
@@ -191,95 +195,84 @@ struct
    * the sake of constructor pattern matches, where the returned type binds
    * contain type bindings for matched pattern vars.
    *)
-  fun unifyArgs (argTy : RefTy.t,argExpVal : Exp.Val.t) : 
-      ((Var.t*RefTy.t) vector * substs) =
+  fun unifyArgs (argBind as (argv : Var.t, argTy : RefTy.t) ,
+      argExpVal : Exp.Val.t) : ((Var.t*RefTy.t) vector * substs) =
     let
       open Exp.Val
     in
       case (argTy,argExpVal) of
-        (RefTy.Base (argvar,td,p),Atom (Var (v,typv))) => 
-          (Vector.new1 (v,argTy),Vector.new1 (v,argvar))
-      | (RefTy.Base (argvar,td,p),Atom (Const c)) => Error.bug $ 
+        (RefTy.Base _, Atom (Var (v,typv))) => 
+          (Vector.new1 (v,argTy), Vector.new1 (v,argv))
+      | (RefTy.Base _,Atom (Const c)) => Error.bug $ 
           "Unimpl const args"
-      | (RefTy.Tuple argTys,Tuple atomvec) => 
+      | (RefTy.Tuple argBinds',Tuple atomvec) => 
           let
             val (reftyss,substss) = (Vector.unzip o Vector.map2)
-              (argTys,atomvec, fn (argTy,atom) => unifyArgs (argTy, Atom atom))
+              (argBinds',atomvec, fn (argBind',atom) => 
+                let
+                  val (binds,substs') = unifyArgs (argBind', Atom atom)
+                  val substs = Vector.map (substs', 
+                    fn (n,o') => (n, newLongVar (argv,o')))
+                in
+                  (binds,substs)
+                end)
           in
             (Vector.concatV reftyss, Vector.concatV substss)
           end
-      | (RefTy.Tuple argTys,Record atomrec) => 
+      | (RefTy.Tuple argBinds', Record atomrec) => 
           let
             val (reftyss,substss)= (Vector.unzip o Vector.map)
-            (argTys, fn (argTy) =>
+            (argBinds', fn (argBind') =>
               let
-                val bv = case argTy of RefTy.Base (bv,_,_) => bv
-                  | _ => Error.bug "Unimpl Nested records"
+                val (argv',_) = argBind'
+                val argvStr' = Var.toString argv'
                 val lblatomvec = Record.toVector atomrec
                 val indx = Vector.index (lblatomvec, fn (lbl,_) =>
-                  Field.toString lbl = Var.toString bv)
-                val (_,atom) = case indx of SOME i => Vector.sub (lblatomvec,i)
-                  | NONE => Error.bug ("Field " ^ (Var.toString bv) ^ 
+                  Field.toString lbl = argvStr')
+                val (_,atom) = case indx of 
+                    SOME i => Vector.sub (lblatomvec,i)
+                  | NONE => Error.bug ("Field " ^ (argvStr') ^ 
                       " could not be found.")
+                val (binds,substs') = unifyArgs (argBind',Atom atom)
+                  val substs = Vector.map (substs', 
+                    fn (n,o') => (n, newLongVar (argv,o')))
               in
-                unifyArgs (argTy,Atom atom)
+                (binds,substs)
               end)
           in
             (Vector.concatV reftyss, Vector.concatV substss)
           end
-      | (RefTy.Tuple argTys, Atom (Var (v,_))) => 
+      | (RefTy.Tuple argBinds', Atom (Var (v,_))) => 
           let
-            val base = Var.toString v
-            val itos = Int.toString
-            val f = fn (x,y,z) => (x, Vector.concatV y, 
-              Vector.concatV z)
-            val (newvars,newbinds,substs) = f $ Vector.unzip3 $ 
-              Vector.mapi (argTys, fn (i,argTy) => 
-                let
-                  val v = getUniqueId (base^"_"^(itos i)^"_")
-                  val (binds,substs) = unifyArgs (argTy,Atom 
-                    (Var (v, Vector.new0 ())))
-                in
-                  (v,binds,substs)
-                end)
-            val (argTys',newbinds') = Vector.map2AndFold 
-              (argTys, newvars, newbinds, fn (argTy,v,newbinds) => 
-                case argTy of RefTy.Base (bv,t,p) => 
-                  (RefTy.Base (bv,t, P.conjP (p,BP.varEq (bv,v))), newbinds)
-              | _ => 
-                let
-                  val {no=newbinds',yes=bindv} = Vector.partition (newbinds,
-                    fn (v',_) => varEq (v',v))
-                  val _ = assert (Vector.length bindv = 1, "Multiple\
-                    \ binds for single var found\n")
-                  val (_,nestArgTy) = Vector.sub (bindv,0)
-                in
-                  (nestArgTy,newbinds')
-                end)
-            val argTy' = RefTy.Tuple argTys'
-            val binds' = Vector.concat [newbinds',
-              Vector.new1 (v,argTy')]
-          in
-            (*
-             * Contains duplicate substitutions in case of
-             * nested tuples. This is because we deliberately violate
-             * boundvar scope invariant. Unimpl: fix it.
+            (* Unifying v0:{x0:T0,x1:T1} with v1 would return
+             * v1 ↦ {x0:T0,x1:T1} as the only new bind. However,
+             * all references v0 elements should now refer to v1
+             * elements. Therefore, substs = [v1.x0/v0.x0, v1.x1/v0.x1]
              *)
-            (binds',substs)
+            val binds = Vector.new1 (v,argTy)
+            val substs = (Vector.concatV o Vector.map)
+            (argBinds', fn (argBind') =>
+              let
+                val (argv',_) = argBind'
+                val newVar = newLongVar (v,argv')
+                val (_,substs') = unifyArgs (argBind',
+                  Atom (Var (newVar, Vector.new0 ())))
+                val substs = Vector.map (substs', 
+                  fn (n,o') => (n, newLongVar (argv,o')))
+              in
+                substs
+              end)
+          in
+            (binds,substs)
           end
-      | (RefTy.Arrow _, _) => (Vector.new0 (), Vector.new0 ())
+      | (RefTy.Arrow _, Atom (Var (v,_))) => (Vector.new1 (v,argTy), 
+          Vector.new1 (v,argv))
       | _ => raise Fail $ "Invalid argTy-argExpVal pair encountered"
     end
 
     fun unifyWithDisj (refTy1 : RefTy.t,refTy2 : RefTy.t) : RefTy.t =
       let
         open RefTy
-        (*val _ = print "To be unified with Disj:\n"
-        val _ = Control.message (Control.Top, fn _ => 
-          RefTy.layout refTy1)
-        val _ = Control.message (Control.Top, fn _ => 
-          RefTy.layout refTy2)
-        val _ = print "\n"*)
       in
         case (refTy1,refTy2) of
           (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
@@ -293,15 +286,13 @@ struct
               Base (bv2,td2,Predicate.disj(pred1',pred2))
             end
         | (Tuple t1,Tuple t2) => (Tuple o Vector.map2) (t1,t2, 
-            fn (r1,r2) => case (r1,r2) of
-              (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
-                let
-                  val _ = assert (varEq (bv1,bv2), "Labels of tuples from \
-                    \ two branches of case did not match")
-                in
-                 unifyWithDisj (r1,r2)
-                end
-            | _ => unifyWithDisj (r1,r2))
+            fn ((v1,r1),(v2,r2)) => 
+              let
+                val _ = assert (varEq (v1,v2), "Labels of tuples from \
+                  \ two branches of case did not match")
+              in
+               (v2,unifyWithDisj (r1,r2))
+              end)
         | (Arrow _,Arrow _) => Error.bug "Unimpl : Case returning arrow"
         | _ => Error.bug "Case rules types not unifiable"
       end 
@@ -335,17 +326,17 @@ struct
       | Val.Tuple atomvec => RefTy.Tuple $ Vector.mapi (atomvec, fn (i,atm) => 
           let
             val atmTy = typeSynthValExp (ve,Val.Atom atm)
-            val newbv = Var.fromString $ Int.toString (i+1) (* tuple BVs *)
+            val fldvar = Var.fromString $ Int.toString (i+1) (* tuple BVs *)
           in
-            RefTy.alphaRenameToVar atmTy newbv
+            (fldvar, atmTy)
           end)
       | Val.Record atomrec => RefTy.Tuple $ Vector.map (Record.toVector atomrec, 
           fn (lbl,atm) => 
             let
               val atmTy = typeSynthValExp (ve,Val.Atom atm)
-              val newbv = Var.fromString $ Field.toString lbl (* Record BVs *)
+              val fldvar = Var.fromString $ Field.toString lbl (* Record BVs *)
             in
-              RefTy.alphaRenameToVar atmTy newbv
+              (fldvar, atmTy)
             end)
     end
 
@@ -360,7 +351,8 @@ struct
         App (f,valexp) => 
           let
             val fty  = typeSynthValExp (ve,Val.Atom f)
-            val (fargty,fresty)  =case fty of RefTy.Arrow x => x
+            val (fargBind as (farg,fargty),fresty)  = case fty of 
+                RefTy.Arrow x => x
               | _ => Error.bug ("Type of " ^ (Layout.toString $ 
                 Exp.Val.layout $ Val.Atom f) ^ " not an arrow")
             val argTy = typeSynthValExp (ve,valexp)
@@ -372,7 +364,7 @@ struct
              * Then, determine type of this expression by substituion of
              * actuals for formals.
              *)
-            val (_,substs) = unifyArgs (fargty,valexp)
+            val (_,substs) = unifyArgs (fargBind,valexp)
             val resTy = RefTy.applySubsts substs fresty
           in
             (vcs,resTy)
@@ -398,10 +390,6 @@ struct
               end)
             val (wfTypes,wfType) = Vector.splitLast wfTypes
             val unifiedType = Vector.fold (wfTypes, wfType, unifyWithDisj)
-            (*val _ = print "Type unified with Disj is:\n"
-            val _ = Control.message (Control.Top, fn _ => 
-              RefTy.layout unifiedType)
-            val _ = print "\n\n"*)
           in
             (*
              * 1. alphaRename boundvars forall wfTypes to a single var
@@ -418,11 +406,6 @@ struct
           val (marker,markedVE) = markVE ve
           val (vcs1,extendedVE) = doItDecs (markedVE,decs)
           val (vcs2,subExpTy) = typeSynthExp (extendedVE,subExp)
-          (*
-           *val _ = print "Let expression\n"
-           *val _ = Layout.print (VE.layout extendedVE,print)
-           *val _ = print "\n"
-           *)
         in
           (Vector.concat [vcs1, vcs2], 
             wellFormedType (marker,extendedVE,subExpTy))
@@ -437,31 +420,33 @@ struct
     let
       val {arg,argType,body} = Lambda.dest lam
       val argRefTy = RefTy.fromTyD (Type.toMyType argType)
-      val _ = L.print (L.seq[Var.layout arg, L.str " :-> ",
-        RefTy.layout argRefTy], print)
+      val argBind = (arg,argRefTy)
+      (*val _ = L.print (L.seq[Var.layout arg, L.str " :-> ",
+        RefTy.layout argRefTy], print)*)
       val extendedVE = VE.add ve (arg,toRefTyS argRefTy)
       (*
        * Γ[arg↦argTy] ⊢ body => bodyTy
        *)
       val (bodyvcs,bodyRefTy) = typeSynthExp (extendedVE,body)
     in
-      (bodyvcs,RefTy.Arrow (argRefTy,bodyRefTy))
+      (bodyvcs,RefTy.Arrow (argBind,bodyRefTy))
     end
 
   and typeCheckLambda (ve : VE.t,lam : Lambda.t, ty : RefTy.t) : VC.t vector =
     let
-      val (argRefTy,resRefTy) = case ty of RefTy.Arrow v => v
+      val (argBind as (_,argRefTy),resRefTy) = case ty of 
+          RefTy.Arrow v => v
         | _ => Error.bug "Function with non-arrow type"
       val {arg,argType,body} = Lambda.dest lam
       val extendedVE = VE.add ve (arg, toRefTyS argRefTy)
       (*
-       * Substitute specfication vars with real vars
-       * Unimpl: tuples
+       * Substitute formal vars with actual vars
        *)
-      val resRefTy' = case argRefTy of 
-          RefTy.Base (bv,_,_) => RefTy.applySubsts 
-            (Vector.new1 (arg,bv)) resRefTy
-        | _ => resRefTy
+      val (binds, substs) = unifyArgs (argBind, (Exp.Val.Atom 
+        (Exp.Val.Var (arg, Vector.new0 ()))))
+      val _ = assert (Vector.length binds = 1, "Unification \
+        \ of fn args incorrect.")
+      val resRefTy' = RefTy.applySubsts substs resRefTy
     in
       (*
        * Γ[arg↦argRefTy] ⊢ body <= resRefTy
@@ -547,10 +532,10 @@ struct
                       \ cons"
                   | (RefTy.Arrow _, SOME (Pat.Val.Atom (Pat.Val.Wild))) =>
                       (ve,conTy)
-                  | (RefTy.Arrow (conArgTy,conResTy), SOME argPatVal) => 
+                  | (RefTy.Arrow (conArgBind,conResTy), SOME argPatVal) => 
                       let
                         val argExpVal = patValToExpVal argPatVal
-                        val (argTyMap,substs) = unifyArgs (conArgTy,argExpVal)
+                        val (argTyMap,substs) = unifyArgs (conArgBind,argExpVal)
                         val ve' = Vector.fold (argTyMap, ve, fn ((arg,refTy),ve) =>
                           VE.add ve $ (arg,RefTyS.generalize (tyvars,refTy)))
                       in

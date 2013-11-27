@@ -177,10 +177,23 @@ struct
                   fn ((tybinds,anteP),conseqP,vcacc) => 
                     (T (tybinds,anteP,conseqP))::vcacc)
           end
-      | (Tuple t1v,Tuple t2v) => (Vector.concatV o Vector.map2) 
-          (t1v,t2v, fn (t1,t2) => fromTypeCheck (ve,t1,t2))
-      | (Arrow (t11,t12),Arrow (t21,t22)) => Vector.concat
-          [fromTypeCheck (ve,t21,t11), fromTypeCheck (ve,t12,t22)]
+      | (Tuple t1v,Tuple t2v) => 
+          (*
+           * Unimpl: records
+           *)
+          (Vector.concatV o Vector.map2) (t1v,t2v, 
+            fn ((v1,t1),(v2,t2)) => fromTypeCheck (ve,t1,t2))
+      | (Arrow ((arg1,t11),t12),Arrow ((arg2,t21),t22)) => 
+          let
+            val vcs1 = fromTypeCheck (ve,t21,t11)
+            (*
+             * Typecheck results modulo argvar
+             *)
+            val t12' = RefTy.applySubsts (Vector.new1 (arg2,arg1)) t12
+            val vcs2 = fromTypeCheck (ve,t12',t22)
+          in
+            Vector.concat [vcs1, vcs2]
+          end 
     end
 
   datatype rinst = RInst of RelLang.RelId.t * TypeDesc.t vector
