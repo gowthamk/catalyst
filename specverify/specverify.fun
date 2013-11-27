@@ -70,12 +70,13 @@ struct
         ^ " with type given in spec: " ^ (TyD.toString tyd')
       fun doMerge (tyd:TyD.t) (argBind as (argv: Var.t, refTy:RefTy.t)) = 
         case (tyd,refTy) of
-          (_,Base (_,tyd',_)) => 
+          (_,Base (bv,tyd',pred)) => 
             let
               val _ = assert (unifiable (tyd,tyd'),
                 mergeErrorMsg(tyd,tyd'))
+              val newArgBind = (argv, Base (bv,tyd,pred))
             in
-              (Vector.new0 (), argBind)
+              (Vector.new0 (), newArgBind)
             end 
         | (Trecord tydr, Tuple argBinds') => (case isTupleTyD tydr of
             true =>
@@ -126,17 +127,19 @@ struct
           "Pattern is ",L.toString $ layout patval,"\n",
           "Type of expression is ",L.toString $ RefTy.layout expty,
             "\n" ]
+      val len = Vector.length
       fun elabPatVal (ve,patval,expty) : VE.t = case (patval,expty) of
         (Atom (Wild),_) => ve
       | (Atom (Const c),_) => Error.bug ("unimpl constant pats")
       | (Atom (Var v),_) => VE.add ve (v, RefTyS.generalize 
           (tyvars,expty))
-      | (Tuple patatoms,RefTy.Tuple refTyBinds) => Vector.fold2 
-          (patatoms, refTyBinds, ve, fn (patatom,(_,refTy),ve) =>
-            elabPatVal (ve, Atom patatom, refTy))
-      | (Tuple patatoms,_) => (
-          assert (Vector.length patatoms = 1, err());
-          elabPatVal (ve,Atom (Vector.sub (patatoms,0)),expty))
+      | (Tuple patatoms,_) => (case (len patatoms,expty) of 
+          (* Unit tuples are atoms *)
+          (1,_) => elabPatVal (ve,Atom (Vector.sub (patatoms,0)),expty)
+        | (_, RefTy.Tuple refTyBinds) => Vector.fold2 (patatoms, 
+            refTyBinds, ve, fn (patatom,(_,refTy),ve) =>
+              elabPatVal (ve, Atom patatom, refTy))
+        | _ => Error.bug $ err ())
       | (Record patmrec, RefTy.Tuple refTyBinds) => Vector.fold
           (Record.toVector patmrec, ve, fn ((lbl,patom),ve) =>
             let
@@ -154,6 +157,22 @@ struct
     end
 
   (*
+   * Decomposes single tuple bind of form v ↦ {x0:T0,x1:T1} to
+   * multiple binds : [v.x0 ↦ T0, v.x1 ↦ T1]
+   *)
+  fun decomposeTupleBind (tvar : Var.t, tty as RefTy.Tuple refTyBinds) 
+    : (Var.t*RefTy.t) vector =
+    let
+      val bindss = Vector.map (refTyBinds, fn (refTyBind as (_,refTy))
+        => case refTy of RefTy.Tuple _ => decomposeTupleBind refTyBind
+        | _ => Vector.new1 refTyBind)
+      val binds = Vector.map (Vector.concatV bindss, fn (v,ty) =>
+        (newLongVar (tvar,v), ty))
+    in
+      binds
+    end
+
+  (*
    * Invariant : bv and td of ty is unchanged.
    *)
   fun wellFormedType (marker : Var.t, markedVE : VE.t, ty : RefTy.t) 
@@ -168,14 +187,18 @@ struct
        * We do not need vars with such types as they are not referenced
        * from type refinements.
        *)
-      val extyvec = Vector.map (Vector.prefix (vevec,i), fn (v,rtys) =>
-        (v,RefTyS.specialize rtys))
-      val (tyDB,pred1)= Vector.fold (extyvec,(TyDBinds.empty,Predicate.truee()),
-        fn ((exvar,exty),(clos,pred')) =>
+      val extyvec = Vector.map (Vector.prefix (vevec,i), 
+        fn (v,rtys) => (v,RefTyS.specialize rtys))
+      val flattened = Vector.concatV $ Vector.map (extyvec, fn (v,ty) 
+        => case ty of RefTy.Tuple _ => decomposeTupleBind (v,ty)
+        | _ => Vector.new1 (v,ty))
+      val (tyDB,pred1)= Vector.fold (flattened,(TyDBinds.empty,
+        Predicate.truee()), fn ((exvar,exty),(clos,pred')) =>
           case exty of
             RefTy.Base (bv,extd,pred) => (TyDBinds.add clos exvar extd,
               Predicate.conj (pred',Predicate.applySubst (exvar,bv) pred))
-          | _ => Error.bug "Unimpl: elaboration needed")
+          | RefTy.Tuple _ => Error.bug "Tuple flattening incorrect\n"
+          | _ => (clos,pred'))
       (*
        *val _ = print "TyDBinds:\n"
        *val _ = Layout.print (TyDBinds.layout tyDB,print)
@@ -206,6 +229,11 @@ struct
       | (RefTy.Base _,Atom (Const c)) => Error.bug $ 
           "Unimpl const args"
       | (RefTy.Tuple argBinds',Tuple atomvec) => 
+          (*
+           * Unifies v:{1:T0,2:T1} with (v0,v1)
+           * Returns binds = [v0 ↦ T0, v1 ↦ T1],
+           *        substs = [v0/v.1, v1/v.2]
+           *)
           let
             val (reftyss,substss) = (Vector.unzip o Vector.map2)
               (argBinds',atomvec, fn (argBind',atom) => 
@@ -510,50 +538,54 @@ struct
             end 
         in
           case patnode of 
-              Pat.Value patval => (vcs, elabPatVal
-                (ve,tyvars,patval,expty))
-            | Pat.Con {arg : Pat.Val.t option,con,targs} => 
-              let
-                val rhsvar = case expval of 
-                    Exp.Val.Atom (Exp.Val.Var (v,_)) => v
-                  | _ => Error.bug "A var is expected on rhs for conpat bind."
-                val tydargs = Vector.map (targs,Type.toMyType)
-                val convid = Var.fromString $ Con.toString con
-                val conTyS = VE.find ve convid handle (VE.VarNotFound _) =>
-                  Error.bug ("Constructor "^(Var.toString convid) ^ 
-                    " not found in current env")
-                val conTy  = RefTyS.instantiate (conTyS,tydargs)
-                (*
-                 * extend ve with new bindings for matched arguments.
-                 *)
-                val (ve',resTy) = case (conTy,arg) of 
-                    (RefTy.Base _,NONE) => (ve,conTy)
-                  | (RefTy.Base _, SOME _) => Error.bug "Arguments to nullary \
-                      \ cons"
-                  | (RefTy.Arrow _, SOME (Pat.Val.Atom (Pat.Val.Wild))) =>
-                      (ve,conTy)
-                  | (RefTy.Arrow (conArgBind,conResTy), SOME argPatVal) => 
-                      let
-                        val argExpVal = patValToExpVal argPatVal
-                        val (argTyMap,substs) = unifyArgs (conArgBind,argExpVal)
-                        val ve' = Vector.fold (argTyMap, ve, fn ((arg,refTy),ve) =>
-                          VE.add ve $ (arg,RefTyS.generalize (tyvars,refTy)))
-                      in
-                        (ve', RefTy.applySubsts substs conResTy)
-                      end
-                  | _ => Error.bug "Impossible cons args"
-                (*
-                 * Extend ve' with a new dummy var to keep track of
-                 * relationship between matched arguments and rhsvar.
-                 *)
-                val RefTy.Base (bv,td,p) = RefTy.alphaRenameToVar resTy rhsvar
-                val _ = assert (Var.toString bv = Var.toString rhsvar, 
-                  "RefTy alpha rename incorrect")
-                val newTyS = RefTyS.generalize (tyvars, RefTy.Base (genVar(),
-                  td, p))
-              in
-                (vcs, VE.add ve'(genVar(), newTyS))
-              end
+            Pat.Value patval => 
+            let
+              val res = (vcs, elabPatVal (ve,tyvars,patval,expty))
+            in
+              res
+            end
+          | Pat.Con {arg : Pat.Val.t option,con,targs} => 
+            let
+              val rhsvar = case expval of 
+                  Exp.Val.Atom (Exp.Val.Var (v,_)) => v
+                | _ => Error.bug "A var is expected on rhs for conpat bind."
+              val tydargs = Vector.map (targs,Type.toMyType)
+              val convid = Var.fromString $ Con.toString con
+              val conTyS = VE.find ve convid handle (VE.VarNotFound _) =>
+                Error.bug ("Constructor "^(Var.toString convid) ^ 
+                  " not found in current env")
+              val conTy  = RefTyS.instantiate (conTyS,tydargs)
+              (*
+               * extend ve with new bindings for matched arguments.
+               *)
+              val (ve',resTy) = case (conTy,arg) of 
+                  (RefTy.Base _,NONE) => (ve,conTy)
+                | (RefTy.Base _, SOME _) => Error.bug "Arguments to nullary \
+                    \ cons"
+                | (RefTy.Arrow _, SOME (Pat.Val.Atom (Pat.Val.Wild))) =>
+                    (ve,conTy)
+                | (RefTy.Arrow (conArgBind,conResTy), SOME argPatVal) => 
+                    let
+                      val argExpVal = patValToExpVal argPatVal
+                      val (argTyMap,substs) = unifyArgs (conArgBind,argExpVal)
+                      val ve' = Vector.fold (argTyMap, ve, fn ((arg,refTy),ve) =>
+                        VE.add ve $ (arg,RefTyS.generalize (tyvars,refTy)))
+                    in
+                      (ve', RefTy.applySubsts substs conResTy)
+                    end
+                | _ => Error.bug "Impossible cons args"
+              (*
+               * Extend ve' with a new dummy var to keep track of
+               * relationship between matched arguments and rhsvar.
+               *)
+              val RefTy.Base (bv,td,p) = RefTy.alphaRenameToVar resTy rhsvar
+              val _ = assert (Var.toString bv = Var.toString rhsvar, 
+                "RefTy alpha rename incorrect")
+              val newTyS = RefTyS.generalize (tyvars, RefTy.Base (genVar(),
+                td, p))
+            in
+              (vcs, VE.add ve'(genVar(), newTyS))
+            end
         end
 
   and doItDecs (ve : VE.t, decs : Dec.t vector) : (VC.t vector * VE.t) =

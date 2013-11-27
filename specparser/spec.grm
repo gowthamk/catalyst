@@ -2,7 +2,18 @@
 open Spec
 open RelLang
 structure TypeSpec = RelSpec.TypeSpec
+structure RefTy = RefinementType
 val defaultCons = Con.default
+val symbase = "sp_"
+val count = ref 0
+val genVar = fn _ => 
+  let val id = symbase ^ (Int.toString (!count))
+      val _ = count := !count + 1
+  in
+    Var.fromString id 
+  end
+fun $ (f,arg) = f arg
+infixr 5 $
 %%
 (* ML Yacc Declarations *)
 %name Spec (* tokens signature will be Spec_TOKENS *)
@@ -62,6 +73,8 @@ val defaultCons = Con.default
   | typespec of TypeSpec.t 
   | refty of RefinementType.t
   | reftyseq of RefinementType.t list
+  | vartyatom of Var.t * RefinementType.t
+  | vartyatomseq of (Var.t * RefTy.t) list
   | tyatom of RefinementType.t
   | basety of RefinementType.t
   | pred of Predicate.t
@@ -133,16 +146,22 @@ elem : INT (Int(INT))
 typespec : ID COLON refty (TypeSpec.T ((Var.fromString ID),refty))
 
 refty : tyatom (tyatom)
-      | tyatom ARROW refty (RefinementType.Arrow(tyatom1,refty))
+      | vartyatom ARROW refty (RefinementType.Arrow(vartyatom,refty))
 
-reftyseq : refty ([refty])
-         | refty COMMA reftyseq (refty::reftyseq)
+vartyatom : tyatom (let open RefTy in case tyatom of 
+                      Base (v,_,_) => (v,alphaRename tyatom)
+                    | Tuple _ => (genVar (),tyatom)
+                    | Arrow _ => (genVar (),tyatom)
+                    end)
+
+vartyatomseq : vartyatom ([vartyatom])
+             | vartyatom COMMA vartyatomseq (vartyatom ::
+                  vartyatomseq)
 
 tyatom : basety (basety)
-       | LPAREN reftyseq RPAREN (case reftyseq of 
-                  [refty] => refty
-                | _ => RefinementType.Tuple 
-                  (Vector.fromList reftyseq))
+       | LPAREN vartyatomseq RPAREN (case vartyatomseq of 
+                  [(v,refty)] => refty
+                | _ => RefTy.Tuple (Vector.fromList vartyatomseq))
 
 (* Needs extension to specify ML type *)
 basety : ID (RefinementType.Base ((Var.fromString ID), 

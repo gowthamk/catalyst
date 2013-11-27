@@ -45,23 +45,31 @@ struct
       val conTy = RefTyS.specialize (VE.find ve convid)
         handle (VE.VarNotFound v) => Error.bug ("Could not find constructor "
           ^ conStr  ^ " in varenv\n")
+      (* -- Function duplicated from SpecVerify -- *)
+      val newLongVar = fn (var,fld) => Var.fromString $
+        (Var.toString var)^"."^(Var.toString fld)
       open RefTy
     in
       case conTy of 
-        Base (bv,_,_) => (assert(Vector.isEmpty vars, 
+        Base _ => (assert(Vector.isEmpty vars, 
           "Nullary constructor "^conStr^" applied to arguments"); 
           Vector.fromList [])
-      | Arrow (Base (bv,argTyD,_),Base (_,datTyD,_)) => 
+      | Arrow ((argv,Base (_,argTyD,_)),Base (_,datTyD,_)) => 
           (assert (Vector.length vars = 1, 
           conStr ^ " expects 1 arg. " ^ (lenstr vars) ^ " given");
           Vector.map (vars,fn (var) => 
-            (bv, var, argTyD, TyD.sameType (argTyD,datTyD))))
-      | Arrow (Tuple tv, Base (_,datTyD,_)) =>
+            (argv, var, argTyD, TyD.sameType (argTyD,datTyD))))
+        (*
+         * We do not consider nested tuples in constructor
+         * args as yet. Our syntax doesn't allow it.
+         *)
+      | Arrow ((argv,Tuple tv), Base (_,datTyD,_)) =>
           (assert (Vector.length tv = Vector.length vars,
           conStr ^ " expects "^ (lenstr tv) ^" args. " 
             ^ (lenstr vars) ^ " given");
-         Vector.map2 (tv,vars,fn (Base (bv,argTyD,_), var) =>
-            (bv, var, argTyD, TyD.sameType (argTyD,datTyD))))
+         Vector.map2 (tv,vars,fn ((fldv, Base (_,argTyD,_)), var) =>
+            (newLongVar (argv,fldv), var, argTyD, 
+              TyD.sameType (argTyD,datTyD))))
       | _ => raise (Fail "Could not unify and determine rec args")
     end
 

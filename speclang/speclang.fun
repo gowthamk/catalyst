@@ -285,8 +285,8 @@ struct
   structure RefinementType =
   struct
     datatype t = Base of Var.t * TypeDesc.t * Predicate.t
-          | Tuple of t vector
-          | Arrow of t*t
+          | Tuple of (Var.t * t) vector
+          | Arrow of (Var.t * t) * t
           (* Records are tuples with fixed bound var *)
           (* Needs extension for {'a | r} list *)
 
@@ -306,12 +306,11 @@ struct
         open TypeDesc
       in
         case tyD of
-          Tarrow (td1,td2) => Arrow (fromTyD td1,fromTyD td2)
+          Tarrow (td1,td2) => Arrow ((genVar (), fromTyD td1),
+            fromTyD td2)
         | Trecord tdrec => Tuple (Vector.map (Record.toVector tdrec, 
-            fn (lbl,td) => case fromTyD td of
-              Base (_,td,pred) => Base (Var.fromString 
-                (Field.toString lbl), td, pred)
-            | refTy => refTy))
+            fn (lbl,td) => (Var.fromString $ Field.toString lbl, 
+              fromTyD td)))
         | tyD => Base (genVar(), tyD, Predicate.truee())
       end
 
@@ -320,14 +319,18 @@ struct
           Base(var,td,pred) => L.seq [L.str ("{" ^ (Var.toString var) 
             ^ ":" ^ (TypeDesc.toString td) ^ " | "), 
             Predicate.layout pred, L.str "}"]
-        | Tuple tv => L.vector $ Vector.map (tv,layout)
-        | Arrow (t1,t2) => L.align $ L.separateLeft ([layout t1, 
+        | Tuple tv => L.vector $ Vector.map (tv, fn (v,t) => 
+            L.seq [L.str $ Var.toString v, L.str ":", layout t])
+        | Arrow ((v1,t1),t2) => L.align $ L.separateLeft (
+            [L.seq [L.str $ Var.toString v1, L.str ":", layout t1], 
             layout t2]," -> ")
 
     fun mapBaseTy t f = case t of
         Base (v,t,p) => Base $ f (v,t,p)
-      | Tuple tv => Tuple $ Vector.map (tv,fn t => mapBaseTy t f)
-      | Arrow (t1,t2) => Arrow (mapBaseTy t1 f, mapBaseTy t2 f)
+      | Tuple tv => Tuple $ Vector.map (tv,fn (v,t) => 
+          (v,mapBaseTy t f))
+      | Arrow ((v1,t1),t2) => Arrow ((v1,mapBaseTy t1 f), 
+          mapBaseTy t2 f)
 
     fun mapTyD t f = mapBaseTy t (fn (v,t,p) => (v,f t,p)) 
       

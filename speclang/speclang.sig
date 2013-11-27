@@ -117,8 +117,8 @@ sig
      *  datatype refinement = Disj of (VarMap(type r = t).t * ...)
      *)
     datatype t = Base of Var.t * TypeDesc.t * Predicate.t
-               | Tuple of t vector
-               | Arrow of t*t
+               | Tuple of (Var.t * t) vector
+               | Arrow of (Var.t * t) * t
                (* Records are tuples with fixed bound var *)
                (* Needs extension for {'a | r} list *)
     val layout : t -> Layout.t 

@@ -6,4 +6,4 @@ fun concat l1 l2 = case l1 of
 
 fun rev l = case l of
     [] => []
-  | x::xs => concat (rev xs) [x]
+  | x::xs => concat  [x] (rev xs)

@@ -233,21 +233,24 @@ struct
         in
           (Pat.make (patnode,patty), List.concat subpatdecslist)
         end
-      | C.Pat.Tuple argvec =>
-        let
-          open A
-          val patty = C.Pat.ty pat
-          val (atomlist, subpatdecslist) = Vector.foldr (argvec, ([],[]), 
-            fn (arg, (atoms,spatdecslist)) => 
-              let
-                val (atom,spatdecs) = doItPatToVar arg tyvars
-              in
-                (atom::atoms, spatdecs::spatdecslist)
-              end)
-          val patnode = Pat.Value (Pat.Val.Tuple (Vector.fromList atomlist))
-        in
-          (Pat.make (patnode,patty),List.concat subpatdecslist)
-        end
+      | C.Pat.Tuple argvec => (case Vector.length argvec of
+          (* optimization for unit tuples *)
+          1 => doItPat (Vector.sub (argvec,0)) tyvars
+        | _ => 
+          let
+            open A
+            val patty = C.Pat.ty pat
+            val (atomlist, subpatdecslist) = Vector.foldr (argvec, ([],[]), 
+              fn (arg, (atoms,spatdecslist)) => 
+                let
+                  val (atom,spatdecs) = doItPatToVar arg tyvars
+                in
+                  (atom::atoms, spatdecs::spatdecslist)
+                end)
+            val patnode = Pat.Value (Pat.Val.Tuple (Vector.fromList atomlist))
+          in
+            (Pat.make (patnode,patty),List.concat subpatdecslist)
+          end)
       | C.Pat.Var var => 
         let
           val patty = C.Pat.ty pat
@@ -415,6 +418,7 @@ struct
   fun doItExpToVar (exp : C.Exp.t) (tyvars : Tyvar.t vector) : 
     (A.Dec.t list * Var.t) = 
     let
+      (* Never transparent as doItExp returns var*tyvec *)
       val (ssexpdecs,sexp) = doItExp exp tyvars
       val (sexpdec,newvar) = getValBindForExp sexp tyvars
       val sexpdecs = List.concat [ssexpdecs, [sexpdec]]
@@ -507,16 +511,14 @@ struct
                 val (newpat,patdecs) = doItPat pat (Vector.fromList [])
                 val (mexpdecs, mexp) = doItExp exp (Vector.fromList [])
                 val mexpnode = Exp.node mexp and mexpty = Exp.ty mexp
-                val newexpnode = case (mexpdecs,mexpnode) of
-                    ([],_) => mexpnode
-                  | (_,Exp.Let (decv,e)) => (case mexpdecs of [] => 
+                val newexpnode = case (patdecs,mexpdecs,mexpnode) of
+                    ([],[],_) => mexpnode
+                  | (_,_,Exp.Let (decv,e)) => (case mexpdecs of [] => 
                         Exp.Let (Vector.concat [Vector.fromList patdecs, decv],e)
                       | _ => Error.bug ("Assumption abt let failed."))
                   | _ => Exp.Let (Vector.concat [Vector.fromList patdecs, 
                         Vector.fromList mexpdecs], mexp)
-                (*
-                 * The above transformation should be type preserving. 
-                 *)
+                (* The above transformation should be type preserving. *)
                 val newexpty = mexpty 
                 val newexp = Exp.make (newexpnode,newexpty)
                 val newrule = {exp = newexp, lay = lay, pat = newpat}

@@ -109,6 +109,26 @@ struct
   fun havocTyBind (v : Var.t,refTy : RefTy.t) : (tydbinds*vc_pred) vector =
     let
       open RefTy
+      (* -- These functions duplicated from SpecVerify -- *)
+      val newLongVar = fn (var,fld) => Var.fromString $
+        (Var.toString var)^"."^(Var.toString fld)
+      (*
+       * Decomposes single tuple bind of form v ↦ {x0:T0,x1:T1} to
+       * multiple binds : [v.x0 ↦ T0, v.x1 ↦ T1]
+       *)
+      fun decomposeTupleBind (tvar : Var.t, tty as RefTy.Tuple 
+        refTyBinds) : (Var.t*RefTy.t) vector =
+        let
+          val bindss = Vector.map (refTyBinds, 
+            fn (refTyBind as (_,refTy)) => 
+              case refTy of 
+                RefTy.Tuple _ => decomposeTupleBind refTyBind
+              | _ => Vector.new1 refTyBind)
+          val binds = Vector.map (Vector.concatV bindss, 
+            fn (v,ty) => (newLongVar (tvar,v), ty))
+        in
+          binds
+        end
     in
       case refTy of
         Base (bv,td,pred) => 
@@ -120,9 +140,16 @@ struct
             Vector.map (vcs,fn (binds,envP) => 
               (vectorAppend (binds,mybind),envP))
           end
-        (* Bindings for tuples/functions not needed *)
+      | Tuple _ => havocTyBindSeq $ decomposeTupleBind (v,refTy)
+        (* Bindings for functions not needed *)
       | _ => Vector.new0 ()
     end
+
+  and havocTyBindSeq (tyBinds : (Var.t * RefTy.t) vector)
+    : (tydbinds * vc_pred) vector =
+    Vector.fold (tyBinds,
+      Vector.new1 (Vector.new0 (),truee()),
+      fn (tyBind,vcs1) => join (vcs1,havocTyBind tyBind))
 
   fun havocVE (ve : VE.t) : (tydbinds*vc_pred) vector =
     let
@@ -133,10 +160,8 @@ struct
         fn (v,RefTyS.T{tyvars,refty}) => case Vector.length tyvars of
             0 =>  SOME (v,refty)
           | _ => NONE)
-      val init = Vector.new1 (Vector.new0 (),truee())
     in
-      Vector.fold (vevec,init,fn (tyBind,vcs1) => 
-          join (vcs1,havocTyBind tyBind))
+      havocTyBindSeq vevec
     end
 
   fun fromTypeCheck (ve, subTy, supTy) : t vector = 
