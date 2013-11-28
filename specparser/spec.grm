@@ -145,7 +145,9 @@ elem : INT (Int(INT))
 
 typespec : ID COLON refty (TypeSpec.T ((Var.fromString ID),refty))
 
-refty : tyatom (tyatom)
+(* alphaRename tyatom to avoid name clashes *)
+refty : tyatom (case tyatom of RefTy.Base _ => RefTy.alphaRename tyatom
+                    | _ => tyatom)
       | vartyatom ARROW refty (RefinementType.Arrow(vartyatom,refty))
 
 vartyatom : tyatom (let open RefTy in case tyatom of 

@@ -37,6 +37,8 @@ struct
   val newLongVar = fn (var,fld) => Var.fromString $
     (Var.toString var)^"."^(Var.toString fld)
   fun varEq (v1,v2) = ((Var.toString v1) = (Var.toString v2))
+  val varToExpVal = fn (var,tyvec) => 
+    Exp.Val.Atom (Exp.Val.Var (var,tyvec))
   fun markVE ve = 
     let
       val marker = getUniqueMarker ()
@@ -345,7 +347,16 @@ struct
           val qualifiedvty = case (Vector.length tydvec, vty) of 
               (0,RefTy.Base (bv,td,pred)) => RefTy.Base 
                 (bv,td,Predicate.conjP(pred,BP.varEq(bv,v)))
-            | (_,RefTy.Tuple _) => vty (* Nothing to do here. *)
+            | (_,RefTy.Tuple refTyBinds) => RefTy.Tuple $ Vector.map
+                (refTyBinds, fn (fldvar,refty) => 
+                  let
+                    val newvar = newLongVar (v,fldvar)
+                    val extendedVE = VE.add ve (newvar,toRefTyS refty)
+                    val newvarexp = varToExpVal (newvar, Vector.new0 ())
+                    val refty' = typeSynthValExp (extendedVE, newvarexp)
+                  in
+                    (fldvar, refty')
+                  end)
             | _ => vty (* Unimpl : refinements for fns. Cannot keep
                    track of equality for functions now.*)
         in

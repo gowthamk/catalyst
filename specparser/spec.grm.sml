@@ -500,79 +500,80 @@ end
 )
  in ( LrTable.NT 14, ( result, ID1left, refty1right), rest671)
 end
-|  ( 33, ( ( _, ( MlyValue.tyatom tyatom, tyatom1left, tyatom1right)) :: rest671)) => let val  result = MlyValue.refty ((*#line 148.17 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)tyatom(*#line 503.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 33, ( ( _, ( MlyValue.tyatom tyatom, tyatom1left, tyatom1right)) :: rest671)) => let val  result = MlyValue.refty ((*#line 149.17 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)case tyatom of RefTy.Base _ => RefTy.alphaRename tyatom
+                    | _ => tyatom(*#line 503.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 15, ( result, tyatom1left, tyatom1right), rest671)
 end
-|  ( 34, ( ( _, ( MlyValue.refty refty, _, refty1right)) :: _ :: ( _, ( MlyValue.vartyatom vartyatom, vartyatom1left, _)) :: rest671)) => let val  result = MlyValue.refty ((*#line 149.32 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Arrow(vartyatom,refty)(*#line 507.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 34, ( ( _, ( MlyValue.refty refty, _, refty1right)) :: _ :: ( _, ( MlyValue.vartyatom vartyatom, vartyatom1left, _)) :: rest671)) => let val  result = MlyValue.refty ((*#line 151.32 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Arrow(vartyatom,refty)(*#line 508.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 15, ( result, vartyatom1left, refty1right), rest671)
 end
-|  ( 35, ( ( _, ( MlyValue.tyatom tyatom, tyatom1left, tyatom1right)) :: rest671)) => let val  result = MlyValue.vartyatom ((*#line 151.21 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)let open RefTy in case tyatom of 
+|  ( 35, ( ( _, ( MlyValue.tyatom tyatom, tyatom1left, tyatom1right)) :: rest671)) => let val  result = MlyValue.vartyatom ((*#line 153.21 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)let open RefTy in case tyatom of 
                       Base (v,_,_) => (v,alphaRename tyatom)
                     | Tuple _ => (genVar (),tyatom)
                     | Arrow _ => (genVar (),tyatom)
-                    end(*#line 511.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+                    end(*#line 512.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 17, ( result, tyatom1left, tyatom1right), rest671)
 end
-|  ( 36, ( ( _, ( MlyValue.vartyatom vartyatom, vartyatom1left, vartyatom1right)) :: rest671)) => let val  result = MlyValue.vartyatomseq ((*#line 157.27 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)[vartyatom](*#line 519.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 36, ( ( _, ( MlyValue.vartyatom vartyatom, vartyatom1left, vartyatom1right)) :: rest671)) => let val  result = MlyValue.vartyatomseq ((*#line 159.27 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)[vartyatom](*#line 520.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 18, ( result, vartyatom1left, vartyatom1right), rest671)
 end
-|  ( 37, ( ( _, ( MlyValue.vartyatomseq vartyatomseq, _, vartyatomseq1right)) :: _ :: ( _, ( MlyValue.vartyatom vartyatom, vartyatom1left, _)) :: rest671)) => let val  result = MlyValue.vartyatomseq ((*#line 158.46 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)vartyatom ::
-                  vartyatomseq(*#line 523.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 37, ( ( _, ( MlyValue.vartyatomseq vartyatomseq, _, vartyatomseq1right)) :: _ :: ( _, ( MlyValue.vartyatom vartyatom, vartyatom1left, _)) :: rest671)) => let val  result = MlyValue.vartyatomseq ((*#line 160.46 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)vartyatom ::
+                  vartyatomseq(*#line 524.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 18, ( result, vartyatom1left, vartyatomseq1right), rest671)
 end
-|  ( 38, ( ( _, ( MlyValue.basety basety, basety1left, basety1right)) :: rest671)) => let val  result = MlyValue.tyatom ((*#line 161.18 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)basety(*#line 528.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 38, ( ( _, ( MlyValue.basety basety, basety1left, basety1right)) :: rest671)) => let val  result = MlyValue.tyatom ((*#line 163.18 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)basety(*#line 529.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 19, ( result, basety1left, basety1right), rest671)
 end
-|  ( 39, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.vartyatomseq vartyatomseq, _, _)) :: ( _, ( _, LPAREN1left, _)) :: rest671)) => let val  result = MlyValue.tyatom ((*#line 162.38 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)case vartyatomseq of 
+|  ( 39, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.vartyatomseq vartyatomseq, _, _)) :: ( _, ( _, LPAREN1left, _)) :: rest671)) => let val  result = MlyValue.tyatom ((*#line 164.38 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)case vartyatomseq of 
                   [(v,refty)] => refty
-                | _ => RefTy.Tuple (Vector.fromList vartyatomseq)(*#line 532.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+                | _ => RefTy.Tuple (Vector.fromList vartyatomseq)(*#line 533.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 19, ( result, LPAREN1left, RPAREN1right), rest671)
 end
-|  ( 40, ( ( _, ( MlyValue.ID ID, ID1left, ID1right)) :: rest671)) => let val  result = MlyValue.basety ((*#line 167.14 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Base ((Var.fromString ID), 
+|  ( 40, ( ( _, ( MlyValue.ID ID, ID1left, ID1right)) :: rest671)) => let val  result = MlyValue.basety ((*#line 169.14 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Base ((Var.fromString ID), 
                 TypeDesc.makeTunknown(), 
-                Predicate.truee())(*#line 538.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+                Predicate.truee())(*#line 539.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 20, ( result, ID1left, ID1right), rest671)
 end
-|  ( 41, ( ( _, ( _, _, RCURLY1right)) :: ( _, ( MlyValue.ID ID, _, _)) :: ( _, ( _, LCURLY1left, _)) :: rest671)) => let val  result = MlyValue.basety ((*#line 170.28 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Base ((Var.fromString ID), 
+|  ( 41, ( ( _, ( _, _, RCURLY1right)) :: ( _, ( MlyValue.ID ID, _, _)) :: ( _, ( _, LCURLY1left, _)) :: rest671)) => let val  result = MlyValue.basety ((*#line 172.28 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Base ((Var.fromString ID), 
                 TypeDesc.makeTunknown(), 
-                Predicate.truee())(*#line 544.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+                Predicate.truee())(*#line 545.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 20, ( result, LCURLY1left, RCURLY1right), rest671)
 end
-|  ( 42, ( ( _, ( _, _, RCURLY1right)) :: ( _, ( MlyValue.pred pred, _, _)) :: _ :: ( _, ( MlyValue.ID ID, _, _)) :: ( _, ( _, LCURLY1left, _)) :: rest671)) => let val  result = MlyValue.basety ((*#line 173.38 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Base ((Var.fromString ID), 
-                TypeDesc.makeTunknown(), pred)(*#line 550.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 42, ( ( _, ( _, _, RCURLY1right)) :: ( _, ( MlyValue.pred pred, _, _)) :: _ :: ( _, ( MlyValue.ID ID, _, _)) :: ( _, ( _, LCURLY1left, _)) :: rest671)) => let val  result = MlyValue.basety ((*#line 175.38 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)RefinementType.Base ((Var.fromString ID), 
+                TypeDesc.makeTunknown(), pred)(*#line 551.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 20, ( result, LCURLY1left, RCURLY1right), rest671)
 end
-|  ( 43, ( ( _, ( _, TRUE1left, TRUE1right)) :: rest671)) => let val  result = MlyValue.pred ((*#line 177.15 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.truee()(*#line 555.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 43, ( ( _, ( _, TRUE1left, TRUE1right)) :: rest671)) => let val  result = MlyValue.pred ((*#line 179.15 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.truee()(*#line 556.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 21, ( result, TRUE1left, TRUE1right), rest671)
 end
-|  ( 44, ( ( _, ( MlyValue.rpatom rpatom, rpatom1left, rpatom1right)) :: rest671)) => let val  result = MlyValue.pred ((*#line 178.17 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.Rel rpatom(*#line 559.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 44, ( ( _, ( MlyValue.rpatom rpatom, rpatom1left, rpatom1right)) :: rest671)) => let val  result = MlyValue.pred ((*#line 180.17 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.Rel rpatom(*#line 560.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 21, ( result, rpatom1left, rpatom1right), rest671)
 end
-|  ( 45, ( ( _, ( MlyValue.pred pred, _, pred1right)) :: _ :: ( _, ( MlyValue.rpatom rpatom, rpatom1left, _)) :: rest671)) => let val  result = MlyValue.pred ((*#line 179.27 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.conjR (pred,rpatom)(*#line 563.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 45, ( ( _, ( MlyValue.pred pred, _, pred1right)) :: _ :: ( _, ( MlyValue.rpatom rpatom, rpatom1left, _)) :: rest671)) => let val  result = MlyValue.pred ((*#line 181.27 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.conjR (pred,rpatom)(*#line 564.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 21, ( result, rpatom1left, pred1right), rest671)
 end
-|  ( 46, ( ( _, ( MlyValue.rexpr rexpr2, _, rexpr2right)) :: _ :: ( _, ( MlyValue.rexpr rexpr1, rexpr1left, _)) :: rest671)) => let val  result = MlyValue.rpatom ((*#line 181.31 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.RelPredicate.Eq(rexpr1,rexpr2)(*#line 567.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 46, ( ( _, ( MlyValue.rexpr rexpr2, _, rexpr2right)) :: _ :: ( _, ( MlyValue.rexpr rexpr1, rexpr1left, _)) :: rest671)) => let val  result = MlyValue.rpatom ((*#line 183.31 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.RelPredicate.Eq(rexpr1,rexpr2)(*#line 568.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 23, ( result, rexpr1left, rexpr2right), rest671)
 end
-|  ( 47, ( ( _, ( MlyValue.rexpr rexpr2, _, rexpr2right)) :: _ :: ( _, ( MlyValue.rexpr rexpr1, rexpr1left, _)) :: rest671)) => let val  result = MlyValue.rpatom ((*#line 182.30 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.RelPredicate.Sub(rexpr1,rexpr2)(*#line 571.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 47, ( ( _, ( MlyValue.rexpr rexpr2, _, rexpr2right)) :: _ :: ( _, ( MlyValue.rexpr rexpr1, rexpr1left, _)) :: rest671)) => let val  result = MlyValue.rpatom ((*#line 184.30 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.RelPredicate.Sub(rexpr1,rexpr2)(*#line 572.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 23, ( result, rexpr1left, rexpr2right), rest671)
 end
-|  ( 48, ( ( _, ( MlyValue.rexpr rexpr2, _, rexpr2right)) :: _ :: ( _, ( MlyValue.rexpr rexpr1, rexpr1left, _)) :: rest671)) => let val  result = MlyValue.rpatom ((*#line 183.32 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.RelPredicate.SubEq(rexpr1,rexpr2)(*#line 575.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
+|  ( 48, ( ( _, ( MlyValue.rexpr rexpr2, _, rexpr2right)) :: _ :: ( _, ( MlyValue.rexpr rexpr1, rexpr1left, _)) :: rest671)) => let val  result = MlyValue.rpatom ((*#line 185.32 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm"*)Predicate.RelPredicate.SubEq(rexpr1,rexpr2)(*#line 576.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.grm.sml"*)
 )
  in ( LrTable.NT 23, ( result, rexpr1left, rexpr2right), rest671)
 end
