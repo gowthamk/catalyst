@@ -75,7 +75,7 @@ infixr 5 $
   | starterm of term
   | rterm of term
   | instexpr of instexpr
-  | vararg of Var.t option
+  | varop of Var.t option
   | ieatoms of ieatom list
   | ieatom of ieatom
   | rexpr of expr
@@ -178,15 +178,15 @@ rexpr : ratom CROSSPRD rexpr (X(ratom,rexpr))
 ratom : LCURLY LPAREN RPAREN RCURLY (T (Vector.fromList []))
       | LCURLY LPAREN elemseq RPAREN RCURLY 
           (T (Vector.fromList elemseq))
-      | instexpr LPAREN ID RPAREN (R (instexpr, Var.fromString ID))
-      (*| instexpr vararg (case (instexpr,vararg) of 
+      | instexpr LPAREN varop RPAREN (case (instexpr,varop) of 
             (Relation _, NONE) => R (instexpr, NONE)
-          | (_,SOME _) => R (instexpr,vararg)
-          | _ => raise ParseError)*)
+          | (_,SOME _) => R (instexpr,varop)
+          | _ => raise (Fail "Missing arguments for an \
+            \ instantiated relation\n"))
       | LPAREN rexpr RPAREN (rexpr)
 
-vararg : LPAREN ID RPAREN (SOME (Var.fromString ID))
-       |    (NONE)
+varop : ID (SOME (Var.fromString ID))
+      |    (NONE)
 
 elemseq : elem ([elem])
         | elem COMMA elemseq (elem::elemseq)

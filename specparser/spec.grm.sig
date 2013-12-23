@@ -5,8 +5,12 @@ type svalue
 val EOF:  'a * 'a -> (svalue,'a) token
 val INT: (int) *  'a * 'a -> (svalue,'a) token
 val ID: (string) *  'a * 'a -> (svalue,'a) token
+val VAR:  'a * 'a -> (svalue,'a) token
+val DOT:  'a * 'a -> (svalue,'a) token
 val PIPE:  'a * 'a -> (svalue,'a) token
 val ARROW:  'a * 'a -> (svalue,'a) token
+val RBRACE:  'a * 'a -> (svalue,'a) token
+val LBRACE:  'a * 'a -> (svalue,'a) token
 val RCURLY:  'a * 'a -> (svalue,'a) token
 val LCURLY:  'a * 'a -> (svalue,'a) token
 val RPAREN:  'a * 'a -> (svalue,'a) token

@@ -135,12 +135,12 @@ struct
         end
     end
 
-  fun elabSRBind (re: RE.t)(ve : VE.t) {id,map} =
+  fun elabSRBind (re: RE.t)(ve : VE.t) {id,params,map} =
     let
-      val map' = (Vector.concatV o Vector.map) (map, fn (con,valop,rterm) =>
+      val map' = (Vector.concatV o Vector.map) (map, fn (patop,rterm) =>
         case rterm of 
-          RelLang.Expr rexpr => Vector.fromList [(con,valop,rexpr)]
-        | RelLang.Star relId => 
+          RelLang.Expr rexpr => Vector.fromList [(patop,rexpr)]
+        | RelLang.Star ie => 
           let
             val {ty,map} = RE.find re relId 
               handle (RE.RelNotFound r) => raise (Fail 
