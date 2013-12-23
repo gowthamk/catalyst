@@ -3,7 +3,6 @@ open Spec
 open RelLang
 structure TypeSpec = RelSpec.TypeSpec
 structure RefTy = RefinementType
-structure SR = StructuralRelation
 val defaultCons = Con.default
 val symbase = "sp_"
 val count = ref 0
@@ -66,16 +65,17 @@ infixr 5 $
   | spec of RelSpec.t
   | decsandtys of RelSpec.t
   | reldec of StructuralRelation.t
-  | params of RelId.t list
-  | patmatchseq of (StructuralRelation.Pat.t * term) list
-  | patmatch of StructuralRelation.Pat.t * term
-  | pat of StructuralRelation.Pat.t
-  | valpat of StructuralRelation.Pat.value
+  | params of RelVar.t list
+  | patmatchseq of (Pat.t * term) list
+  | patmatch of Pat.t * term
+  | pat of Pat.t
+  | valpat of Pat.value
   | conargs of Var.t vector
   | idseq of Var.t list
   | starterm of term
   | rterm of term
   | instexpr of instexpr
+  | vararg of Var.t option
   | ieatoms of ieatom list
   | ieatom of ieatom
   | rexpr of expr
@@ -131,20 +131,27 @@ reldec : RELATION ID patmatchseq  (* 6 *)
                 params = Vector.fromList params,
                 map = Vector.fromList [(NONE,starterm)]})
 
-params : ID ([RelId.fromString ID])
-       | ID params ((RelId.fromString ID)::params)
+params : ID ([RelVar.fromString ID])
+       | ID params ((RelVar.fromString ID)::params)
 
 patmatchseq : patmatch PIPE patmatchseq (patmatch :: patmatchseq)
             | patmatch ([patmatch])
 
-patmatch : LPAREN pat RPAREN EQUALOP rexpr (pat,Expr rexpr)
+patmatch : pat EQUALOP rexpr (pat,Expr rexpr)
 
-pat : VAR ID (SR.Pat.Value (SR.Pat.Var (Var.fromString ID)))
-    | ID (SR.Pat.Con (Con.fromString ID, NONE))
-    | valpat (SR.Pat.Value valpat)
+(* 
+ * Syntactic convention - an Id in isolation is a nullary cons.
+ * Unary tuple is interpreted as a variable.
+ *)
 
-valpat : LPAREN idseq RPAREN (SR.Pat.Tuple (Vector.fromList idseq))
-       | LCURLY idseq RPAREN (SR.Pat.Record (Record.fromVector
+pat : ID (Pat.Con (Con.fromString ID, NONE))
+    | LPAREN ID valpat RPAREN (Pat.Con (Con.fromString ID, SOME valpat))
+    | valpat (Pat.Value valpat)
+
+valpat : LPAREN idseq RPAREN (case idseq of 
+              [x] => Pat.Var x
+            | _ => Pat.Tuple (Vector.fromList idseq))
+       | LCURLY idseq RPAREN (Pat.Record (Record.fromVector
           (Vector.fromList (List.map (idseq, fn x => 
             (Field.Symbol (Field.Symbol.fromString (Var.toString x)), x)))) ))
 
@@ -153,8 +160,9 @@ idseq : ID ([Var.fromString ID]) (* 19 *)
 
 starterm : instexpr STAR (Star instexpr)
 
-instexpr : ID (Simple (RelId.fromString ID))
-         | ID ieatoms (Inst {params = 
+(* All relations parsed as concrete relations *)
+instexpr : ID (Relation (RelId.fromString ID))
+         | ID ieatoms (Inst {args = 
                 Vector.fromList ieatoms, rel = RelId.fromString ID})
 
 ieatoms : LBRACE ieatom RBRACE ([ieatom])
@@ -167,11 +175,18 @@ rexpr : ratom CROSSPRD rexpr (X(ratom,rexpr))
       | ratom UNION rexpr (U(ratom,rexpr))
       | ratom (ratom)
 
-ratom : LCURLY LPAREN RPAREN RCURLY (T(Vector.fromList []))
+ratom : LCURLY LPAREN RPAREN RCURLY (T (Vector.fromList []))
       | LCURLY LPAREN elemseq RPAREN RCURLY 
-          (T(Vector.fromList elemseq))
-      | instexpr LPAREN ID RPAREN (R(instexpr, Var.fromString ID))
+          (T (Vector.fromList elemseq))
+      | instexpr LPAREN ID RPAREN (R (instexpr, Var.fromString ID))
+      (*| instexpr vararg (case (instexpr,vararg) of 
+            (Relation _, NONE) => R (instexpr, NONE)
+          | (_,SOME _) => R (instexpr,vararg)
+          | _ => raise ParseError)*)
       | LPAREN rexpr RPAREN (rexpr)
+
+vararg : LPAREN ID RPAREN (SOME (Var.fromString ID))
+       |    (NONE)
 
 elemseq : elem ([elem])
         | elem COMMA elemseq (elem::elemseq)
@@ -188,8 +203,8 @@ typespec : ID COLON refty (TypeSpec.T {name = Var.fromString ID,
                   params = Vector.fromList params, refty = refty})
 
 (* alphaRename tyatom to avoid name clashes *)
-refty : tyatom (case tyatom of RefTy.Base _ => RefTy.alphaRename tyatom
-                    | _ => tyatom)
+refty : tyatom (case tyatom of 
+            RefTy.Base _ => RefTy.alphaRename tyatom | _ => tyatom)
       | vartyatom ARROW refty (RefinementType.Arrow(vartyatom,refty))
 
 vartyatom : tyatom (let open RefTy in case tyatom of 
