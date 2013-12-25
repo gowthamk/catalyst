@@ -179,8 +179,9 @@ ratom : LCURLY LPAREN RPAREN RCURLY (T (Vector.fromList []))
       | LCURLY LPAREN elemseq RPAREN RCURLY 
           (T (Vector.fromList elemseq))
       | instexpr LPAREN varop RPAREN (case (instexpr,varop) of 
-            (Relation _, NONE) => R (instexpr, NONE)
-          | (_,SOME _) => R (instexpr,varop)
+            (Relation rid, NONE) => R1 (RelVar.fromString 
+                (RelId.toString rid))
+          | (_,SOME v) => R2 (instexpr,v)
           | _ => raise (Fail "Missing arguments for an \
             \ instantiated relation\n"))
       | LPAREN rexpr RPAREN (rexpr)

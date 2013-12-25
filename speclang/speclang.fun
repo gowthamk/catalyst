@@ -15,6 +15,7 @@ struct
   structure RelVar = 
   struct
     open Var
+    val equal = fn (rv1,rv2) => (toString rv1 = toString rv2)
   end
 
   structure RelTyvar =
@@ -72,6 +73,9 @@ struct
       | equal (Cross (t1,t2), Cross (t3,t4)) = (equal (t1,t3))
           andalso (equal(t2,t4))
       | equal _ = false
+
+    fun newTuple tv = Tuple tv
+    fun newVar rv = Reltyvar rv
       
     fun unionType (t1 as Tuple tydv1, t2 as Tuple tydv2) =
         (case (Vector.length tydv1, Vector.length tydv2) of
@@ -87,15 +91,16 @@ struct
         | _ => Tuple $ Vector.concat [tyds1,tyds2])
       | crossPrdType (t1,t2) = Cross (t1,t2)
 
-    fun mapTyD t f = 
-      raise (Fail "unimpl")
+    fun mapTyD (Tuple tv) f = Tuple $ Vector.map (tv,f)
+      | mapTyD (Cross (t1,t2)) f = Cross (mapTyD t1 f, mapTyD t2 f)
+      | mapTyD t f = t
   end
 
   structure RelTyConstraint =
   struct
     datatype t = Equal of RelType.t * RelType.t
 
-    datatype solution = Sol of (RelTyvar.t * RelType.t) vector
+    type sol = (RelTyvar.t * RelType.t)
 
     (*
      * Solves constraints and returns solution.
@@ -103,8 +108,10 @@ struct
      * The problem, in general, is undecidable. For eg,
      * T1 X T2 = T3 X T4 cannot be solved.
      *)
-    fun solvePartial (cs : t vector) : (solution * (t vector))
+    fun solvePartial (cs : t vector) : (sol vector * (t vector))
       =  raise (Fail "Unimpl")
+
+    fun new (rt1,rt2) = Equal (rt1,rt2)
   end
 
   structure SimpleProjSort =
@@ -115,9 +122,29 @@ struct
       (TypeDesc.toString tyD)^" :-> "^(RelType.toString relKind)
       | toString (Base rt) = RelType.toString rt
 
+    fun layout t = L.str $ toString t
+
     fun mapTyD (Base rt) f = Base (RelType.mapTyD rt f)
       | mapTyD (ColonArrow (tyd,rt)) f = ColonArrow (f tyd, 
           RelType.mapTyD rt f)
+  
+    fun newBase rt = Base rt
+
+    fun newColonArrow (tyd,rt) = ColonArrow (tyd,rt)
+
+    fun unify (Base rt1, Base rt2) = RelTyConstraint.new (rt1,rt2)
+      | unify (ColonArrow (tyd1,rt1), ColonArrow (tyd2,rt2)) =
+          (assert (TypeDesc.sameType (tyd1,tyd2), "Domains of projections\
+            \ not unifiable");
+           RelTyConstraint.new (rt1,rt2))
+      | unify _ = raise (Fail "Projection expected to be 0th order\
+          \ in one case, and 1st order in another")
+
+    fun instTyvars (substs,t) =
+      raise (Fail "Unimpl")
+
+    fun instRelTyvars (substs,t) =
+      raise (Fail "Unimpl")
   end
 
   structure ProjSort =
@@ -127,6 +154,9 @@ struct
     fun toString (T {paramsorts,sort}) = (Vector.toString
         SimpleProjSort.toString paramsorts) 
       ^ " -> " ^ (SimpleProjSort.toString sort)
+
+    fun new (paramsorts, sort) = T {paramsorts = paramsorts,
+      sort = sort}
   end
 
   structure ProjSortScheme =
@@ -134,66 +164,26 @@ struct
     datatype t = T of {reltyvars : RelTyvar.t vector,
                       constraints: RelTyConstraint.t vector,
                             sort : ProjSort.t}
+
     fun toString (T{reltyvars,constraints,sort}) = 
       (Vector.toString RelTyvar.toString reltyvars)^" "^
         (ProjSort.toString sort)
-  end
 
-  structure RelTypeScheme = 
-  struct
-    datatype t = T of {tyvars : Tyvar.t vector,
-                       relty : RelType.t}
-
-    fun generalize (tyvars,tyd) =
-      T {tyvars=tyvars,relty=tyd}
-
-    fun specialize (T{relty,...}) = relty
-
-    fun toString (T{tyvars, relty}) = 
-      (Vector.toString Tyvar.toString tyvars)^" "^
-        (RelType.toString relty)
-
-    fun instantiate (T{tyvars,relty (*= RelType.Tuple tys*)},
-      tydvec) = raise (Fail "Unimpl")
-      (*let
-        val len = Vector.length
-        val _ = assert (len tyvars = len tydvec,
-          "insufficient number of type args for reltys inst")
-        val instTyD = TypeDesc.instantiateTyvars $ Vector.zip 
-          (tydvec,tyvars)
-        val tydvec' = Vector.map (tys, instTyD)
-      in
-        RelType.Tuple tydvec'
-      end *)
-
-    fun equalTyvars (tyv1,tyv2) = 
-      (Vector.length tyv1 = Vector.length tyv2) andalso 
-      (Vector.forall2 (tyv1,tyv2, fn (tyvar1,tyvar2) => 
-          TypeDesc.sameType (TypeDesc.makeTvar tyvar1, 
-            TypeDesc.makeTvar tyvar2)))
-
-    fun unionTypeScheme (T{tyvars=tyv1,relty=relty1},
-      T{tyvars=tyv2,relty=relty2}) = 
-      let
-        val _ = assert (equalTyvars (tyv1,tyv2), "Union \
-              \ incompatible type schemes\n")
-      in
-        T {tyvars = tyv1, relty = RelType.unionType (relty1,relty2)}
-      end
-
-    fun crossPrdTypeScheme (T{tyvars=tyv1,relty=relty1},
-      T{tyvars=tyv2,relty=relty2}) =
-      T {tyvars = Vector.concat [tyv1,tyv2], 
-         relty = RelType.crossPrdType (relty1,relty2)}
+    fun generalize (cstrs,sort) =
+      raise (Fail "Unimpl")
   end
 
   structure ProjTypeScheme =
   struct
     datatype t = T of {tyvars : Tyvar.t vector,
                        sortscheme : ProjSortScheme.t}
+
     fun toString (T {tyvars, sortscheme}) = 
         (Vector.toString Tyvar.toString tyvars) 
       ^ ". " ^ (ProjSortScheme.toString sortscheme)
+
+    fun generalize ss =
+      raise (Fail "Unimpl")
   end
 
   structure RelLang =
@@ -211,7 +201,8 @@ struct
     and expr = T of elem vector
              | X of expr * expr
              | U of expr * expr
-             | R of instexpr * Var.t option
+             | R1 of RelVar.t
+             | R2 of instexpr * Var.t
 
     datatype term = Expr of expr
                   | Star of instexpr
@@ -239,16 +230,16 @@ struct
           ^ (exprToString e2) ^ ")"
       | U (e1,e2) => "(" ^ (exprToString e1) ^ " U " 
           ^ (exprToString e2) ^ ")"
-      | R (instexp,SOME arg) => (instExprToString instexp) ^ "(" 
+      | R1 (relvar) => (RelVar.toString relvar)
+      | R2 (instexp,arg) => (instExprToString instexp) ^ "(" 
           ^ (Var.toString arg) ^ ")"
-      | R (instexp, NONE) => (instExprToString instexp)
     
     val exprToString = exprToString
 
     val termToString = fn trm => case trm of
         Expr e => exprToString e
       | Star instexp => (instExprToString instexp) ^ "*"
-
+    fun termOfExpr expr = Expr expr
     fun instExprOfRel r = Relation r
     fun instExprOfRelVar rv = Relvar rv
     fun ieatomOfInstExpr ie = Ie ie
@@ -257,7 +248,25 @@ struct
     fun ieatomOfExpr rexpr = Re rexpr
     fun instantiateRel (r,ieatoms) = Inst
       {args = ieatoms, rel = r}
-    fun app (relId,var) = R(relId,SOME var)
+
+    fun mapRelInstExpr (Relation rid) f = f rid
+      | mapRelInstExpr (Inst {args,rel}) f = Inst {
+          args = Vector.map (args, fn ieat => mapRelIEAtom ieat f),
+          rel = rel}
+    and mapRelIEAtom (Ie ie) f = Ie $ mapRelInstExpr ie f
+      | mapRelIEAtom (Re expr) f = Re $ mapRelExpr expr f
+
+    and mapRelExpr (X (e1,e2)) f = X (mapRelExpr e1 f, 
+      mapRelExpr e2 f)
+      | mapRelExpr (U (e1,e2)) f = U (mapRelExpr e1 f, 
+      mapRelExpr e2 f)
+      | mapRelExpr (R2 (ie,v)) f = R2 (mapRelInstExpr ie f, v)
+      | mapRelExpr expr f = expr
+
+    fun mapRel (Expr e) f = Expr $ mapRelExpr e f
+      | mapRel (Star ie) f = Star $ mapRelInstExpr ie f
+      
+    fun app (relId,var) = R2 (relId,var)
     fun union (e1,e2) = U (e1,e2)
     fun crossprd (e1,e2) = X (e1,e2)
     fun emptyexpr _ = T (Vector.fromList [])
@@ -280,8 +289,8 @@ struct
           T elemv => T (Vector.map (elemv,elemSubst))
         | X (e1,e2) => X (doIt e1, doIt e2)
         | U (e1,e2) => U (doIt e1, doIt e2)
-        | R (ie,SOME argvar) => R (ieSubst ie, SOME (subst argvar))
-        | R (ie,NONE) => R (ieSubst ie, NONE)
+        | R1 rv => R1 rv
+        | R2 (ie,argvar) => R2 (ieSubst ie, (subst argvar))
       end
   end
 
@@ -316,6 +325,7 @@ struct
                        map : (Pat.t option * RelLang.term)
                              vector}
 
+    fun new data = T data
     fun patMapToString map =
       let
         val patmap = "{" ^ (Vector.toString (fn (pato,trm) =>
@@ -329,6 +339,9 @@ struct
       in
         patmap
       end
+    
+    fun instantiate (T{id, params, map}) ieatoms =
+      raise (Fail "unimpl")
 
     val toString = fn T{id,params,map} =>
       let
@@ -532,12 +545,25 @@ struct
                        constraints : RelTyConstraint.t vector,
                         paramrefty : paramrefty }
     fun paramRefTy (params,refty) = {params = params, refty = refty}
+
     fun instRelTyvars (t,reltyv) = 
       raise (Fail "unimpl")
+
     fun instRelParams ({params,refty}, typedIeAtoms) =
       raise (Fail "unimpl")
+
     fun generalize (reltyvs, cs, prefty) =
       T {reltyvars = reltyvs, constraints = cs, paramrefty = prefty}
+
+    fun fromRefTy refty = 
+      let
+        val empty = fn _ => Vector.new0 ()
+      in
+        generalize (empty(), empty(), paramRefTy (empty(), refty))
+      end 
+
+    fun toRefTy (T {paramrefty = {refty,...}, ...}) = refty
+
     fun instantiate (T{reltyvars, constraints, paramrefty}, reltys) = 
       raise (Fail "unimpl")
 
@@ -579,8 +605,16 @@ struct
   
     val generalize = fn (tyvars, sortscheme) =>
       T {tyvars = tyvars, sortscheme = sortscheme}
+
+    fun fromRefTy refty = T {tyvars = Vector.new0 (),
+      sortscheme = RefinementSortScheme.fromRefTy refty}
+
     val specialize = fn (T {tyvars,sortscheme}) =>
       sortscheme
+
+    fun toRefTy (T{sortscheme, ...}) = 
+      RefinementSortScheme.toRefTy sortscheme
+    
     fun layout (T {tyvars,sortscheme}) =
       let
         val tyvlyt = L.vector $ Vector.map (tyvars,fn tyv =>

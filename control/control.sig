@@ -16,6 +16,7 @@ signature CONTROL =
        * which messages should be printed. 
        *)
       val assert : (bool * string) -> unit
+      val leneq : ('a vector * 'b vector) -> bool
       val message: verbosity * (unit -> Layout.t) -> unit
       val messageStr: verbosity * string -> unit
       val sizeMessage: string * 'a -> Layout.t

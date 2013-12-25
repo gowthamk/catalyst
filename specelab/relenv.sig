@@ -8,8 +8,8 @@ sig
   
   type reldesc = { ty : SpecLang.ProjTypeScheme.t,
                   params : SpecLang.RelVar.t vector,
-                  map : (SpecLang.Pat.t option *
-                          SpecLang.RelLang.expr) vector}
+                  map : (SpecLang.Pat.t * SpecLang.RelLang.expr) 
+                    vector}
   exception RelNotFound of SpecLang.RelId.t
   type t
   val empty : t

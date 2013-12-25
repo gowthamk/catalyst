@@ -5,36 +5,31 @@ struct
 
   structure TyD = TypeDesc
 
-  type reldesc = { ty : RelLang.RelTypeScheme.t,
-                  map : (Con.t * Var.t vector option * RelLang.expr) 
-                    vector}
+  type reldesc = { ty : ProjTypeScheme.t,
+                  params : RelVar.t vector,
+                  map : (Pat.t * RelLang.expr) vector}
 
   val relIdStrEq = fn (v,v') => 
-    (RelLang.RelId.toString v) = (RelLang.RelId.toString v')
+    (RelId.toString v) = (RelId.toString v')
 
   structure Key:KEY = 
   struct
-    type t = RelLang.RelId.t
+    type t = RelId.t
     val equal = relIdStrEq
-    val layout = Layout.str o RelLang.RelId.toString
+    val layout = Layout.str o RelId.toString
   end
+
   structure Value:VALUE = 
   struct
     type t = reldesc
-    val toString = fn ({ty,map}) =>
+    val toString = fn ({ty, params, map}) =>
       let
-        val tyDS = RelLang.RelTypeScheme.toString ty
-        val conmap = "{" ^ (Vector.toString (fn (c,vlo,rexpr) =>
-            let
-              val cstr = Con.toString c
-              val vseq = case vlo of NONE => ""
-                | SOME vl => Vector.toString Var.toString vl
-              val trmstr = RelLang.exprToString rexpr
-            in
-              cstr ^ vseq ^ " => " ^ trmstr
-            end) map) ^ "}\n"
+        val tyDS = ProjTypeScheme.toString ty
+        val map' = Vector.map (map, fn (pat,rexpr) =>
+            (SOME pat,RelLang.Expr rexpr))
+        val patmap = StructuralRelation.patMapToString map'
       in
-        "{type = "^tyDS^", map = "^conmap^"}"
+        "{type = "^tyDS^", map = "^patmap^"}"
       end
     fun layout t = (Layout.str o toString) t
   end
@@ -42,7 +37,7 @@ struct
   structure RelMap = ApplicativeMap (structure Key = Key
                                      structure Value = Value)
 
-  exception RelNotFound of RelLang.RelId.t
+  exception RelNotFound of RelId.t
 
   type t = RelMap.t
 

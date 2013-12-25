@@ -60,6 +60,8 @@ fun unindent () = depth := !depth - 3
 fun assert (cond,errmsg) = if cond then () else 
   raise (Fail ("Assertion failed: "^errmsg))
 
+fun leneq (v1,v2) = (Vector.length v1 = Vector.length v2)
+
 fun message (verb: Verbosity.t, th: unit -> Layout.t): unit =
    if Verbosity.<= (verb, !verbosity)
       then let

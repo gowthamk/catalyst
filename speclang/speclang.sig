@@ -11,6 +11,7 @@ sig
   structure RelVar :
   sig
     include ID
+    val equal : t*t -> bool
   end
 
   structure RelTyvar :
@@ -28,6 +29,8 @@ sig
                | Cross of t * t
     val toString : t -> string
     val equal : (t*t) -> bool
+    val newTuple : TypeDesc.t vector -> t
+    val newVar : RelTyvar.t -> t
     val unionType : (t*t) -> t
     val crossPrdType : (t*t) -> t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
@@ -37,9 +40,9 @@ sig
   sig
     datatype t = Equal of RelType.t * RelType.t
 
-    datatype solution = Sol of (RelTyvar.t * RelType.t) vector
-
-    val solvePartial : t vector -> (solution * (t vector))
+    val solvePartial : t vector -> ((RelTyvar.t * RelType.t) vector 
+      * (t vector))
+    val new : RelType.t * RelType.t -> t
   end
   
   structure SimpleProjSort : 
@@ -47,7 +50,13 @@ sig
     datatype t = Base of RelType.t
                | ColonArrow of TypeDesc.t * RelType.t
     val toString : t -> string
+    val layout : t -> Layout.t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
+    val newBase : RelType.t -> t
+    val newColonArrow : TypeDesc.t * RelType.t -> t
+    val unify : t*t -> RelTyConstraint.t
+    val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
+    val instRelTyvars : (RelTyvar.t * RelType.t) vector * t -> t
   end
 
   structure ProjSort :
@@ -55,6 +64,7 @@ sig
     datatype t =  T of {paramsorts : SimpleProjSort.t vector,
                               sort : SimpleProjSort.t}
     val toString : t -> string
+    val new : SimpleProjSort.t vector * SimpleProjSort.t -> t
   end
 
   structure ProjSortScheme : 
@@ -63,18 +73,7 @@ sig
                       constraints : RelTyConstraint.t vector,
                             sort : ProjSort.t}
     val toString : t -> string
-  end
-
-  structure RelTypeScheme :
-  sig
-    datatype t = T of {tyvars : Tyvar.t vector,
-                       relty : RelType.t}
-    val generalize : Tyvar.t vector * RelType.t -> t
-    val specialize: t -> RelType.t
-    val instantiate : t * TypeDesc.t vector -> RelType.t
-    val toString : t -> string
-    val unionTypeScheme : (t*t) -> t
-    val crossPrdTypeScheme : (t*t) -> t
+    val generalize : RelTyConstraint.t vector * ProjSort.t -> t
   end
 
   structure ProjTypeScheme :
@@ -82,6 +81,7 @@ sig
     datatype t = T of {tyvars : Tyvar.t vector,
                        sortscheme : ProjSortScheme.t}
     val toString : t -> string
+    val generalize : ProjSortScheme.t -> t
   end
 
   structure RelLang : 
@@ -99,13 +99,15 @@ sig
     and expr = T of elem vector
              | X of expr * expr
              | U of expr * expr
-             | R of instexpr * Var.t option
+             | R1 of RelVar.t
+             | R2 of instexpr * Var.t
     datatype term = Expr of expr
                   | Star of instexpr
     val elemToString : elem -> string
     val instExprToString : instexpr -> string
     val exprToString : expr -> string
     val termToString : term -> string
+    val termOfExpr : expr -> term
     val instExprOfRel : RelId.t -> instexpr
     val instExprOfRelVar : RelVar.t -> instexpr
     val ieatomOfInstExpr : instexpr -> ieatom
@@ -114,6 +116,7 @@ sig
     val ieatomOfExpr : expr -> ieatom
     (* pre-condition : expr vector not emtpy *)
     val instantiateRel : RelId.t * ieatom vector -> instexpr
+    val mapRel : term -> (RelId.t -> instexpr) -> term
     val app : instexpr * Var.t -> expr
     val union : expr * expr -> expr
     val crossprd : expr * expr -> expr
@@ -137,8 +140,13 @@ sig
                        params : RelVar.t vector,
                        map : (Pat.t option * RelLang.term)
                              vector}
+    val new : {id : RelId.t, params : RelVar.t vector,
+               map : (Pat.t option * RelLang.term)
+                     vector} -> t
     val patMapToString : (Pat.t option * RelLang.term) vector -> string
     val toString : t -> string
+    val instantiate : t -> RelLang.ieatom vector -> (Pat.t option * 
+      RelLang.term) vector
   end
 
   structure TyDBinds : APPLICATIVE_MAP where 
@@ -204,10 +212,7 @@ sig
 
   structure RefinementSortScheme :
   sig
-    type paramrefty = {params : (RelVar.t * 
-                   (* abstract relations are simple projections *)
-                              SimpleProjSort.t) vector,
-                            refty : RefinementType.t }
+    type paramrefty 
     datatype t = T of {reltyvars : RelTyvar.t vector,
                        constraints : RelTyConstraint.t vector,
                        paramrefty : paramrefty }
@@ -217,6 +222,8 @@ sig
     val instRelParams : paramrefty * (RelLang.ieatom *
           SimpleProjSort.t) vector -> RefinementType.t
     val generalize : RelTyvar.t vector * RelTyConstraint.t vector * paramrefty -> t
+    val fromRefTy : RefinementType.t -> t
+    val toRefTy : t -> RefinementType.t
     val instantiate : t * RelType.t vector -> RefinementType.t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
     val layout : t -> Layout.t
@@ -228,6 +235,8 @@ sig
                    sortscheme : RefinementSortScheme.t}
     val generalize : Tyvar.t vector * RefinementSortScheme.t -> t
     val specialize: t -> RefinementSortScheme.t
+    val fromRefTy : RefinementType.t -> t
+    val toRefTy : t -> RefinementType.t
     val instantiate : t * TypeDesc.t vector -> RefinementSortScheme.t
     val layout : t -> Layout.t 
   end
