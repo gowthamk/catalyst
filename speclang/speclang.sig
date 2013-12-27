@@ -34,6 +34,7 @@ sig
     val unionType : (t*t) -> t
     val crossPrdType : (t*t) -> t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
+    val instRelTyvars : (RelTyvar.t * t) vector * t -> t
   end
 
   structure RelTyConstraint :

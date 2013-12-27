@@ -94,6 +94,12 @@ struct
     fun mapTyD (Tuple tv) f = Tuple $ Vector.map (tv,f)
       | mapTyD (Cross (t1,t2)) f = Cross (mapTyD t1 f, mapTyD t2 f)
       | mapTyD t f = t
+
+    fun relTyVarsIn t =
+      raise (Fail "unimpl")
+
+    fun instRelTyvars (substs,t) = 
+      raise (Fail "unimpl")
   end
 
   structure RelTyConstraint =
@@ -108,18 +114,46 @@ struct
 
     fun eq (Equal x) = x
 
+    fun relTyVarEq (rtv1,rtv2) = (RelTyvar.toString rtv1 = 
+      RelTyvar.toString rtv2)
+
     fun assertCompatible (tv1 : TyD.t vector,tv2) =
       Vector.foreach2 (tv1,tv2, fn (tyd1,tyd2) => 
         assert (TyD.sameType (tyd1,tyd2),
           "Incompatible tuple types in rexpr"))
 
-    fun trySolveConstraint (c : t) =
+    fun trySolveConstraint (c : t) : sol option =
       let
         open RelType
-        fun doIt (x) = case x of
-            (Reltyvar v1, rty2) => SOME (v1,rty2)
-          | (rty1, Reltyvar v2) => SOME (v2,rty1)
-          | (Cross (Tuple tv1,Reltyvar v1), 
+        fun assertNotCirc (v,rt) = 
+          let
+            val rhsvs = RelType.relTyVarsIn rt
+            val _ = Vector.foreach (rhsvs, fn rhsv =>
+              assert (not $ relTyVarEq (v,rhsv), "Circular\
+                \ relty constraint. Unsolvable."))
+          in
+            ()
+          end
+        val eqOp = case eq c of
+            (Reltyvar v1, rty2) => (assertNotCirc (v1,rty2);
+              SOME (v1,rty2))
+          | (rty1, Reltyvar v2) => (assertNotCirc (v2,rty1);
+              SOME (v2,rty1))
+          | _ => NONE
+      in
+        eqOp
+      end
+   
+    (*
+     * Simplifies constraints using some rules. 
+     * More precision can be obtained by strengthening this function.
+     * Rest of the functions remain same.
+     *)
+    fun simplify (cs : t vector) =
+      let
+        open RelType
+        fun doIt c  = case eq c of
+            (Cross (Tuple tv1,Reltyvar v1), 
              Cross (Tuple tv2,Reltyvar v2)) => 
             let
               val l1 = Vector.length tv1
@@ -129,12 +163,14 @@ struct
                 then (tv1, tv2, (v1, Reltyvar v2))
                 else if diff < 0 
                 then  (tv1, Vector.prefix (tv2,l1), (v1, 
-                  Cross (Vector.dropPrefix (tv2,l1), RelTyvar v2)))
+                  Cross (newTuple $ Vector.dropPrefix (tv2,l1), 
+                         Reltyvar v2)))
                 else (Vector.prefix (tv1,l2), tv2, (v2, 
-                  Cross (Vector.dropPrefix (tv1,l2), RelTyvar v1)))
+                  Cross (newTuple $ Vector.dropPrefix (tv1,l2), 
+                         Reltyvar v1)))
               val _ = assertCompatible (tv1,tv2)
             in
-              SOME (v,rty)
+              new (newVar v,rty)
             end
           | (Cross (Reltyvar v1, Tuple tv1), 
              Cross (Reltyvar v2, Tuple tv2)) => 
@@ -146,12 +182,14 @@ struct
                 then (tv1, tv2, (v1, Reltyvar v2))
                 else if diff < 0 
                 then  (tv1, Vector.dropPrefix (tv2, l2 - l1), (v1, 
-                  Cross (RelTyvar v2, Vector.prefix (tv2, l2 - l1))))
+                  Cross (Reltyvar v2, newTuple $ 
+                         Vector.prefix (tv2, l2 - l1))))
                 else (Vector.dropPrefix (tv1,diff), tv2, (v2, 
-                  Cross (Vector.prefix (tv1,diff), RelTyvar v1)))
+                  Cross (Reltyvar v1, newTuple $ 
+                         Vector.prefix (tv1,diff) )))
               val _ = assertCompatible (tv1,tv2)
             in
-              SOME (v,rty)
+              new (newVar v,rty)
             end
           | (Cross (Reltyvar v1, Tuple tv1), Tuple tv2) =>
             let
@@ -161,7 +199,7 @@ struct
               val _ = assertCompatible (tv1, 
                 Vector.dropPrefix (tv2, l2-l1))
             in
-              SOME (v1, Tuple $ Vector.prefix (tv2,l2-l1))
+              new (newVar v1, Tuple $ Vector.prefix (tv2,l2-l1))
             end
           | (Tuple tv2, Cross (Reltyvar v1, Tuple tv1)) =>
             let
@@ -171,7 +209,7 @@ struct
               val _ = assertCompatible (tv1, 
                 Vector.dropPrefix (tv2, l2-l1))
             in
-              SOME (v1, Tuple $ Vector.prefix (tv2,l2-l1))
+              new (newVar v1, Tuple $ Vector.prefix (tv2,l2-l1))
             end
           | (Cross (Tuple tv1, Reltyvar v1), Tuple tv2) =>
             let
@@ -181,7 +219,7 @@ struct
               val _ = assertCompatible (tv1, 
                 Vector.prefix (tv2, l2-l1))
             in
-              SOME (v1, Tuple $ Vector.dropPrefix (tv2,l2-l1))
+              new (newVar v1, Tuple $ Vector.dropPrefix (tv2,l2-l1))
             end
           | (Tuple tv2, Cross (Tuple tv1, Reltyvar v1)) =>
             let
@@ -191,11 +229,11 @@ struct
               val _ = assertCompatible (tv1, 
                 Vector.prefix (tv2, l2-l1))
             in
-              SOME (v1, Tuple $ Vector.dropPrefix (tv2,l2-l1))
+              new (newVar v1, Tuple $ Vector.dropPrefix (tv2,l2-l1))
             end
-          | _ => NONE
+          | _ => c
       in
-        (doIt $ eq c)
+        Vector.map (cs,doIt)
       end
    
     fun clearTautologies (cs : t vector) =
@@ -204,28 +242,43 @@ struct
       in
         Vector.keepAllMap (cs, fn c => case eq c of
           (Tuple tv1,Tuple tv2) => (assertCompatible (tv1,tv2);
-            NONE))
-        | (Reltyvar v1, Reltyvar v2) => if tyVarEq (v1,v2) 
+            NONE)
+        | (Reltyvar v1, Reltyvar v2) => if relTyVarEq (v1,v2) 
             then NONE else SOME c
         | (Cross (Reltyvar v1,rt1), Cross (Reltyvar v2,rt2)) =>
-            if tyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
+            if relTyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
         | (Cross (rt1, Reltyvar v1), Cross (rt2, Reltyvar v2)) =>
-            if tyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
-        | _ => SOME c
+            if relTyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
+        | _ => SOME c)
       end
 
+    (*
+     * Applies tyvar eqn (v=rt) in cs. 
+     * Post-condition : v does not occur in cs. 
+     *)
+    fun applyTyVarEqn (eqn as (v,rt)) (cs :t vector) : t vector =
+      raise (Fail "unimpl")
+    
+    (*
+     * Solves a constraint, applies the solution to the rest, and
+     * clears any new tautologies. Repeats this process until there are
+     * no more constraints, or residue is unsolvable.
+     * Invariant : 
+     * sol : {v:Reltyvar} -> {rt:RelType.t | v notin RelType.relTyVarsIn rt}
+     * , is a partial function.
+     *)
     fun relTyVarEqns (cs : t vector) : (sol vector * 
         (t vector)) = 
       let
         open RelType
-        val cs = clearTautologies cs
+        val cs = simplify $ clearTautologies cs
         val solEqnOp = Vector.loop (cs, 
           fn c => case trySolveConstraint c of
               SOME sol => SOME $ SOME sol
             | _ =>NONE, 
           fn () => NONE)
-        val empty = Vector.new0 ()
-        val (sol,residue) = case solEqnOp of NONE => (empty, cs)
+        val (sol,residue) = case solEqnOp of 
+          NONE => (Vector.new0 (), cs)
         | SOME solEqn => 
           let
             val newcs = applyTyVarEqn solEqn cs
@@ -237,16 +290,23 @@ struct
       in
         (sol,residue)
       end
-
-    fun solveRelTyVarEqns (eqs : sol vector) newrtyvs =
+   
+    (*
+     * solveRelTyVarEqns : eqs -> newrtyvars -> sol
+     * Pre-condition : eqs is a partial function without circular
+     * equations, as described previously.
+     * Post-condition : RelTyVarsIn(range of sol) intersection
+     * (domain of sol) = empty
+     *)
+    fun solveRelTyVarEqns (sol : sol vector) newrtyvs =
       let
         val domain = #1 $ Vector.unzip sol
         fun notInDomain v = Vector.forall (domain,
-          fn v' => not (v = v'))
+          fn v' => not (relTyVarEq (v,v')))
         fun notNewRTyVar v = List.forall (newrtyvs,
-          fn v' => not (v = v'))
+          fn v' => not (relTyVarEq (v,v')))
         val rtyvOp = Vector.loop (sol, 
-          fn (_,rty) => case Vector.peek (RelType.tyVarsIn rty,
+          fn (_,rty) => case Vector.peek (RelType.relTyVarsIn rty,
             fn v => notNewRTyVar v andalso notInDomain v) of
               SOME v => SOME $ SOME v
             | NONE => NONE,
@@ -255,17 +315,30 @@ struct
         case rtyvOp of NONE => sol
         | SOME rtyv => 
           let
-            val newtyv = RelTyvar.new ()
-            val newEq = (rtyv, RelType.newVar $ newrtyv)
-            val sol' = clearTautologies $ applyTyVarEqn newEq sol
+            val newrtyv = RelTyvar.new ()
+            val newEq = (rtyv, RelType.newVar newrtyv)
+            (* 
+             * This doesn't type check:
+             * val sol' = clearTautologies $ applyTyVarEqn newEq sol
+             * Moreover, clearTautologies is not needed. There won't be
+             * any tautologies as eqs is a partial function. 
+             * Also, we only ever apply newEq in the range of
+             * sol, which is a RelType.t. This is because newEq is
+             * [v := newv], where v occurs only in the RHS of sol.
+             *)
+            val sol' = Vector.map (sol, fn (v,rty) => (v,
+              RelType.instRelTyvars (Vector.new1 newEq, rty)))
             val newSol = Vector.concat [Vector.new1 newEq, sol']
           in
             solveRelTyVarEqns newSol (newrtyv :: newrtyvs)
           end
       end
 
+    val solveRelTyVarEqns = fn sols => solveRelTyVarEqns sols []
     (*
      * Solves constraints and returns solution.
+     * Solution is a partial function over reltyvars of cs, such that 
+     * reltyvars in its range are disjoint with its domain.
      * Also returns residual constraints that it could not solve.
      * The problem, in general, is undecidable. For eg,
      * T1 X T2 = T3 X T4 cannot be solved.
