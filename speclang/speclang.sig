@@ -57,6 +57,8 @@ sig
     val unify : t*t -> RelTyConstraint.t
     val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
     val instRelTyvars : (RelTyvar.t * RelType.t) vector * t -> t
+    val domain : t -> TypeDesc.t
+    val range : t -> RelType.t
   end
 
   structure ProjSort :
@@ -65,6 +67,9 @@ sig
                               sort : SimpleProjSort.t}
     val toString : t -> string
     val new : SimpleProjSort.t vector * SimpleProjSort.t -> t
+    val domain : t -> TypeDesc.t
+    val range : t -> RelType.t
+    val paramSorts : t -> SimpleProjSort.t vector
   end
 
   structure ProjSortScheme : 
@@ -74,6 +79,10 @@ sig
                             sort : ProjSort.t}
     val toString : t -> string
     val generalize : RelTyConstraint.t vector * ProjSort.t -> t
+    val specialize : t -> ProjSort.t
+    val instantiate : (RelTyvar.t * RelType.t) vector * t ->
+      (RelTyConstraint.t vector * ProjSort.t)
+    val domain : t ->TypeDesc.t
   end
 
   structure ProjTypeScheme :
@@ -82,6 +91,15 @@ sig
                        sortscheme : ProjSortScheme.t}
     val toString : t -> string
     val generalize : ProjSortScheme.t -> t
+    val specialize : t -> ProjSortScheme.t
+    val domain : t ->TypeDesc.t
+    val tyvars : t -> Tyvar.t vector
+    (*
+      val _ = assert (leneq (tyvars, insts), "Assumption \
+        \ about tyvar generalization for rels failed.")
+     *)
+    val instantiate : (Tyvar.t * TypeDesc.t) vector * t ->
+        ProjSortScheme.t
   end
 
   structure RelLang : 
@@ -235,6 +253,7 @@ sig
                    sortscheme : RefinementSortScheme.t}
     val generalize : Tyvar.t vector * RefinementSortScheme.t -> t
     val specialize: t -> RefinementSortScheme.t
+    val tyvars : t -> Tyvar.t vector
     val fromRefTy : RefinementType.t -> t
     val toRefTy : t -> RefinementType.t
     val instantiate : t * TypeDesc.t vector -> RefinementSortScheme.t

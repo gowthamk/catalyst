@@ -98,9 +98,171 @@ struct
 
   structure RelTyConstraint =
   struct
+    structure TyD = TypeDesc
+
     datatype t = Equal of RelType.t * RelType.t
 
     type sol = (RelTyvar.t * RelType.t)
+
+    fun new (rt1,rt2) = Equal (rt1,rt2)
+
+    fun eq (Equal x) = x
+
+    fun assertCompatible (tv1 : TyD.t vector,tv2) =
+      Vector.foreach2 (tv1,tv2, fn (tyd1,tyd2) => 
+        assert (TyD.sameType (tyd1,tyd2),
+          "Incompatible tuple types in rexpr"))
+
+    fun trySolveConstraint (c : t) =
+      let
+        open RelType
+        fun doIt (x) = case x of
+            (Reltyvar v1, rty2) => SOME (v1,rty2)
+          | (rty1, Reltyvar v2) => SOME (v2,rty1)
+          | (Cross (Tuple tv1,Reltyvar v1), 
+             Cross (Tuple tv2,Reltyvar v2)) => 
+            let
+              val l1 = Vector.length tv1
+              val l2 = Vector.length tv2
+              val diff = l1-l2
+              val (tv1,tv2,(v,rty)) = if diff = 0 
+                then (tv1, tv2, (v1, Reltyvar v2))
+                else if diff < 0 
+                then  (tv1, Vector.prefix (tv2,l1), (v1, 
+                  Cross (Vector.dropPrefix (tv2,l1), RelTyvar v2)))
+                else (Vector.prefix (tv1,l2), tv2, (v2, 
+                  Cross (Vector.dropPrefix (tv1,l2), RelTyvar v1)))
+              val _ = assertCompatible (tv1,tv2)
+            in
+              SOME (v,rty)
+            end
+          | (Cross (Reltyvar v1, Tuple tv1), 
+             Cross (Reltyvar v2, Tuple tv2)) => 
+            let
+              val l1 = Vector.length tv1
+              val l2 = Vector.length tv2
+              val diff = l1-l2
+              val (tv1,tv2,(v,rty)) = if diff = 0 
+                then (tv1, tv2, (v1, Reltyvar v2))
+                else if diff < 0 
+                then  (tv1, Vector.dropPrefix (tv2, l2 - l1), (v1, 
+                  Cross (RelTyvar v2, Vector.prefix (tv2, l2 - l1))))
+                else (Vector.dropPrefix (tv1,diff), tv2, (v2, 
+                  Cross (Vector.prefix (tv1,diff), RelTyvar v1)))
+              val _ = assertCompatible (tv1,tv2)
+            in
+              SOME (v,rty)
+            end
+          | (Cross (Reltyvar v1, Tuple tv1), Tuple tv2) =>
+            let
+              val l1 = Vector.length tv1
+              val l2 = Vector.length tv2
+              val _ = assert(l1<l2, "Incompatible rexpr types")
+              val _ = assertCompatible (tv1, 
+                Vector.dropPrefix (tv2, l2-l1))
+            in
+              SOME (v1, Tuple $ Vector.prefix (tv2,l2-l1))
+            end
+          | (Tuple tv2, Cross (Reltyvar v1, Tuple tv1)) =>
+            let
+              val l1 = Vector.length tv1
+              val l2 = Vector.length tv2
+              val _ = assert(l1<l2, "Incompatible rexpr types")
+              val _ = assertCompatible (tv1, 
+                Vector.dropPrefix (tv2, l2-l1))
+            in
+              SOME (v1, Tuple $ Vector.prefix (tv2,l2-l1))
+            end
+          | (Cross (Tuple tv1, Reltyvar v1), Tuple tv2) =>
+            let
+              val l1 = Vector.length tv1
+              val l2 = Vector.length tv2
+              val _ = assert(l1<l2, "Incompatible rexpr types")
+              val _ = assertCompatible (tv1, 
+                Vector.prefix (tv2, l2-l1))
+            in
+              SOME (v1, Tuple $ Vector.dropPrefix (tv2,l2-l1))
+            end
+          | (Tuple tv2, Cross (Tuple tv1, Reltyvar v1)) =>
+            let
+              val l1 = Vector.length tv1
+              val l2 = Vector.length tv2
+              val _ = assert(l1<l2, "Incompatible rexpr types")
+              val _ = assertCompatible (tv1, 
+                Vector.prefix (tv2, l2-l1))
+            in
+              SOME (v1, Tuple $ Vector.dropPrefix (tv2,l2-l1))
+            end
+          | _ => NONE
+      in
+        (doIt $ eq c)
+      end
+   
+    fun clearTautologies (cs : t vector) =
+      let
+        open RelType 
+      in
+        Vector.keepAllMap (cs, fn c => case eq c of
+          (Tuple tv1,Tuple tv2) => (assertCompatible (tv1,tv2);
+            NONE))
+        | (Reltyvar v1, Reltyvar v2) => if tyVarEq (v1,v2) 
+            then NONE else SOME c
+        | (Cross (Reltyvar v1,rt1), Cross (Reltyvar v2,rt2)) =>
+            if tyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
+        | (Cross (rt1, Reltyvar v1), Cross (rt2, Reltyvar v2)) =>
+            if tyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
+        | _ => SOME c
+      end
+
+    fun relTyVarEqns (cs : t vector) : (sol vector * 
+        (t vector)) = 
+      let
+        open RelType
+        val cs = clearTautologies cs
+        val solEqnOp = Vector.loop (cs, 
+          fn c => case trySolveConstraint c of
+              SOME sol => SOME $ SOME sol
+            | _ =>NONE, 
+          fn () => NONE)
+        val empty = Vector.new0 ()
+        val (sol,residue) = case solEqnOp of NONE => (empty, cs)
+        | SOME solEqn => 
+          let
+            val newcs = applyTyVarEqn solEqn cs
+            val (moreEqns,residue) = relTyVarEqns newcs
+            val sol = Vector.concat [Vector.new1 solEqn, moreEqns]
+          in
+            (sol,residue)
+          end
+      in
+        (sol,residue)
+      end
+
+    fun solveRelTyVarEqns (eqs : sol vector) newrtyvs =
+      let
+        val domain = #1 $ Vector.unzip sol
+        fun notInDomain v = Vector.forall (domain,
+          fn v' => not (v = v'))
+        fun notNewRTyVar v = List.forall (newrtyvs,
+          fn v' => not (v = v'))
+        val rtyvOp = Vector.loop (sol, 
+          fn (_,rty) => case Vector.peek (RelType.tyVarsIn rty,
+            fn v => notNewRTyVar v andalso notInDomain v) of
+              SOME v => SOME $ SOME v
+            | NONE => NONE,
+          fn _ => NONE) 
+      in
+        case rtyvOp of NONE => sol
+        | SOME rtyv => 
+          let
+            val newtyv = RelTyvar.new ()
+            val newEq = (rtyv, RelType.newVar $ newrtyv)
+            val sol' = clearTautologies $ applyTyVarEqn newEq sol
+            val newSol = Vector.concat [Vector.new1 newEq, sol']
+          in
+            solveRelTyVarEqns newSol (newrtyv :: newrtyvs)
+          end
+      end
 
     (*
      * Solves constraints and returns solution.
@@ -108,10 +270,18 @@ struct
      * The problem, in general, is undecidable. For eg,
      * T1 X T2 = T3 X T4 cannot be solved.
      *)
-    fun solvePartial (cs : t vector) : (sol vector * (t vector))
-      =  raise (Fail "Unimpl")
-
-    fun new (rt1,rt2) = Equal (rt1,rt2)
+    fun solvePartial (cs : t vector) : (sol vector * 
+        (t vector)) =
+      let
+        open RelType
+        val (rtvEqns, residue) =  relTyVarEqns cs
+        val solEqns = solveRelTyVarEqns rtvEqns
+        val residue = Vector.fold (solEqns, residue,
+          fn (solEq,resacc) => applyTyVarEqn solEq resacc)
+      in
+        (solEqns,residue)
+      end
+      
   end
 
   structure SimpleProjSort =
@@ -145,6 +315,13 @@ struct
 
     fun instRelTyvars (substs,t) =
       raise (Fail "Unimpl")
+
+    fun domain (ColonArrow (d,_)) = d
+      | domain _ = raise (Fail "No domain for base rel type")
+
+    fun range (ColonArrow (_,r)) = r
+      | range _ = raise (Fail "No range for base rel type")
+
   end
 
   structure ProjSort =
@@ -157,6 +334,12 @@ struct
 
     fun new (paramsorts, sort) = T {paramsorts = paramsorts,
       sort = sort}
+
+    fun domain (T{sort, ...}) = SimpleProjSort.domain sort
+
+    fun range (T{sort, ...}) = SimpleProjSort.range sort
+
+    fun paramSorts (T {paramsorts,...}) = paramsorts
   end
 
   structure ProjSortScheme =
@@ -171,6 +354,13 @@ struct
 
     fun generalize (cstrs,sort) =
       raise (Fail "Unimpl")
+
+    fun specialize (T{sort, ...}) = sort
+
+    fun domain (T{sort, ...}) = ProjSort.domain sort
+
+    fun instantiate (substs, T {reltyvars, constraints, sort}) =
+      raise (Fail "Unimpl")
   end
 
   structure ProjTypeScheme =
@@ -184,6 +374,16 @@ struct
 
     fun generalize ss =
       raise (Fail "Unimpl")
+
+    fun specialize (T{sortscheme, ...}) = sortscheme
+
+    fun tyvars (T{tyvars, ...}) = tyvars
+    
+    fun domain (T{sortscheme, ...}) = ProjSortScheme.domain sortscheme
+
+    fun instantiate (substs, T{tyvars,sortscheme}) = 
+      raise (Fail "Unimpl")
+      
   end
 
   structure RelLang =
@@ -611,6 +811,9 @@ struct
 
     val specialize = fn (T {tyvars,sortscheme}) =>
       sortscheme
+
+    val tyvars = fn (T {tyvars,sortscheme}) =>
+      tyvars 
 
     fun toRefTy (T{sortscheme, ...}) = 
       RefinementSortScheme.toRefTy sortscheme
