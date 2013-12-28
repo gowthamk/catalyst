@@ -11,14 +11,14 @@ sig
   structure RelVar :
   sig
     include ID
-    val equal : t*t -> bool
+    val eq : t*t -> bool
   end
 
   structure RelTyvar :
   sig
     type t
     val new : unit -> t
-    val equal : t*t -> bool
+    val eq : t*t -> bool
     val toString : t -> string
   end
 
@@ -31,10 +31,12 @@ sig
     val equal : (t*t) -> bool
     val newTuple : TypeDesc.t vector -> t
     val newVar : RelTyvar.t -> t
-    val unionType : (t*t) -> t
     val crossPrdType : (t*t) -> t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
+    val mapRelTyVar : t -> (RelTyvar.t -> t) -> t
+    val relTyVarsIn : t -> RelTyvar.t vector
     val instRelTyvars : (RelTyvar.t * t) vector * t -> t
+    val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
   end
 
   structure RelTyConstraint :
@@ -71,6 +73,8 @@ sig
     val domain : t -> TypeDesc.t
     val range : t -> RelType.t
     val paramSorts : t -> SimpleProjSort.t vector
+    val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
+    val instRelTyvars : (RelTyvar.t * RelType.t) vector * t -> t
   end
 
   structure ProjSortScheme : 
@@ -83,6 +87,7 @@ sig
     val specialize : t -> ProjSort.t
     val instantiate : (RelTyvar.t * RelType.t) vector * t ->
       (RelTyConstraint.t vector * ProjSort.t)
+    val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
     val domain : t ->TypeDesc.t
   end
 
@@ -128,14 +133,19 @@ sig
     val termToString : term -> string
     val termOfExpr : expr -> term
     val instExprOfRel : RelId.t -> instexpr
+    val instExprOfRelInst : RelId.t * ieatom vector -> instexpr
     val instExprOfRelVar : RelVar.t -> instexpr
     val ieatomOfInstExpr : instexpr -> ieatom
     val ieatomOfRel : RelId.t -> ieatom
     val ieatomOfRelVar : RelVar.t -> ieatom
     val ieatomOfExpr : expr -> ieatom
     (* pre-condition : expr vector not emtpy *)
-    val instantiateRel : RelId.t * ieatom vector -> instexpr
     val mapRel : term -> (RelId.t -> instexpr) -> term
+    val mapRVarToExpr : expr -> (RelVar.t -> expr) -> expr
+    val mapRVarToIExpr : expr -> (RelVar.t -> instexpr) -> expr
+    val instRelVars : ((RelVar.t * ieatom) vector * expr) -> expr
+    val instRelVarsInTerm : ((RelVar.t * ieatom) vector * term) -> 
+      term
     val app : instexpr * Var.t -> expr
     val union : expr * expr -> expr
     val crossprd : expr * expr -> expr
@@ -164,8 +174,8 @@ sig
                      vector} -> t
     val patMapToString : (Pat.t option * RelLang.term) vector -> string
     val toString : t -> string
-    val instantiate : t -> RelLang.ieatom vector -> (Pat.t option * 
-      RelLang.term) vector
+    val instantiate : ((RelVar.t * RelLang.ieatom) vector * t) -> 
+      (Pat.t option * RelLang.term) vector
   end
 
   structure TyDBinds : APPLICATIVE_MAP where 

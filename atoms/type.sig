@@ -27,5 +27,6 @@ signature TYPE_DESC =
     val layout : t -> Layout.t
 	  val sameType : (t * t) -> bool
     val unifiable : (t * t) -> bool
+    val mapTvar : t -> (Tyvar.t -> t) -> t
     val instantiateTyvars : (t * Tyvar.t) vector -> t -> t 
    end

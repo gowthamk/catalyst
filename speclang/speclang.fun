@@ -9,13 +9,16 @@ struct
   fun varStrEq (v1,v2) = (Var.toString v1 = Var.toString v2)
   fun varSubst (subst as (new,old)) v = if varStrEq (v,old) 
     then new else v
+  val tyVarEq = fn (v1,v2) => (Tyvar.toString v1 = Tyvar.toString v2)
+
+  structure TyD = TypeDesc
 
   structure RelId = Var
 
   structure RelVar = 
   struct
     open Var
-    val equal = fn (rv1,rv2) => (toString rv1 = toString rv2)
+    val eq = fn (rv1,rv2) => (toString rv1 = toString rv2)
   end
 
   structure RelTyvar =
@@ -33,7 +36,7 @@ struct
         Var.fromString id 
       end
 
-    fun equal (v1,v2) = (Var.toString v1 = Var.toString v2)
+    fun eq (v1,v2) = (Var.toString v1 = Var.toString v2)
     val toString = Var.toString 
   end
 
@@ -55,15 +58,6 @@ struct
 
     val toString = fn t => "{"^(toString t)^"}"
 
-    (*
-    fun unify (t1,t2) = case (t1,t2) of
-        (Tuple _, Tuple _) => (assert (equal (t1,t2), 
-          "Types not unifiable"); Vector.new0 ())
-      | (Cross (),Tuple)
-      | (Tuple, Cross)
-      | 
-     *)
-    
     (* trivial equality *)
     fun equal (Tuple tydv1, Tuple tydv2) = 
       (Vector.length tydv1 = Vector.length tydv2) andalso
@@ -77,14 +71,6 @@ struct
     fun newTuple tv = Tuple tv
     fun newVar rv = Reltyvar rv
       
-    fun unionType (t1 as Tuple tydv1, t2 as Tuple tydv2) =
-        (case (Vector.length tydv1, Vector.length tydv2) of
-          (0,_) => t2 | (_,0) => t1
-        | (n1,n2) => (assert (equal (t1,t2),"Union \
-            \ incompatible types\n"); t1))
-      | unionType _ = Error.bug ("Union \
-            \ incompatible types\n")
-
     fun crossPrdType (t1 as Tuple tyds1, t2 as Tuple tyds2) =
         (case (Vector.length tyds1, Vector.length tyds2) of
           (0,_) => t1 | (_,0) => t2 
@@ -95,11 +81,42 @@ struct
       | mapTyD (Cross (t1,t2)) f = Cross (mapTyD t1 f, mapTyD t2 f)
       | mapTyD t f = t
 
-    fun relTyVarsIn t =
-      raise (Fail "unimpl")
+    fun mapRelTyVar t f = 
+      let
+        val doIt = fn t => mapRelTyVar t f
+      in
+        case t of Reltyvar v => f v
+        | Cross (t1,t2) => Cross (doIt t1, doIt t2)
+        | Tuple _ => t
+      end
 
-    fun instRelTyvars (substs,t) = 
-      raise (Fail "unimpl")
+    fun relTyVarsIn t =
+      let
+        fun doIt (Reltyvar v) = [v]
+          | doIt (Cross (t1,t2)) = List.concat [doIt t1, doIt t2]
+          | doIt (Tuple _) = []
+      in
+        Vector.fromList $ doIt t
+      end
+
+    fun instTyvars (eqs,t) = 
+      let
+        fun inst v' = Vector.peekMap (eqs, fn (v,tyd) => 
+          if tyVarEq (v,v') then SOME tyd else NONE)
+        fun mapf tyd = TyD.mapTvar tyd (fn v => case inst v of
+          SOME tyd => tyd | NONE => TyD.makeTvar v)
+      in
+        mapTyD t mapf
+      end
+
+    fun instRelTyvars (eqs,t) = 
+      let
+        fun inst v' = Vector.peekMap (eqs, fn (v,rt) => 
+          if RelTyvar.eq (v,v') then SOME rt else NONE)
+      in
+        mapRelTyVar t (fn v => case inst v of 
+          SOME rt => rt | NONE => newVar v)
+      end 
   end
 
   structure RelTyConstraint =
@@ -114,8 +131,19 @@ struct
 
     fun eq (Equal x) = x
 
-    fun relTyVarEq (rtv1,rtv2) = (RelTyvar.toString rtv1 = 
-      RelTyvar.toString rtv2)
+    val relTyVarEq = RelTyvar.eq
+
+    fun delegateInst g (eqs,cs) =
+      let
+        fun doIt c = case eq c of (rt1,rt2) => 
+          new (g (eqs,rt1), g (eqs,rt2))
+      in
+        Vector.map (cs,doIt)
+      end
+
+    val instTyvars = delegateInst RelType.instTyvars
+
+    val instRelTyvars = delegateInst RelType.instRelTyvars
 
     fun assertCompatible (tv1 : TyD.t vector,tv2) =
       Vector.foreach2 (tv1,tv2, fn (tyd1,tyd2) => 
@@ -253,11 +281,11 @@ struct
       end
 
     (*
-     * Applies tyvar eqn (v=rt) in cs. 
+     * Applies reltyvar eqn (v=rt) in cs. 
      * Post-condition : v does not occur in cs. 
      *)
-    fun applyTyVarEqn (eqn as (v,rt)) (cs :t vector) : t vector =
-      raise (Fail "unimpl")
+    fun applyRelTyVarEqn (eqn as (v,rt)) (cs :t vector) : t vector =
+      instRelTyvars (Vector.new1 eqn,cs)
     
     (*
      * Solves a constraint, applies the solution to the rest, and
@@ -281,7 +309,7 @@ struct
           NONE => (Vector.new0 (), cs)
         | SOME solEqn => 
           let
-            val newcs = applyTyVarEqn solEqn cs
+            val newcs = applyRelTyVarEqn solEqn cs
             val (moreEqns,residue) = relTyVarEqns newcs
             val sol = Vector.concat [Vector.new1 solEqn, moreEqns]
           in
@@ -319,7 +347,7 @@ struct
             val newEq = (rtyv, RelType.newVar newrtyv)
             (* 
              * This doesn't type check:
-             * val sol' = clearTautologies $ applyTyVarEqn newEq sol
+             * val sol' = clearTautologies $ applyRelTyVarEqn newEq sol
              * Moreover, clearTautologies is not needed. There won't be
              * any tautologies as eqs is a partial function. 
              * Also, we only ever apply newEq in the range of
@@ -350,17 +378,19 @@ struct
         val (rtvEqns, residue) =  relTyVarEqns cs
         val solEqns = solveRelTyVarEqns rtvEqns
         val residue = Vector.fold (solEqns, residue,
-          fn (solEq,resacc) => applyTyVarEqn solEq resacc)
+          fn (solEq,resacc) => applyRelTyVarEqn solEq resacc)
       in
         (solEqns,residue)
       end
-      
   end
+
+  structure RelTyC = RelTyConstraint
 
   structure SimpleProjSort =
   struct
     datatype t = Base of RelType.t
                | ColonArrow of TypeDesc.t * RelType.t
+
     fun toString (ColonArrow (tyD,relKind)) =
       (TypeDesc.toString tyD)^" :-> "^(RelType.toString relKind)
       | toString (Base rt) = RelType.toString rt
@@ -370,6 +400,10 @@ struct
     fun mapTyD (Base rt) f = Base (RelType.mapTyD rt f)
       | mapTyD (ColonArrow (tyd,rt)) f = ColonArrow (f tyd, 
           RelType.mapTyD rt f)
+
+    fun mapRelTy (Base rt) f = Base (f rt)
+      | mapRelTy (ColonArrow (tyd,rt)) f = 
+          ColonArrow (tyd, f rt)
   
     fun newBase rt = Base rt
 
@@ -383,11 +417,21 @@ struct
       | unify _ = raise (Fail "Projection expected to be 0th order\
           \ in one case, and 1st order in another")
 
-    fun instTyvars (substs,t) =
-      raise (Fail "Unimpl")
+    fun instTyvars (eqs,t) =
+      let
+        val t' = mapRelTy t (fn rt => RelType.instTyvars 
+          (eqs,rt))
+        fun inst v' = Vector.peekMap (eqs, fn (v,tyd) => 
+          if tyVarEq (v,v') then SOME tyd else NONE)
+        fun mapf tyd = TyD.mapTvar tyd (fn v => case inst v of
+          SOME tyd => tyd | NONE => TyD.makeTvar v)
+      in
+        case t' of Base _ => t' 
+        | ColonArrow (tyd,rt) => ColonArrow (mapf tyd, rt)
+      end
 
-    fun instRelTyvars (substs,t) =
-      raise (Fail "Unimpl")
+    fun instRelTyvars (eqs,t) = mapRelTy t (fn rt =>
+      RelType.instRelTyvars (eqs,rt))
 
     fun domain (ColonArrow (d,_)) = d
       | domain _ = raise (Fail "No domain for base rel type")
@@ -396,6 +440,8 @@ struct
       | range _ = raise (Fail "No range for base rel type")
 
   end
+
+  structure SPS = SimpleProjSort
 
   structure ProjSort =
   struct
@@ -413,6 +459,16 @@ struct
     fun range (T{sort, ...}) = SimpleProjSort.range sort
 
     fun paramSorts (T {paramsorts,...}) = paramsorts
+
+    fun instTyvars (eqs,T{paramsorts,sort}) =
+      T {paramsorts = Vector.map (paramsorts,
+            fn ps => SPS.instTyvars (eqs,ps)),
+         sort = SPS.instTyvars (eqs,sort)}
+
+    fun instRelTyvars (eqs,T{paramsorts,sort}) =
+      T {paramsorts = Vector.map (paramsorts,
+            fn ps => SPS.instRelTyvars (eqs,ps)),
+         sort = SPS.instRelTyvars (eqs,sort)}
   end
 
   structure ProjSortScheme =
@@ -432,8 +488,27 @@ struct
 
     fun domain (T{sort, ...}) = ProjSort.domain sort
 
-    fun instantiate (substs, T {reltyvars, constraints, sort}) =
-      raise (Fail "Unimpl")
+    fun instantiate (eqs, T {reltyvars, constraints, sort}) =
+      let
+        fun inst v' = Vector.peekMap (eqs, fn (v,rty) => 
+          if RelTyvar.eq (v,v') then SOME rty else NONE)
+        (* Check that instanitation is complete *)
+        val _ = Vector.foreach (reltyvars, fn v => 
+          case inst v of SOME _ => ()
+          | NONE => Error.bug $ "Reltyvar instantiation incomplete")
+        val cs' = RelTyC.instRelTyvars (eqs,constraints)
+        val sort' = ProjSort.instRelTyvars (eqs,sort)
+      in
+        (cs',sort')
+      end
+
+    fun instTyvars (eqs, T {reltyvars, constraints, sort})=
+      let
+        val cs' = RelTyC.instTyvars (eqs,constraints)
+        val sort' = ProjSort.instTyvars (eqs,sort)
+      in
+        T {reltyvars = reltyvars, constraints = cs', sort = sort'}
+      end
   end
 
   structure ProjTypeScheme =
@@ -514,13 +589,13 @@ struct
       | Star instexp => (instExprToString instexp) ^ "*"
     fun termOfExpr expr = Expr expr
     fun instExprOfRel r = Relation r
+    fun instExprOfRelInst (r,ieats) = case Vector.length ieats of
+        0 => Relation r | _ => Inst {args = ieats, rel = r}
     fun instExprOfRelVar rv = Relvar rv
     fun ieatomOfInstExpr ie = Ie ie
     fun ieatomOfRel r = ieatomOfInstExpr $ instExprOfRel r
     fun ieatomOfRelVar rv = ieatomOfInstExpr $ instExprOfRelVar rv
     fun ieatomOfExpr rexpr = Re rexpr
-    fun instantiateRel (r,ieatoms) = Inst
-      {args = ieatoms, rel = r}
 
     fun mapRelInstExpr (Relation rid) f = f rid
       | mapRelInstExpr (Inst {args,rel}) f = Inst {
@@ -530,15 +605,74 @@ struct
       | mapRelIEAtom (Re expr) f = Re $ mapRelExpr expr f
 
     and mapRelExpr (X (e1,e2)) f = X (mapRelExpr e1 f, 
-      mapRelExpr e2 f)
+          mapRelExpr e2 f)
       | mapRelExpr (U (e1,e2)) f = U (mapRelExpr e1 f, 
-      mapRelExpr e2 f)
+          mapRelExpr e2 f)
       | mapRelExpr (R2 (ie,v)) f = R2 (mapRelInstExpr ie f, v)
       | mapRelExpr expr f = expr
 
     fun mapRel (Expr e) f = Expr $ mapRelExpr e f
       | mapRel (Star ie) f = Star $ mapRelInstExpr ie f
-      
+
+    fun ieMapRVarToExpr (Inst{args,rel}) f =
+          Inst {args = Vector.map (args, fn arg => 
+                       ieAtomMapRVarToExpr arg f),
+                rel = rel}
+      | ieMapRVarToExpr ie f = ie
+
+    and ieAtomMapRVarToExpr ieat f = case ieat of
+        Ie ie => Ie $ ieMapRVarToExpr ie f
+      | Re re => Re $ mapRVarToExpr re f
+
+    and mapRVarToExpr t (f : RelVar.t -> expr) : expr = 
+      let
+        val doIt = fn e => mapRVarToExpr e f
+      in
+        case t of
+          X (e1,e2) => X (doIt e1, doIt e2)
+        | U (e1,e2) => U (doIt e1, doIt e2)
+        | R1 rv => f rv
+        | R2 (ie,v) => R2 (ieMapRVarToExpr ie f ,v)
+        | T _ => t
+      end
+
+    fun ieMapRVarToIExpr (Inst{args,rel}) f =
+          Inst {args = Vector.map (args, fn arg => 
+                       ieAtomMapRVarToIExpr arg f),
+                rel = rel}
+      | ieMapRVarToIExpr (Relvar rv) f = f rv
+      | ieMapRVarToIExpr ie f = ie
+
+    and ieAtomMapRVarToIExpr ieat f = case ieat of
+        Ie ie => Ie $ ieMapRVarToIExpr ie f
+      | Re re => Re $ mapRVarToIExpr re f
+
+    and mapRVarToIExpr t (f : RelVar.t -> instexpr) : expr = 
+      let
+        val doIt = fn e => mapRVarToIExpr e f
+      in
+        case t of
+          X (e1,e2) => X (doIt e1, doIt e2)
+        | U (e1,e2) => U (doIt e1, doIt e2)
+        | R2 (ie,v) => R2 (ieMapRVarToIExpr ie f ,v)
+        | _ => t
+      end
+
+    fun instRelVars (eqs, expr) = Vector.fold (eqs, expr, 
+      fn ((v,ieat), expr) => case ieat of
+          Ie ie => mapRVarToIExpr expr (fn v' => 
+            if RelTyvar.eq (v,v') then ie else Relvar v)
+        | Re re => mapRVarToExpr expr (fn v' => 
+            if RelTyvar.eq (v,v') then re else R1 v))
+
+    fun instRelVarsInTerm (eqs,Expr e) = Expr $ instRelVars (eqs, e)
+      | instRelVarsInTerm (eqs,Star ie) = Star $ Vector.fold (eqs, ie,
+        fn ((v,ieat), ie) => case ieat of
+            Ie ie => ieMapRVarToIExpr ie (fn v' => 
+              if RelTyvar.eq (v,v') then ie else Relvar v)
+          | Re re => ieMapRVarToExpr ie (fn v' => 
+              if RelTyvar.eq (v,v') then re else R1 v))
+
     fun app (relId,var) = R2 (relId,var)
     fun union (e1,e2) = U (e1,e2)
     fun crossprd (e1,e2) = X (e1,e2)
@@ -594,7 +728,7 @@ struct
   structure StructuralRelation =
   struct
     datatype t = T of {id : RelId.t,
-                       params : RelId.t vector,
+                       params : RelVar.t vector,
                        map : (Pat.t option * RelLang.term)
                              vector}
 
@@ -613,15 +747,26 @@ struct
         patmap
       end
     
-    fun instantiate (T{id, params, map}) ieatoms =
-      raise (Fail "unimpl")
+    fun instantiate (eqs, (T{id, params, map})) =
+      let
+        fun inst v' = Vector.peekMap (eqs, fn (v,ieat) => 
+          if RelVar.eq (v,v') then SOME ieat else NONE)
+        (* Check that instanitation is complete *)
+        val _ = Vector.foreach (params, fn relvar => 
+          case inst relvar of SOME _ => ()
+          | NONE => Error.bug $ "RelVar instantiation incomplete")
+        val map' = Vector.map (map, fn (pato,rterm) =>
+          (pato, RelLang.instRelVarsInTerm (eqs, rterm)))
+      in
+        map'
+      end
 
     val toString = fn T{id,params,map} =>
       let
         val relstr = case Vector.length params of
           0 => RelId.toString id
         | _ => RelLang.instExprToString $
-            RelLang.instantiateRel (id, Vector.map 
+            RelLang.instExprOfRelInst (id, Vector.map 
               (params,RelLang.ieatomOfRel))
         val patmap = patMapToString map
       in

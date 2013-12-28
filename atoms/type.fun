@@ -20,6 +20,9 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
 
 	 	fun makeTunknown () = Tunknown
 
+    fun $ (f,arg) = f arg
+    infixr 5 $
+
     structure L = Layout
 
     fun toStrings (ts: t list) =
@@ -62,6 +65,15 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
             sameTypes (td1,td2)
         | (_,_) => false
       end
+
+    fun mapTvar t f = case t of
+        Tvar v => f v
+      | Tarrow (t1,t2) => Tarrow (mapTvar t1 f, mapTvar t2 f)
+      | Trecord tdrec => Trecord $ #1 $ Record.change (tdrec, 
+          fn tydv => (Vector.map (tydv,fn tyd => mapTvar tyd f),()))
+      | Tconstr (tycon,tyds) => Tconstr (tycon, List.map (tyds,
+          fn tyd => mapTvar tyd f))
+      | _ => t
 
     fun unifiable (t1,t2) = case (t1,t2) of
         (Tunknown,_) => false

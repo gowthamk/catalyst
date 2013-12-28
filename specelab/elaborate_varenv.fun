@@ -15,10 +15,15 @@ struct
   structure RefTyS = RefinementTypeScheme
   structure RP = Predicate.RelPredicate
   structure TypeSpec = RelSpec.TypeSpec
+  structure SR = StructuralRelation
   structure SPS = SimpleProjSort
   structure PTS = ProjTypeScheme
   structure PSS = ProjSortScheme
-  structure SPSBinds = ApplicativeMap (structure Key = RelVar
+  structure SPSBinds = ApplicativeMap (structure Key = 
+                                       struct 
+                                        open RelVar
+                                        val equal = eq
+                                       end
                                        structure Value = SPS)
   structure RelTyC = RelTyConstraint
 
@@ -385,7 +390,14 @@ struct
       open RelType
       val typeSynthRExpr = fn expr => typeSynthRExpr (re,spsB,tyDB,expr)
       fun unifyRelTypes (rt1,rt2) =
-        raise (Fail "unimpl")
+        let
+          val n1 = Vector.length $ relTyVarsIn rt1
+          val n2 = Vector.length $ relTyVarsIn rt2
+          val rc = RelTyC.new (rt1,rt2)
+          val rt = if n2 > n1 then rt2 else rt1
+        in
+          (rc,rt)
+        end
       fun doIt (e1,e2) = 
         let
           val (cs1,ty1) =  typeSynthRExpr e1
@@ -564,9 +576,10 @@ struct
                 ("Ind of unknown relation : "^(RelId.toString r)))
             val _ = assert (leneq (args,params), "Insufficient/too \
               \ many args to relation : "^(RelId.toString relId))
-            val sr = StructuralRelation.new {id = relId, 
+            val eqs = Vector.zip (params,args)
+            val sr = SR.new {id = relId, 
                 params = params, map = mapToSRMap map}
-            val map' = srMapToMap $ StructuralRelation.instantiate sr args 
+            val map' = srMapToMap $ SR.instantiate (eqs,sr) 
           in
             Vector.map (map', fn (pat,rexpr) => case pat of 
                 (Pat.Value _) => (pat,rexpr)
