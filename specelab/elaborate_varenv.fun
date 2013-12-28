@@ -184,7 +184,7 @@ struct
           fn (cvar,var,_,_) => (cvar,var))
       open RelLang
       val rexpr' = applySubsts substs rexpr
-      val ie = instantiateRel (id, Vector.map (params, 
+      val ie = instExprOfRelInst (id, Vector.map (params, 
         ieatomOfRelVar))
       val newref = fn var => RP.Eq (RelLang.app(ie,var),rexpr')
       val conRefTyS = VE.find ve convid
@@ -210,7 +210,7 @@ struct
       val paramSorts = ProjSort.paramSorts sort
       val typedParams = Vector.zip (params,paramSorts)
       val paramRefTy = RefSS.paramRefTy (typedParams, conRefTy)
-      val newRefSS = RefSS.generalize (reltyvars, constraints,
+      val newRefSS = RefSS.generalizeWith (reltyvars, constraints,
         paramRefTy)
       val newRefTyS = RefTyS.generalize (tyvars,newRefSS)
     in

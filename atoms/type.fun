@@ -75,6 +75,16 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
           fn tyd => mapTvar tyd f))
       | _ => t
 
+   fun foldTvar t b f = case t of
+        Tvar v => f (v,b)
+      | Tarrow (t1,t2) => foldTvar t1 (foldTvar t2 b f) f
+      | Trecord tdrec => Vector.fold (Record.range tdrec, b,
+          fn (t,acc) => foldTvar t acc f)
+      | Tconstr (tycon,tyds) => List.fold (tyds, b, 
+          fn (t,acc) => foldTvar t acc f)
+      | _ => b
+
+
     fun unifiable (t1,t2) = case (t1,t2) of
         (Tunknown,_) => false
       | (_,Tunknown) => true

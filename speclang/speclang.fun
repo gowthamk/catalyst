@@ -2,16 +2,35 @@ functor SpecLang (S : SPEC_LANG_STRUCTS) : SPEC_LANG =
 struct
   open S
   structure L = Layout
+  structure TyD = TypeDesc
 
   fun $ (f,arg) = f arg
   infixr 5 $
   val assert = Control.assert
+  val fst = fn (x,y) => x
   fun varStrEq (v1,v2) = (Var.toString v1 = Var.toString v2)
   fun varSubst (subst as (new,old)) v = if varStrEq (v,old) 
     then new else v
   val tyVarEq = fn (v1,v2) => (Tyvar.toString v1 = Tyvar.toString v2)
-
-  structure TyD = TypeDesc
+  fun instTyvars (eqs, t, mapTyD) =
+    let
+      fun inst v' = Vector.peekMap (eqs, fn (v,tyd) => 
+        if tyVarEq (v,v') then SOME tyd else NONE)
+      val mapf = fn tyd => TyD.mapTvar tyd (fn v =>
+        case inst v of NONE => TyD.makeTvar v
+          | SOME tyd' => tyd')
+    in
+      mapTyD t mapf
+    end
+  fun isValidInst (eqs, vars, isEq) = 
+    let
+      fun inst v' = Vector.peekMap (eqs, fn (v,x) => 
+        if isEq (v,v') then SOME x else NONE)
+    in
+      Vector.forall (vars, fn v => 
+        case inst v of SOME _ => true
+        | NONE => false)
+    end
 
   structure RelId = Var
 
@@ -81,6 +100,10 @@ struct
       | mapTyD (Cross (t1,t2)) f = Cross (mapTyD t1 f, mapTyD t2 f)
       | mapTyD t f = t
 
+    fun foldTyD (Tuple tv) b f = Vector.fold (tv,b,f)
+      | foldTyD (Cross (t1,t2)) b f = foldTyD t1 (foldTyD t2 b f) f
+      | foldTyD (Reltyvar _) b f = b
+
     fun mapRelTyVar t f = 
       let
         val doIt = fn t => mapRelTyVar t f
@@ -90,24 +113,17 @@ struct
         | Tuple _ => t
       end
 
-    fun relTyVarsIn t =
+    fun foldRelTyVar t b f = 
       let
-        fun doIt (Reltyvar v) = [v]
-          | doIt (Cross (t1,t2)) = List.concat [doIt t1, doIt t2]
-          | doIt (Tuple _) = []
+        val doIt = fn t => fn b => foldRelTyVar t b f
       in
-        Vector.fromList $ doIt t
-      end
+        case t of Reltyvar v => f (v,b)
+        | Cross (t1,t2) => doIt t1 $ doIt t2 b
+        | Tuple _ => b
 
-    fun instTyvars (eqs,t) = 
-      let
-        fun inst v' = Vector.peekMap (eqs, fn (v,tyd) => 
-          if tyVarEq (v,v') then SOME tyd else NONE)
-        fun mapf tyd = TyD.mapTvar tyd (fn v => case inst v of
-          SOME tyd => tyd | NONE => TyD.makeTvar v)
-      in
-        mapTyD t mapf
-      end
+      end 
+
+    val instTyvars = fn (eqs,t) => instTyvars (eqs,t,mapTyD)
 
     fun instRelTyvars (eqs,t) = 
       let
@@ -118,6 +134,9 @@ struct
           SOME rt => rt | NONE => newVar v)
       end 
   end
+
+  fun instRelTyvars (eqs, t, mapRelTy) = mapRelTy t (fn rt =>
+    RelType.instRelTyvars (eqs,rt))
 
   structure RelTyConstraint =
   struct
@@ -133,17 +152,25 @@ struct
 
     val relTyVarEq = RelTyvar.eq
 
-    fun delegateInst g (eqs,cs) =
-      let
-        fun doIt c = case eq c of (rt1,rt2) => 
-          new (g (eqs,rt1), g (eqs,rt2))
-      in
-        Vector.map (cs,doIt)
-      end
+    fun mapTyD (Equal (rt1,rt2)) f = new (RelType.mapTyD rt1 f, 
+      RelType.mapTyD rt2 f)
+
+    fun mapRelTy (Equal (rt1,rt2)) f = new (f rt1, f rt2)
+
+    fun foldTyD (Equal (rt1,rt2)) b f = RelType.foldTyD rt1
+      (RelType.foldTyD rt2 b f) f
+
+    fun foldRelTy (Equal (rt1,rt2)) b f = f (rt1, f (rt2, b))
+
+    fun delegateInst g (eqs,cs) = Vector.map (cs, fn c => 
+      mapRelTy c (fn rt => g (eqs,rt)))
 
     val instTyvars = delegateInst RelType.instTyvars
 
     val instRelTyvars = delegateInst RelType.instRelTyvars
+
+    val relTyVarsIn =  fn rt => Vector.fromList $ 
+      RelType.foldRelTyVar rt [] (fn (v,acc) => v::acc)
 
     fun assertCompatible (tv1 : TyD.t vector,tv2) =
       Vector.foreach2 (tv1,tv2, fn (tyd1,tyd2) => 
@@ -155,7 +182,7 @@ struct
         open RelType
         fun assertNotCirc (v,rt) = 
           let
-            val rhsvs = RelType.relTyVarsIn rt
+            val rhsvs = relTyVarsIn rt
             val _ = Vector.foreach (rhsvs, fn rhsv =>
               assert (not $ relTyVarEq (v,rhsv), "Circular\
                 \ relty constraint. Unsolvable."))
@@ -334,7 +361,7 @@ struct
         fun notNewRTyVar v = List.forall (newrtyvs,
           fn v' => not (relTyVarEq (v,v')))
         val rtyvOp = Vector.loop (sol, 
-          fn (_,rty) => case Vector.peek (RelType.relTyVarsIn rty,
+          fn (_,rty) => case Vector.peek (relTyVarsIn rty,
             fn v => notNewRTyVar v andalso notInDomain v) of
               SOME v => SOME $ SOME v
             | NONE => NONE,
@@ -401,9 +428,16 @@ struct
       | mapTyD (ColonArrow (tyd,rt)) f = ColonArrow (f tyd, 
           RelType.mapTyD rt f)
 
+    fun foldTyD (Base rt) b f = RelType.foldTyD rt b f
+      | foldTyD (ColonArrow (tyd,rt)) b f = f (tyd, 
+            RelType.foldTyD rt b f)
+
     fun mapRelTy (Base rt) f = Base (f rt)
       | mapRelTy (ColonArrow (tyd,rt)) f = 
           ColonArrow (tyd, f rt)
+
+    fun foldRelTy (Base rt) b f = f (rt,b)
+      | foldRelTy (ColonArrow (_,rt)) b f = f (rt,b)
   
     fun newBase rt = Base rt
 
@@ -417,21 +451,9 @@ struct
       | unify _ = raise (Fail "Projection expected to be 0th order\
           \ in one case, and 1st order in another")
 
-    fun instTyvars (eqs,t) =
-      let
-        val t' = mapRelTy t (fn rt => RelType.instTyvars 
-          (eqs,rt))
-        fun inst v' = Vector.peekMap (eqs, fn (v,tyd) => 
-          if tyVarEq (v,v') then SOME tyd else NONE)
-        fun mapf tyd = TyD.mapTvar tyd (fn v => case inst v of
-          SOME tyd => tyd | NONE => TyD.makeTvar v)
-      in
-        case t' of Base _ => t' 
-        | ColonArrow (tyd,rt) => ColonArrow (mapf tyd, rt)
-      end
+    val instTyvars = fn (eqs,t) => instTyvars (eqs,t,mapTyD)
 
-    fun instRelTyvars (eqs,t) = mapRelTy t (fn rt =>
-      RelType.instRelTyvars (eqs,rt))
+    val instRelTyvars = fn (eqs,t) => instRelTyvars (eqs,t,mapRelTy)
 
     fun domain (ColonArrow (d,_)) = d
       | domain _ = raise (Fail "No domain for base rel type")
@@ -460,6 +482,14 @@ struct
 
     fun paramSorts (T {paramsorts,...}) = paramsorts
 
+    fun foldWith g (T{paramsorts,sort}) b f = 
+      g sort (Vector.fold (paramsorts, b, fn (p,acc) => 
+        g p acc f)) f
+
+    fun foldTyD t b f = foldWith SimpleProjSort.foldTyD t b f
+
+    fun foldRelTy t b f = foldWith SimpleProjSort.foldRelTy t b f
+
     fun instTyvars (eqs,T{paramsorts,sort}) =
       T {paramsorts = Vector.map (paramsorts,
             fn ps => SPS.instTyvars (eqs,ps)),
@@ -481,21 +511,35 @@ struct
       (Vector.toString RelTyvar.toString reltyvars)^" "^
         (ProjSort.toString sort)
 
-    fun generalize (cstrs,sort) =
-      raise (Fail "Unimpl")
-
     fun specialize (T{sort, ...}) = sort
 
     fun domain (T{sort, ...}) = ProjSort.domain sort
 
+    fun foldTyD (T{constraints,sort,...}) b f = 
+      ProjSort.foldTyD sort (Vector.fold (constraints, b,
+        fn (c,acc) => RelTyC.foldTyD c acc f)) f
+
+    fun foldRelTy (T{constraints,sort,...}) b f = 
+      ProjSort.foldRelTy sort (Vector.fold (constraints, b,
+        fn (c,acc) => RelTyC.foldRelTy c acc f)) f
+
+    fun generalize (cstrs,sort) =
+      let
+        val {add, ...} = List.set {equals = RelTyvar.eq, 
+          layout = (L.str o RelTyvar.toString) }
+        val t = T {reltyvars = Vector.new0 (),
+          constraints = cstrs, sort = sort}
+        val reltyvars = Vector.fromList $ foldRelTy t [] 
+          (fn (rt,acc1) => RelType.foldRelTyVar rt acc1 
+            (fn (rv,acc2) => add (acc2,rv)))
+      in
+        T {reltyvars = reltyvars, constraints = cstrs, sort = sort}
+      end
+      
     fun instantiate (eqs, T {reltyvars, constraints, sort}) =
       let
-        fun inst v' = Vector.peekMap (eqs, fn (v,rty) => 
-          if RelTyvar.eq (v,v') then SOME rty else NONE)
-        (* Check that instanitation is complete *)
-        val _ = Vector.foreach (reltyvars, fn v => 
-          case inst v of SOME _ => ()
-          | NONE => Error.bug $ "Reltyvar instantiation incomplete")
+        val _ = assert (isValidInst (eqs, reltyvars, RelTyvar.eq),
+           "Reltyvar instantiation incomplete")
         val cs' = RelTyC.instRelTyvars (eqs,constraints)
         val sort' = ProjSort.instRelTyvars (eqs,sort)
       in
@@ -521,7 +565,16 @@ struct
       ^ ". " ^ (ProjSortScheme.toString sortscheme)
 
     fun generalize ss =
-      raise (Fail "Unimpl")
+      let
+        val {add, ...} = List.set {equals = tyVarEq,
+          layout = (L.str o Tyvar.toString) }
+        val tyvars = Vector.fromList $ 
+          ProjSortScheme.foldTyD ss [] 
+          (fn (tyd,acc1) => TyD.foldTvar tyd acc1
+            (fn (tvar,acc2) => add (acc2,tvar)))
+      in
+        T {tyvars = tyvars, sortscheme = ss}
+      end
 
     fun specialize (T{sortscheme, ...}) = sortscheme
 
@@ -529,8 +582,13 @@ struct
     
     fun domain (T{sortscheme, ...}) = ProjSortScheme.domain sortscheme
 
-    fun instantiate (substs, T{tyvars,sortscheme}) = 
-      raise (Fail "Unimpl")
+    fun instantiate (eqs, T{tyvars,sortscheme}) = 
+      let
+        val _ = assert (isValidInst (eqs, tyvars, tyVarEq),
+           "Reltyvar instantiation incomplete")
+      in
+        ProjSortScheme.instTyvars (eqs,sortscheme)
+      end
       
   end
 
@@ -749,12 +807,8 @@ struct
     
     fun instantiate (eqs, (T{id, params, map})) =
       let
-        fun inst v' = Vector.peekMap (eqs, fn (v,ieat) => 
-          if RelVar.eq (v,v') then SOME ieat else NONE)
-        (* Check that instanitation is complete *)
-        val _ = Vector.foreach (params, fn relvar => 
-          case inst relvar of SOME _ => ()
-          | NONE => Error.bug $ "RelVar instantiation incomplete")
+        val _ = assert (isValidInst (eqs, params, RelVar.eq),
+           "RelVar instantiation incomplete")
         val map' = Vector.map (map, fn (pato,rterm) =>
           (pato, RelLang.instRelVarsInTerm (eqs, rterm)))
       in
@@ -838,6 +892,15 @@ struct
 
       fun applySubst subst t = exprMap t 
         (RelLang.applySubsts $ Vector.new1 subst)
+      
+      fun mapRExpr t f = 
+        let
+          val doIt = fn (e1,e2) => (f e1, f e2)
+        in
+          case t of Eq x => Eq $ doIt x
+          | Sub x => Sub $ doIt x
+          | SubEq x => SubEq $ doIt x
+        end 
     end
     datatype t =  True
                |  Base of BasePredicate.t 
@@ -883,6 +946,13 @@ struct
     fun exists (tyb,t) = Exists (tyb,t)
 
     fun disj (t1,t2) = Disj (t1,t2)
+
+    fun mapRExpr t f = case t of
+        Rel rp => Rel $ RelPredicate.mapRExpr rp f
+      | Exists (binds,t) => Exists (binds, mapRExpr t f)
+      | Conj (t1,t2) => Conj (mapRExpr t1 f, mapRExpr t2 f)
+      | Disj (t1,t2) => Disj (mapRExpr t1 f, mapRExpr t2 f)
+      | _ => t
   end
 
   structure RefinementType =
@@ -949,6 +1019,14 @@ struct
       | _ => Error.bug "alphaRename attempted on non-base type"
 
     fun alphaRename refty = alphaRenameToVar refty (genVar())
+   
+    val instTyvars = fn (eqs,t) => instTyvars (eqs,t,mapTyD)
+
+    fun mapRExpr (t:t) (f : RelLang.expr -> RelLang.expr) = case t of
+        Base (v,t,p) => Base (v, t, Predicate.mapRExpr p f)
+      | Tuple tv => Tuple $ Vector.map (tv, fn (v,t) => 
+          (v, mapRExpr t f))
+      | Arrow ((v,t1), t2) => Arrow ((v, mapRExpr t1 f), mapRExpr t2 f)
 
   end
 
@@ -964,37 +1042,61 @@ struct
                         paramrefty : paramrefty }
     fun paramRefTy (params,refty) = {params = params, refty = refty}
 
-    fun instRelTyvars (t,reltyv) = 
-      raise (Fail "unimpl")
+    fun prtMapTyD {params, refty} f = {params = Vector.map 
+          (params, fn (r,spt) =>
+            (r,SimpleProjSort.mapTyD spt f)),
+         refty = RefinementType.mapTyD refty f}
 
-    fun instRelParams ({params,refty}, typedIeAtoms) =
-      raise (Fail "unimpl")
+    fun mapTyD (T {reltyvars, constraints, paramrefty}) f =
+      T {reltyvars = reltyvars, 
+          constraints = Vector.map (constraints, fn c =>
+            RelTyC.mapTyD c f),
+          paramrefty = prtMapTyD paramrefty f}
 
-    fun generalize (reltyvs, cs, prefty) =
+    fun prtInstRelTyvars (eqs, {params, refty}) =
+      let
+        val ps' = Vector.map (params, fn (v,sps) => 
+          (v, SPS.instRelTyvars (eqs,sps)))
+        (* refty is agnostic of reltys *)
+        val refty' = refty
+      in
+        {params = ps', refty = refty'}
+      end
+
+    fun instantiate (eqs, T {reltyvars, constraints, paramrefty}) =
+      let
+        val _ = assert (isValidInst (eqs, reltyvars, RelTyvar.eq),
+           "RelVar instantiation incomplete")
+        val cs' = RelTyC.instRelTyvars (eqs,constraints)
+        val prt' = prtInstRelTyvars (eqs, paramrefty)
+      in
+        (cs',prt')
+      end
+
+    val instTyvars = fn (eqs, t) => instTyvars (eqs, t, mapTyD)
+
+    fun instRelParams (eqs, {params,refty}) =
+      let
+        val _ = assert (isValidInst (eqs, Vector.map (params,fst), 
+          RelVar.eq), "Relvar instantiation incomplete")
+      in
+        RefinementType.mapRExpr refty (fn re => RelLang.instRelVars
+          (eqs,re))
+      end
+
+    fun generalizeWith (reltyvs, cs, prefty) =
       T {reltyvars = reltyvs, constraints = cs, paramrefty = prefty}
 
     fun fromRefTy refty = 
       let
         val empty = fn _ => Vector.new0 ()
       in
-        generalize (empty(), empty(), paramRefTy (empty(), refty))
+        generalizeWith (empty(), empty(), paramRefTy (empty(), refty))
       end 
 
     fun toRefTy (T {paramrefty = {refty,...}, ...}) = refty
 
-    fun instantiate (T{reltyvars, constraints, paramrefty}, reltys) = 
-      raise (Fail "unimpl")
-
-    fun mapTyD' {params, refty} f = {params = Vector.map 
-          (params, fn (r,spt) =>
-            (r,SimpleProjSort.mapTyD spt f)),
-         refty = RefinementType.mapTyD refty f}
-
-    fun mapTyD (T {reltyvars, constraints, paramrefty}) f =
-      T {reltyvars = reltyvars, constraints = constraints, 
-          paramrefty = mapTyD' paramrefty f}
-
-    fun layout' {params,refty} = 
+    fun prtLayout {params,refty} = 
       let
         fun typedParamLyt (r,sprojty) = L.str $ 
           (RelVar.toString r) ^ " :: " ^
@@ -1009,7 +1111,7 @@ struct
       let
         val rtyvlyt = L.vector $ Vector.map (reltyvars,fn rtyv =>
           L.str $ RelTyvar.toString rtyv)
-        val prflyt = layout' paramrefty
+        val prflyt = prtLayout paramrefty
       in
         L.seq [rtyvlyt, L.str ". ", prflyt]
       end

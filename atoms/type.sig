@@ -28,5 +28,6 @@ signature TYPE_DESC =
 	  val sameType : (t * t) -> bool
     val unifiable : (t * t) -> bool
     val mapTvar : t -> (Tyvar.t -> t) -> t
+    val foldTvar : t -> 'a -> (Tyvar.t * 'a -> 'a) -> 'a
     val instantiateTyvars : (t * Tyvar.t) vector -> t -> t 
    end
