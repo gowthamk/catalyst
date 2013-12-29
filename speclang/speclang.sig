@@ -48,6 +48,7 @@ sig
     val solvePartial : t vector -> ((RelTyvar.t * RelType.t) vector 
       * (t vector))
     val new : RelType.t * RelType.t -> t
+    val unifyRelTypes : RelType.t * RelType.t -> (t option * RelType.t)
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
     val foldTyD : t -> 'a -> (TypeDesc.t * 'a -> 'a) -> 'a
     val mapRelTy : t -> (RelType.t -> RelType.t) -> t

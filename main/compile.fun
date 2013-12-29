@@ -112,12 +112,12 @@ structure LookupConstant = LookupConstant (structure Const = Const
                                            structure Ffi = Ffi)
 structure ANormalize = ANormalize (structure CoreML = CoreML
                                    structure ANormalCoreML = ANormalCoreML)
-(*
 structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
                                    structure ANormalCoreML = ANormalCoreML)
 structure VE = ElaborateVarEnv.VE
 structure RE = ElaborateVarEnv.RE
 
+(*
 structure SpecVerify = SpecVerify (structure VE = VE
                                    structure RE = RE
                                    structure ANormalCoreML = ANormalCoreML)
@@ -519,7 +519,6 @@ in
                   else ()
                end
             val speclang = specast
-            (*
             val (ve,re) = ElaborateVarEnv.elaborate ancoreML speclang
             (* 
              * Hack : ML has ::, but not cons. So, ty(::) <- ty(cons) 
@@ -537,6 +536,7 @@ in
             val _ = Control.message (Control.Top, fn _ =>
               RE.layout re)
             val _ = print "\n"
+            (*
             val vcs = SpecVerify.doIt (ve,ancoreML)
             fun layouts (vcs,output) = (
               output $ Layout.str "Elaborated VarEnv:\n";

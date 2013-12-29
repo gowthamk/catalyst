@@ -388,16 +388,8 @@ struct
     let
       open RelLang
       open RelType
-      val typeSynthRExpr = fn expr => typeSynthRExpr (re,spsB,tyDB,expr)
-      fun unifyRelTypes (rt1,rt2) =
-        let
-          val n1 = Vector.length $ relTyVarsIn rt1
-          val n2 = Vector.length $ relTyVarsIn rt2
-          val rc = RelTyC.new (rt1,rt2)
-          val rt = if n2 > n1 then rt2 else rt1
-        in
-          (rc,rt)
-        end
+      val typeSynthRExpr = fn expr => 
+        typeSynthRExpr (re,spsB,tyDB,expr)
       fun doIt (e1,e2) = 
         let
           val (cs1,ty1) =  typeSynthRExpr e1
@@ -424,9 +416,11 @@ struct
       | U (e1,e2) => 
         let
           val (cs,ty1,ty2) = doIt (e1,e2)
-          val (newrc, ty) = unifyRelTypes (ty1,ty2)
+          val (newrcOp, ty) = RelTyC.unifyRelTypes (ty1,ty2)
+          val cs' = case newrcOp of NONE => cs
+            | SOME newrc => C.newRCstr cs newrc
         in
-          (C.newRCstr cs newrc, ty)
+          (cs', ty)
         end
       | R1 rv => 
         let
@@ -495,12 +489,15 @@ struct
                   fn ((_,var,tyD,_),tyDB) => TyDBinds.add tyDB var tyD)
               val (cs,relTy) = typeSynthRExpr (re, spsB, tyDB, rexpr)
               val cs = Constraints.merge (cs,csacc)
-              val sort = SPS.newColonArrow (datTyD, relTy)
-              val cs = case relTySOp of NONE => cs 
-                | SOME (SPS.ColonArrow (d,r)) => (assert (TyD.sameType
-                    (datTyD,d), "Relation domains differ in case \
-                      \branches");
-                    Constraints.newRCstr cs $ RelTyC.new (relTy,r))
+              val (cs,range) = case relTySOp of NONE => (cs,relTy)
+                | SOME (SPS.ColonArrow (d,relTy')) => (assert 
+                  (TyD.sameType (datTyD,d), "Relation domains \
+                    \ differ in case branches");
+                  case RelTyC.unifyRelTypes (relTy,relTy') of
+                    (NONE,newr) => (cs,newr)
+                  | (SOME rc, newr) => (Constraints.newRCstr cs rc,
+                      newr))
+              val sort = SPS.newColonArrow (datTyD, range)
             in
               (cs,SOME sort)
             end
@@ -517,7 +514,7 @@ struct
        * sorts
        *)
       val {yes=nullable,no} = Vector.partition (tysolop, 
-        fn (tyvar,tydop) => case tydop of None => true | _ => false)
+        fn (tyvar,tydop) => case tydop of NONE => true | _ => false)
       val tysol = Vector.map (no, fn (tyvar,SOME tyd) => 
         (tyvar,tyd))
       val initCAPS = Vector.map (params, SPSBinds.find spsB)
@@ -638,6 +635,6 @@ struct
           (Vector.new0 (), refTy)))
       *)
     in
-      (initialVE,elabRE)
+      (refinedVE,elabRE)
     end
 end

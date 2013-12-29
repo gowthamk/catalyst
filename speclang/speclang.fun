@@ -89,12 +89,17 @@ struct
 
     fun newTuple tv = Tuple tv
     fun newVar rv = Reltyvar rv
+    val empty = Tuple $ Vector.new0 ()
       
-    fun crossPrdType (t1 as Tuple tyds1, t2 as Tuple tyds2) =
+    fun crossPrdType (t1,t2) = case (t1,t2) of
+        (Tuple tyds1, Tuple tyds2) =>
         (case (Vector.length tyds1, Vector.length tyds2) of
-          (0,_) => t1 | (_,0) => t2 
-        | _ => Tuple $ Vector.concat [tyds1,tyds2])
-      | crossPrdType (t1,t2) = Cross (t1,t2)
+          (0,_) => empty | (_,0) => empty)
+      | (Tuple tyds1,_) => if Vector.length tyds1 = 0 then empty
+          else Cross (t1,t2)
+      | (_,Tuple tyds2) => if Vector.length tyds2 = 0 then empty
+          else Cross (t1,t2)
+      | _ => Cross (t1,t2)
 
     fun mapTyD (Tuple tv) f = Tuple $ Vector.map (tv,f)
       | mapTyD (Cross (t1,t2)) f = Cross (mapTyD t1 f, mapTyD t2 f)
@@ -171,6 +176,31 @@ struct
 
     val relTyVarsIn =  fn rt => Vector.fromList $ 
       RelType.foldRelTyVar rt [] (fn (v,acc) => v::acc)
+
+    fun unifyRelTypes (rt1,rt2) = 
+      let
+        val rc = fn _ => new (rt1,rt2)
+        val rt = fn _ => 
+          let
+            val n1 = Vector.length $ relTyVarsIn rt1
+            val n2 = Vector.length $ relTyVarsIn rt2
+          in
+            if n2 < n1 then rt2 else rt1
+          end
+        open RelType
+      in
+        case (rt1,rt2) of
+          (Tuple tyds1, Tuple tyds2) =>
+          (case (Vector.length tyds1, Vector.length tyds2) of
+            (0,_) => (NONE, rt2) | (_,0) => (NONE,rt1))
+        | (Tuple tyds1,_) => if Vector.length tyds1 = 0 
+            then (NONE, rt2) 
+            else (SOME $ rc (), rt ())
+        | (_,Tuple tyds2) => if Vector.length tyds2 = 0 
+            then (NONE, rt1) 
+            else (SOME $ rc (), rt ())
+        | _ => (SOME $ rc (), rt ())
+      end 
 
     fun assertCompatible (tv1 : TyD.t vector,tv2) =
       Vector.foreach2 (tv1,tv2, fn (tyd1,tyd2) => 
@@ -659,6 +689,8 @@ struct
       | mapRelInstExpr (Inst {args,rel}) f = Inst {
           args = Vector.map (args, fn ieat => mapRelIEAtom ieat f),
           rel = rel}
+      | mapRelInstExpr rv f = rv
+
     and mapRelIEAtom (Ie ie) f = Ie $ mapRelInstExpr ie f
       | mapRelIEAtom (Re expr) f = Re $ mapRelExpr expr f
 
