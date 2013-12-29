@@ -1,0 +1,6 @@
+relation (Rhd R)(cons(x,xs)) = R(x) | nil = {()};
+relation (Rmem R) = Rhd[R]*;
+relation (Rob R)(cons(x,xs)) = R(x) X Rmem[R](xs) | nil = {()};
+relation (Robs R) = Rob[R]*;
+relation RId (x) = {(x)};
+relation Robs1 = Robs[RId];

@@ -72,7 +72,7 @@ infixr 5 $
   | valpat of Pat.value
   | conargs of Var.t vector
   | idseq of Var.t list
-  | starterm of term
+  | iterm of term
   | rterm of term
   | instexpr of instexpr
   | varop of Var.t option
@@ -122,14 +122,14 @@ reldec : RELATION ID patmatchseq  (* 6 *)
                 params = Vector.fromList params,
                 map = Vector.fromList (List.map (patmatchseq,
                   fn (pat,rterm) => (SOME pat,rterm)))})
-       | RELATION ID EQUALOP starterm
+       | RELATION ID EQUALOP iterm
           (StructuralRelation.T{id=RelId.fromString ID,
                 params = Vector.new0 (),
-                map = Vector.fromList [(NONE,starterm)]})
-       | RELATION LPAREN ID params RPAREN EQUALOP starterm
+                map = Vector.fromList [(NONE,iterm)]})
+       | RELATION LPAREN ID params RPAREN EQUALOP iterm
           (StructuralRelation.T{id=RelId.fromString ID,
                 params = Vector.fromList params,
-                map = Vector.fromList [(NONE,starterm)]})
+                map = Vector.fromList [(NONE,iterm)]})
 
 params : ID ([RelVar.fromString ID])
        | ID params ((RelVar.fromString ID)::params)
@@ -137,7 +137,7 @@ params : ID ([RelVar.fromString ID])
 patmatchseq : patmatch PIPE patmatchseq (patmatch :: patmatchseq)
             | patmatch ([patmatch])
 
-patmatch : pat EQUALOP rexpr (pat,Expr rexpr)
+patmatch : pat EQUALOP rexpr (pat, Atom (Re rexpr))
 
 (* 
  * Syntactic convention - an Id in isolation is a nullary cons.
@@ -158,7 +158,8 @@ valpat : LPAREN idseq RPAREN (case idseq of
 idseq : ID ([Var.fromString ID]) (* 19 *)
       | ID COMMA idseq ((Var.fromString ID)::idseq)
 
-starterm : instexpr STAR (Star instexpr)
+iterm : ieatom (Atom ieatom)
+      | instexpr STAR (Star instexpr)
 
 (* All relations parsed as concrete relations *)
 instexpr : ID (Relation (RelId.fromString ID))

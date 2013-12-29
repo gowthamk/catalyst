@@ -640,7 +640,7 @@ struct
              | R1 of RelVar.t
              | R2 of instexpr * Var.t
 
-    datatype term = Expr of expr
+    datatype term = Atom of ieatom
                   | Star of instexpr
 
     val elemToString = fn el => case el of
@@ -673,9 +673,10 @@ struct
     val exprToString = exprToString
 
     val termToString = fn trm => case trm of
-        Expr e => exprToString e
+        Atom e => ieatomToString e
       | Star instexp => (instExprToString instexp) ^ "*"
-    fun termOfExpr expr = Expr expr
+    fun termOfExpr expr = Atom $ Re expr
+    fun termOfIExpr ie = Atom $ Ie ie 
     fun instExprOfRel r = Relation r
     fun instExprOfRelInst (r,ieats) = case Vector.length ieats of
         0 => Relation r | _ => Inst {args = ieats, rel = r}
@@ -701,7 +702,7 @@ struct
       | mapRelExpr (R2 (ie,v)) f = R2 (mapRelInstExpr ie f, v)
       | mapRelExpr expr f = expr
 
-    fun mapRel (Expr e) f = Expr $ mapRelExpr e f
+    fun mapRel (Atom ieat) f = Atom $ mapRelIEAtom ieat f
       | mapRel (Star ie) f = Star $ mapRelInstExpr ie f
 
     fun ieMapRVarToExpr (Inst{args,rel}) f =
@@ -748,20 +749,28 @@ struct
         | _ => t
       end
 
-    fun instRelVars (eqs, expr) = Vector.fold (eqs, expr, 
+    fun ieInstRelVars (eqs, ie) : instexpr = Vector.fold (eqs, ie, 
+      fn ((v,ieat), ie) => case ieat of
+          Ie ie => ieMapRVarToIExpr ie (fn v' => 
+            if RelTyvar.eq (v,v') then ie else Relvar v)
+        | Re re => ieMapRVarToExpr ie (fn v' => 
+            if RelTyvar.eq (v,v') then re else R1 v))
+
+    and ieAtomInstRelVars (eqs, ieat) : ieatom = case ieat of
+        Ie ie => Ie (ieInstRelVars (eqs, ie))
+      | Re re => Re (instRelVars (eqs, re))
+
+    and instRelVars (eqs, expr) = Vector.fold (eqs, expr, 
       fn ((v,ieat), expr) => case ieat of
           Ie ie => mapRVarToIExpr expr (fn v' => 
             if RelTyvar.eq (v,v') then ie else Relvar v)
         | Re re => mapRVarToExpr expr (fn v' => 
             if RelTyvar.eq (v,v') then re else R1 v))
 
-    fun instRelVarsInTerm (eqs,Expr e) = Expr $ instRelVars (eqs, e)
-      | instRelVarsInTerm (eqs,Star ie) = Star $ Vector.fold (eqs, ie,
-        fn ((v,ieat), ie) => case ieat of
-            Ie ie => ieMapRVarToIExpr ie (fn v' => 
-              if RelTyvar.eq (v,v') then ie else Relvar v)
-          | Re re => ieMapRVarToExpr ie (fn v' => 
-              if RelTyvar.eq (v,v') then re else R1 v))
+    fun instRelVarsInTerm (eqs,Atom ieat) = Atom $ ieAtomInstRelVars
+            (eqs, ieat)
+      | instRelVarsInTerm (eqs,Star ie) = Star $ ieInstRelVars 
+            (eqs, ie)
 
     fun app (relId,var) = R2 (relId,var)
     fun union (e1,e2) = U (e1,e2)

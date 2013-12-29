@@ -7,7 +7,7 @@ state 0:
 	LPAREN	shift 6
 	ID	shift 5
 
-	start	goto 120
+	start	goto 121
 	spec	goto 4
 	decsandtys	goto 3
 	reldec	goto 2
@@ -79,8 +79,8 @@ state 7:
 
 	reldec : RELATION . ID patmatchseq 
 	reldec : RELATION . LPAREN ID params RPAREN patmatchseq 
-	reldec : RELATION . ID EQUALOP starterm 
-	reldec : RELATION . LPAREN ID params RPAREN EQUALOP starterm 
+	reldec : RELATION . ID EQUALOP iterm 
+	reldec : RELATION . LPAREN ID params RPAREN EQUALOP iterm 
 
 	LPAREN	shift 14
 	ID	shift 13
@@ -160,7 +160,7 @@ state 12:
 state 13:
 
 	reldec : RELATION ID . patmatchseq 
-	reldec : RELATION ID . EQUALOP starterm 
+	reldec : RELATION ID . EQUALOP iterm 
 
 	EQUALOP	shift 33
 	LPAREN	shift 32
@@ -178,7 +178,7 @@ state 13:
 state 14:
 
 	reldec : RELATION LPAREN . ID params RPAREN patmatchseq 
-	reldec : RELATION LPAREN . ID params RPAREN EQUALOP starterm 
+	reldec : RELATION LPAREN . ID params RPAREN EQUALOP iterm 
 
 	ID	shift 34
 
@@ -206,20 +206,20 @@ state 16:
 
 state 17:
 
-	tyatom : basety .  (reduce by rule 50)
+	tyatom : basety .  (reduce by rule 51)
 
 
 
-	.	reduce by rule 50
+	.	reduce by rule 51
 
 
 state 18:
 
-	refty : tyatom .  (reduce by rule 45)
-	vartyatom : tyatom .  (reduce by rule 47)
+	refty : tyatom .  (reduce by rule 46)
+	vartyatom : tyatom .  (reduce by rule 48)
 
-	SEMICOLON	reduce by rule 45
-	ARROW	reduce by rule 47
+	SEMICOLON	reduce by rule 46
+	ARROW	reduce by rule 48
 
 
 	.	error
@@ -237,20 +237,20 @@ state 19:
 
 state 20:
 
-	typespec : ID COLON refty .  (reduce by rule 43)
+	typespec : ID COLON refty .  (reduce by rule 44)
 
 
 
-	.	reduce by rule 43
+	.	reduce by rule 44
 
 
 state 21:
 
-	basety : ID .  (reduce by rule 52)
+	basety : ID .  (reduce by rule 53)
 
 
 
-	.	reduce by rule 52
+	.	reduce by rule 53
 
 
 state 22:
@@ -372,12 +372,16 @@ state 32:
 
 state 33:
 
-	reldec : RELATION ID EQUALOP . starterm 
+	reldec : RELATION ID EQUALOP . iterm 
 
-	ID	shift 49
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
-	starterm	goto 48
-	instexpr	goto 47
+	iterm	goto 50
+	instexpr	goto 49
+	ieatom	goto 48
+	ratom	goto 47
 
 	.	error
 
@@ -385,11 +389,11 @@ state 33:
 state 34:
 
 	reldec : RELATION LPAREN ID . params RPAREN patmatchseq 
-	reldec : RELATION LPAREN ID . params RPAREN EQUALOP starterm 
+	reldec : RELATION LPAREN ID . params RPAREN EQUALOP iterm 
 
 	ID	shift 12
 
-	params	goto 50
+	params	goto 54
 
 	.	error
 
@@ -402,7 +406,7 @@ state 35:
 	LCURLY	shift 22
 	ID	shift 21
 
-	refty	goto 51
+	refty	goto 55
 	vartyatom	goto 19
 	tyatom	goto 18
 	basety	goto 17
@@ -415,8 +419,8 @@ state 36:
 	basety : LCURLY ID . RCURLY 
 	basety : LCURLY ID . PIPE pred RCURLY 
 
-	RCURLY	shift 53
-	PIPE	shift 52
+	RCURLY	shift 57
+	PIPE	shift 56
 
 
 	.	error
@@ -424,18 +428,18 @@ state 36:
 
 state 37:
 
-	vartyatom : tyatom .  (reduce by rule 47)
+	vartyatom : tyatom .  (reduce by rule 48)
 
 
 
-	.	reduce by rule 47
+	.	reduce by rule 48
 
 
 state 38:
 
 	tyatom : LPAREN vartyatomseq . RPAREN 
 
-	RPAREN	shift 54
+	RPAREN	shift 58
 
 
 	.	error
@@ -443,20 +447,20 @@ state 38:
 
 state 39:
 
-	vartyatomseq : vartyatom .  (reduce by rule 48)
+	vartyatomseq : vartyatom .  (reduce by rule 49)
 	vartyatomseq : vartyatom . COMMA vartyatomseq 
 
-	COMMA	shift 55
+	COMMA	shift 59
 
 
-	.	reduce by rule 48
+	.	reduce by rule 49
 
 
 state 40:
 
 	typespec : LPAREN params RPAREN ID . COLON refty 
 
-	COLON	shift 56
+	COLON	shift 60
 
 
 	.	error
@@ -466,13 +470,13 @@ state 41:
 
 	patmatch : pat EQUALOP . rexpr 
 
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
-	instexpr	goto 59
-	rexpr	goto 58
-	ratom	goto 57
+	instexpr	goto 63
+	rexpr	goto 62
+	ratom	goto 61
 
 	.	error
 
@@ -485,7 +489,7 @@ state 42:
 	LCURLY	shift 31
 	ID	shift 30
 
-	patmatchseq	goto 62
+	patmatchseq	goto 64
 	patmatch	goto 28
 	pat	goto 27
 	valpat	goto 26
@@ -497,7 +501,7 @@ state 43:
 
 	valpat : LCURLY idseq . RPAREN 
 
-	RPAREN	shift 63
+	RPAREN	shift 65
 
 
 	.	error
@@ -508,7 +512,7 @@ state 44:
 	idseq : ID .  (reduce by rule 19)
 	idseq : ID . COMMA idseq 
 
-	COMMA	shift 64
+	COMMA	shift 66
 
 
 	.	reduce by rule 19
@@ -518,7 +522,7 @@ state 45:
 
 	valpat : LPAREN idseq . RPAREN 
 
-	RPAREN	shift 65
+	RPAREN	shift 67
 
 
 	.	error
@@ -530,103 +534,150 @@ state 46:
 	idseq : ID .  (reduce by rule 19)
 	idseq : ID . COMMA idseq 
 
-	COMMA	shift 64
-	LPAREN	shift 67
+	COMMA	shift 66
+	LPAREN	shift 69
 	LCURLY	shift 31
 
-	valpat	goto 66
+	valpat	goto 68
 
 	.	reduce by rule 19
 
 
 state 47:
 
-	starterm : instexpr . STAR 
-
-	STAR	shift 68
+	ieatom : ratom .  (reduce by rule 28)
 
 
-	.	error
+
+	.	reduce by rule 28
 
 
 state 48:
 
-	reldec : RELATION ID EQUALOP starterm .  (reduce by rule 7)
+	iterm : ieatom .  (reduce by rule 21)
+
+
+
+	.	reduce by rule 21
+
+
+state 49:
+
+	iterm : instexpr . STAR 
+	ieatom : instexpr .  (reduce by rule 27)
+	ratom : instexpr . LPAREN varop RPAREN 
+
+	STAR	shift 71
+	LPAREN	shift 70
+
+
+	.	reduce by rule 27
+
+
+state 50:
+
+	reldec : RELATION ID EQUALOP iterm .  (reduce by rule 7)
 
 
 
 	.	reduce by rule 7
 
 
-state 49:
-
-	instexpr : ID .  (reduce by rule 22)
-	instexpr : ID . ieatoms 
-
-	LBRACE	shift 70
-
-	ieatoms	goto 69
-
-	.	reduce by rule 22
-
-
-state 50:
-
-	reldec : RELATION LPAREN ID params . RPAREN patmatchseq 
-	reldec : RELATION LPAREN ID params . RPAREN EQUALOP starterm 
-
-	RPAREN	shift 71
-
-
-	.	error
-
-
 state 51:
 
-	refty : vartyatom ARROW refty .  (reduce by rule 46)
+	instexpr : ID .  (reduce by rule 23)
+	instexpr : ID . ieatoms 
 
+	LBRACE	shift 73
 
+	ieatoms	goto 72
 
-	.	reduce by rule 46
+	.	reduce by rule 23
 
 
 state 52:
 
-	basety : LCURLY ID PIPE . pred RCURLY 
+	ratom : LCURLY . LPAREN RPAREN RCURLY 
+	ratom : LCURLY . LPAREN elemseq RPAREN RCURLY 
 
-	TRUE	shift 75
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
+	LPAREN	shift 74
 
-	instexpr	goto 59
-	rexpr	goto 74
-	ratom	goto 57
-	pred	goto 73
-	rpatom	goto 72
 
 	.	error
 
 
 state 53:
 
-	basety : LCURLY ID RCURLY .  (reduce by rule 53)
+	ratom : LPAREN . rexpr RPAREN 
 
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
+	instexpr	goto 63
+	rexpr	goto 75
+	ratom	goto 61
 
-	.	reduce by rule 53
+	.	error
 
 
 state 54:
 
-	tyatom : LPAREN vartyatomseq RPAREN .  (reduce by rule 51)
+	reldec : RELATION LPAREN ID params . RPAREN patmatchseq 
+	reldec : RELATION LPAREN ID params . RPAREN EQUALOP iterm 
+
+	RPAREN	shift 76
 
 
-
-	.	reduce by rule 51
+	.	error
 
 
 state 55:
+
+	refty : vartyatom ARROW refty .  (reduce by rule 47)
+
+
+
+	.	reduce by rule 47
+
+
+state 56:
+
+	basety : LCURLY ID PIPE . pred RCURLY 
+
+	TRUE	shift 80
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
+
+	instexpr	goto 63
+	rexpr	goto 79
+	ratom	goto 61
+	pred	goto 78
+	rpatom	goto 77
+
+	.	error
+
+
+state 57:
+
+	basety : LCURLY ID RCURLY .  (reduce by rule 54)
+
+
+
+	.	reduce by rule 54
+
+
+state 58:
+
+	tyatom : LPAREN vartyatomseq RPAREN .  (reduce by rule 52)
+
+
+
+	.	reduce by rule 52
+
+
+state 59:
 
 	vartyatomseq : vartyatom COMMA . vartyatomseq 
 
@@ -635,14 +686,14 @@ state 55:
 	ID	shift 21
 
 	vartyatom	goto 39
-	vartyatomseq	goto 76
+	vartyatomseq	goto 81
 	tyatom	goto 37
 	basety	goto 17
 
 	.	error
 
 
-state 56:
+state 60:
 
 	typespec : LPAREN params RPAREN ID COLON . refty 
 
@@ -650,7 +701,7 @@ state 56:
 	LCURLY	shift 22
 	ID	shift 21
 
-	refty	goto 77
+	refty	goto 82
 	vartyatom	goto 19
 	tyatom	goto 18
 	basety	goto 17
@@ -658,20 +709,20 @@ state 56:
 	.	error
 
 
-state 57:
+state 61:
 
 	rexpr : ratom . CROSSPRD rexpr 
 	rexpr : ratom . UNION rexpr 
-	rexpr : ratom .  (reduce by rule 30)
+	rexpr : ratom .  (reduce by rule 31)
 
-	UNION	shift 79
-	CROSSPRD	shift 78
-
-
-	.	reduce by rule 30
+	UNION	shift 84
+	CROSSPRD	shift 83
 
 
-state 58:
+	.	reduce by rule 31
+
+
+state 62:
 
 	patmatch : pat EQUALOP rexpr .  (reduce by rule 13)
 
@@ -680,43 +731,17 @@ state 58:
 	.	reduce by rule 13
 
 
-state 59:
+state 63:
 
 	ratom : instexpr . LPAREN varop RPAREN 
 
-	LPAREN	shift 80
+	LPAREN	shift 70
 
 
 	.	error
 
 
-state 60:
-
-	ratom : LCURLY . LPAREN RPAREN RCURLY 
-	ratom : LCURLY . LPAREN elemseq RPAREN RCURLY 
-
-	LPAREN	shift 81
-
-
-	.	error
-
-
-state 61:
-
-	ratom : LPAREN . rexpr RPAREN 
-
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
-
-	instexpr	goto 59
-	rexpr	goto 82
-	ratom	goto 57
-
-	.	error
-
-
-state 62:
+state 64:
 
 	patmatchseq : patmatch PIPE patmatchseq .  (reduce by rule 11)
 
@@ -725,7 +750,7 @@ state 62:
 	.	reduce by rule 11
 
 
-state 63:
+state 65:
 
 	valpat : LCURLY idseq RPAREN .  (reduce by rule 18)
 
@@ -734,18 +759,18 @@ state 63:
 	.	reduce by rule 18
 
 
-state 64:
+state 66:
 
 	idseq : ID COMMA . idseq 
 
 	ID	shift 44
 
-	idseq	goto 83
+	idseq	goto 85
 
 	.	error
 
 
-state 65:
+state 67:
 
 	valpat : LPAREN idseq RPAREN .  (reduce by rule 17)
 
@@ -754,17 +779,17 @@ state 65:
 	.	reduce by rule 17
 
 
-state 66:
+state 68:
 
 	pat : LPAREN ID valpat . RPAREN 
 
-	RPAREN	shift 84
+	RPAREN	shift 86
 
 
 	.	error
 
 
-state 67:
+state 69:
 
 	valpat : LPAREN . idseq RPAREN 
 
@@ -775,51 +800,89 @@ state 67:
 	.	error
 
 
-state 68:
-
-	starterm : instexpr STAR .  (reduce by rule 21)
-
-
-
-	.	reduce by rule 21
-
-
-state 69:
-
-	instexpr : ID ieatoms .  (reduce by rule 23)
-
-
-
-	.	reduce by rule 23
-
-
 state 70:
 
-	ieatoms : LBRACE . ieatom RBRACE 
-	ieatoms : LBRACE . ieatom RBRACE ieatoms 
+	ratom : instexpr LPAREN . varop RPAREN 
 
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
+	ID	shift 88
 
-	instexpr	goto 87
-	ieatom	goto 86
-	ratom	goto 85
+	varop	goto 87
 
-	.	error
+	.	reduce by rule 37
 
 
 state 71:
 
-	reldec : RELATION LPAREN ID params RPAREN . patmatchseq 
-	reldec : RELATION LPAREN ID params RPAREN . EQUALOP starterm 
+	iterm : instexpr STAR .  (reduce by rule 22)
 
-	EQUALOP	shift 89
+
+
+	.	reduce by rule 22
+
+
+state 72:
+
+	instexpr : ID ieatoms .  (reduce by rule 24)
+
+
+
+	.	reduce by rule 24
+
+
+state 73:
+
+	ieatoms : LBRACE . ieatom RBRACE 
+	ieatoms : LBRACE . ieatom RBRACE ieatoms 
+
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
+
+	instexpr	goto 90
+	ieatom	goto 89
+	ratom	goto 47
+
+	.	error
+
+
+state 74:
+
+	ratom : LCURLY LPAREN . RPAREN RCURLY 
+	ratom : LCURLY LPAREN . elemseq RPAREN RCURLY 
+
+	TRUE	shift 97
+	FALSE	shift 96
+	RPAREN	shift 95
+	ID	shift 94
+	INT	shift 93
+
+	elem	goto 92
+	elemseq	goto 91
+
+	.	error
+
+
+state 75:
+
+	ratom : LPAREN rexpr . RPAREN 
+
+	RPAREN	shift 98
+
+
+	.	error
+
+
+state 76:
+
+	reldec : RELATION LPAREN ID params RPAREN . patmatchseq 
+	reldec : RELATION LPAREN ID params RPAREN . EQUALOP iterm 
+
+	EQUALOP	shift 100
 	LPAREN	shift 32
 	LCURLY	shift 31
 	ID	shift 30
 
-	patmatchseq	goto 88
+	patmatchseq	goto 99
 	patmatch	goto 28
 	pat	goto 27
 	valpat	goto 26
@@ -827,137 +890,99 @@ state 71:
 	.	error
 
 
-state 72:
-
-	pred : rpatom .  (reduce by rule 56)
-	pred : rpatom . CONJ pred 
-
-	CONJ	shift 90
-
-
-	.	reduce by rule 56
-
-
-state 73:
-
-	basety : LCURLY ID PIPE pred . RCURLY 
-
-	RCURLY	shift 91
-
-
-	.	error
-
-
-state 74:
-
-	rpatom : rexpr . EQUALOP rexpr 
-	rpatom : rexpr . SUBSET rexpr 
-	rpatom : rexpr . SUBSETEQ rexpr 
-
-	SUBSETEQ	shift 94
-	SUBSET	shift 93
-	EQUALOP	shift 92
-
-
-	.	error
-
-
-state 75:
-
-	pred : TRUE .  (reduce by rule 55)
-
-
-
-	.	reduce by rule 55
-
-
-state 76:
-
-	vartyatomseq : vartyatom COMMA vartyatomseq .  (reduce by rule 49)
-
-
-
-	.	reduce by rule 49
-
-
 state 77:
 
-	typespec : LPAREN params RPAREN ID COLON refty .  (reduce by rule 44)
+	pred : rpatom .  (reduce by rule 57)
+	pred : rpatom . CONJ pred 
+
+	CONJ	shift 101
 
 
-
-	.	reduce by rule 44
+	.	reduce by rule 57
 
 
 state 78:
 
-	rexpr : ratom CROSSPRD . rexpr 
+	basety : LCURLY ID PIPE pred . RCURLY 
 
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
+	RCURLY	shift 102
 
-	instexpr	goto 59
-	rexpr	goto 95
-	ratom	goto 57
 
 	.	error
 
 
 state 79:
 
-	rexpr : ratom UNION . rexpr 
+	rpatom : rexpr . EQUALOP rexpr 
+	rpatom : rexpr . SUBSET rexpr 
+	rpatom : rexpr . SUBSETEQ rexpr 
 
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
+	SUBSETEQ	shift 105
+	SUBSET	shift 104
+	EQUALOP	shift 103
 
-	instexpr	goto 59
-	rexpr	goto 96
-	ratom	goto 57
 
 	.	error
 
 
 state 80:
 
-	ratom : instexpr LPAREN . varop RPAREN 
+	pred : TRUE .  (reduce by rule 56)
 
-	ID	shift 98
 
-	varop	goto 97
 
-	.	reduce by rule 36
+	.	reduce by rule 56
 
 
 state 81:
 
-	ratom : LCURLY LPAREN . RPAREN RCURLY 
-	ratom : LCURLY LPAREN . elemseq RPAREN RCURLY 
+	vartyatomseq : vartyatom COMMA vartyatomseq .  (reduce by rule 50)
 
-	TRUE	shift 105
-	FALSE	shift 104
-	RPAREN	shift 103
-	ID	shift 102
-	INT	shift 101
 
-	elem	goto 100
-	elemseq	goto 99
 
-	.	error
+	.	reduce by rule 50
 
 
 state 82:
 
-	ratom : LPAREN rexpr . RPAREN 
+	typespec : LPAREN params RPAREN ID COLON refty .  (reduce by rule 45)
 
-	RPAREN	shift 106
 
+
+	.	reduce by rule 45
+
+
+state 83:
+
+	rexpr : ratom CROSSPRD . rexpr 
+
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
+
+	instexpr	goto 63
+	rexpr	goto 106
+	ratom	goto 61
 
 	.	error
 
 
-state 83:
+state 84:
+
+	rexpr : ratom UNION . rexpr 
+
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
+
+	instexpr	goto 63
+	rexpr	goto 107
+	ratom	goto 61
+
+	.	error
+
+
+state 85:
 
 	idseq : ID COMMA idseq .  (reduce by rule 20)
 
@@ -966,7 +991,7 @@ state 83:
 	.	reduce by rule 20
 
 
-state 84:
+state 86:
 
 	pat : LPAREN ID valpat RPAREN .  (reduce by rule 15)
 
@@ -975,161 +1000,117 @@ state 84:
 	.	reduce by rule 15
 
 
-state 85:
+state 87:
 
-	ieatom : ratom .  (reduce by rule 27)
+	ratom : instexpr LPAREN varop . RPAREN 
 
-
-
-	.	reduce by rule 27
-
-
-state 86:
-
-	ieatoms : LBRACE ieatom . RBRACE 
-	ieatoms : LBRACE ieatom . RBRACE ieatoms 
-
-	RBRACE	shift 107
+	RPAREN	shift 108
 
 
 	.	error
 
 
-state 87:
-
-	ieatom : instexpr .  (reduce by rule 26)
-	ratom : instexpr . LPAREN varop RPAREN 
-
-	LPAREN	shift 80
-
-
-	.	reduce by rule 26
-
-
 state 88:
 
-	reldec : RELATION LPAREN ID params RPAREN patmatchseq .  (reduce by rule 6)
+	varop : ID .  (reduce by rule 36)
 
 
 
-	.	reduce by rule 6
+	.	reduce by rule 36
 
 
 state 89:
 
-	reldec : RELATION LPAREN ID params RPAREN EQUALOP . starterm 
+	ieatoms : LBRACE ieatom . RBRACE 
+	ieatoms : LBRACE ieatom . RBRACE ieatoms 
 
-	ID	shift 49
+	RBRACE	shift 109
 
-	starterm	goto 108
-	instexpr	goto 47
 
 	.	error
 
 
 state 90:
 
-	pred : rpatom CONJ . pred 
+	ieatom : instexpr .  (reduce by rule 27)
+	ratom : instexpr . LPAREN varop RPAREN 
 
-	TRUE	shift 75
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
+	LPAREN	shift 70
 
-	instexpr	goto 59
-	rexpr	goto 74
-	ratom	goto 57
-	pred	goto 109
-	rpatom	goto 72
 
-	.	error
+	.	reduce by rule 27
 
 
 state 91:
 
-	basety : LCURLY ID PIPE pred RCURLY .  (reduce by rule 54)
+	ratom : LCURLY LPAREN elemseq . RPAREN RCURLY 
+
+	RPAREN	shift 110
 
 
-
-	.	reduce by rule 54
+	.	error
 
 
 state 92:
 
-	rpatom : rexpr EQUALOP . rexpr 
+	elemseq : elem .  (reduce by rule 38)
+	elemseq : elem . COMMA elemseq 
 
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
+	COMMA	shift 111
 
-	instexpr	goto 59
-	rexpr	goto 110
-	ratom	goto 57
 
-	.	error
+	.	reduce by rule 38
 
 
 state 93:
 
-	rpatom : rexpr SUBSET . rexpr 
+	elem : INT .  (reduce by rule 40)
 
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
 
-	instexpr	goto 59
-	rexpr	goto 111
-	ratom	goto 57
 
-	.	error
+	.	reduce by rule 40
 
 
 state 94:
 
-	rpatom : rexpr SUBSETEQ . rexpr 
+	elem : ID .  (reduce by rule 43)
 
-	LPAREN	shift 61
-	LCURLY	shift 60
-	ID	shift 49
 
-	instexpr	goto 59
-	rexpr	goto 112
-	ratom	goto 57
 
-	.	error
+	.	reduce by rule 43
 
 
 state 95:
 
-	rexpr : ratom CROSSPRD rexpr .  (reduce by rule 28)
+	ratom : LCURLY LPAREN RPAREN . RCURLY 
 
-
-
-	.	reduce by rule 28
-
-
-state 96:
-
-	rexpr : ratom UNION rexpr .  (reduce by rule 29)
-
-
-
-	.	reduce by rule 29
-
-
-state 97:
-
-	ratom : instexpr LPAREN varop . RPAREN 
-
-	RPAREN	shift 113
+	RCURLY	shift 112
 
 
 	.	error
 
 
+state 96:
+
+	elem : FALSE .  (reduce by rule 42)
+
+
+
+	.	reduce by rule 42
+
+
+state 97:
+
+	elem : TRUE .  (reduce by rule 41)
+
+
+
+	.	reduce by rule 41
+
+
 state 98:
 
-	varop : ID .  (reduce by rule 35)
+	ratom : LPAREN rexpr RPAREN .  (reduce by rule 35)
 
 
 
@@ -1138,208 +1119,247 @@ state 98:
 
 state 99:
 
-	ratom : LCURLY LPAREN elemseq . RPAREN RCURLY 
-
-	RPAREN	shift 114
+	reldec : RELATION LPAREN ID params RPAREN patmatchseq .  (reduce by rule 6)
 
 
-	.	error
+
+	.	reduce by rule 6
 
 
 state 100:
 
-	elemseq : elem .  (reduce by rule 37)
-	elemseq : elem . COMMA elemseq 
+	reldec : RELATION LPAREN ID params RPAREN EQUALOP . iterm 
 
-	COMMA	shift 115
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
+	iterm	goto 113
+	instexpr	goto 49
+	ieatom	goto 48
+	ratom	goto 47
 
-	.	reduce by rule 37
+	.	error
 
 
 state 101:
 
-	elem : INT .  (reduce by rule 39)
+	pred : rpatom CONJ . pred 
 
+	TRUE	shift 80
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
+	instexpr	goto 63
+	rexpr	goto 79
+	ratom	goto 61
+	pred	goto 114
+	rpatom	goto 77
 
-	.	reduce by rule 39
+	.	error
 
 
 state 102:
 
-	elem : ID .  (reduce by rule 42)
+	basety : LCURLY ID PIPE pred RCURLY .  (reduce by rule 55)
 
 
 
-	.	reduce by rule 42
+	.	reduce by rule 55
 
 
 state 103:
 
-	ratom : LCURLY LPAREN RPAREN . RCURLY 
+	rpatom : rexpr EQUALOP . rexpr 
 
-	RCURLY	shift 116
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
+	instexpr	goto 63
+	rexpr	goto 115
+	ratom	goto 61
 
 	.	error
 
 
 state 104:
 
-	elem : FALSE .  (reduce by rule 41)
+	rpatom : rexpr SUBSET . rexpr 
 
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
+	instexpr	goto 63
+	rexpr	goto 116
+	ratom	goto 61
 
-	.	reduce by rule 41
+	.	error
 
 
 state 105:
 
-	elem : TRUE .  (reduce by rule 40)
+	rpatom : rexpr SUBSETEQ . rexpr 
 
+	LPAREN	shift 53
+	LCURLY	shift 52
+	ID	shift 51
 
+	instexpr	goto 63
+	rexpr	goto 117
+	ratom	goto 61
 
-	.	reduce by rule 40
+	.	error
 
 
 state 106:
 
-	ratom : LPAREN rexpr RPAREN .  (reduce by rule 34)
+	rexpr : ratom CROSSPRD rexpr .  (reduce by rule 29)
+
+
+
+	.	reduce by rule 29
+
+
+state 107:
+
+	rexpr : ratom UNION rexpr .  (reduce by rule 30)
+
+
+
+	.	reduce by rule 30
+
+
+state 108:
+
+	ratom : instexpr LPAREN varop RPAREN .  (reduce by rule 34)
 
 
 
 	.	reduce by rule 34
 
 
-state 107:
-
-	ieatoms : LBRACE ieatom RBRACE .  (reduce by rule 24)
-	ieatoms : LBRACE ieatom RBRACE . ieatoms 
-
-	LBRACE	shift 70
-
-	ieatoms	goto 117
-
-	.	reduce by rule 24
-
-
-state 108:
-
-	reldec : RELATION LPAREN ID params RPAREN EQUALOP starterm .  (reduce by rule 8)
-
-
-
-	.	reduce by rule 8
-
-
 state 109:
 
-	pred : rpatom CONJ pred .  (reduce by rule 57)
+	ieatoms : LBRACE ieatom RBRACE .  (reduce by rule 25)
+	ieatoms : LBRACE ieatom RBRACE . ieatoms 
 
+	LBRACE	shift 73
 
-
-	.	reduce by rule 57
-
-
-state 110:
-
-	rpatom : rexpr EQUALOP rexpr .  (reduce by rule 58)
-
-
-
-	.	reduce by rule 58
-
-
-state 111:
-
-	rpatom : rexpr SUBSET rexpr .  (reduce by rule 59)
-
-
-
-	.	reduce by rule 59
-
-
-state 112:
-
-	rpatom : rexpr SUBSETEQ rexpr .  (reduce by rule 60)
-
-
-
-	.	reduce by rule 60
-
-
-state 113:
-
-	ratom : instexpr LPAREN varop RPAREN .  (reduce by rule 33)
-
-
-
-	.	reduce by rule 33
-
-
-state 114:
-
-	ratom : LCURLY LPAREN elemseq RPAREN . RCURLY 
-
-	RCURLY	shift 118
-
-
-	.	error
-
-
-state 115:
-
-	elemseq : elem COMMA . elemseq 
-
-	TRUE	shift 105
-	FALSE	shift 104
-	ID	shift 102
-	INT	shift 101
-
-	elem	goto 100
-	elemseq	goto 119
-
-	.	error
-
-
-state 116:
-
-	ratom : LCURLY LPAREN RPAREN RCURLY .  (reduce by rule 31)
-
-
-
-	.	reduce by rule 31
-
-
-state 117:
-
-	ieatoms : LBRACE ieatom RBRACE ieatoms .  (reduce by rule 25)
-
-
+	ieatoms	goto 118
 
 	.	reduce by rule 25
 
 
-state 118:
+state 110:
 
-	ratom : LCURLY LPAREN elemseq RPAREN RCURLY .  (reduce by rule 32)
+	ratom : LCURLY LPAREN elemseq RPAREN . RCURLY 
+
+	RCURLY	shift 119
+
+
+	.	error
+
+
+state 111:
+
+	elemseq : elem COMMA . elemseq 
+
+	TRUE	shift 97
+	FALSE	shift 96
+	ID	shift 94
+	INT	shift 93
+
+	elem	goto 92
+	elemseq	goto 120
+
+	.	error
+
+
+state 112:
+
+	ratom : LCURLY LPAREN RPAREN RCURLY .  (reduce by rule 32)
 
 
 
 	.	reduce by rule 32
 
 
+state 113:
+
+	reldec : RELATION LPAREN ID params RPAREN EQUALOP iterm .  (reduce by rule 8)
+
+
+
+	.	reduce by rule 8
+
+
+state 114:
+
+	pred : rpatom CONJ pred .  (reduce by rule 58)
+
+
+
+	.	reduce by rule 58
+
+
+state 115:
+
+	rpatom : rexpr EQUALOP rexpr .  (reduce by rule 59)
+
+
+
+	.	reduce by rule 59
+
+
+state 116:
+
+	rpatom : rexpr SUBSET rexpr .  (reduce by rule 60)
+
+
+
+	.	reduce by rule 60
+
+
+state 117:
+
+	rpatom : rexpr SUBSETEQ rexpr .  (reduce by rule 61)
+
+
+
+	.	reduce by rule 61
+
+
+state 118:
+
+	ieatoms : LBRACE ieatom RBRACE ieatoms .  (reduce by rule 26)
+
+
+
+	.	reduce by rule 26
+
+
 state 119:
 
-	elemseq : elem COMMA elemseq .  (reduce by rule 38)
+	ratom : LCURLY LPAREN elemseq RPAREN RCURLY .  (reduce by rule 33)
 
 
 
-	.	reduce by rule 38
+	.	reduce by rule 33
 
 
 state 120:
+
+	elemseq : elem COMMA elemseq .  (reduce by rule 39)
+
+
+
+	.	reduce by rule 39
+
+
+state 121:
 
 
 	EOF	accept
@@ -1347,5 +1367,5 @@ state 120:
 
 	.	error
 
-87 of 255 action table entries left after compaction
-96 goto table entries
+87 of 261 action table entries left after compaction
+100 goto table entries

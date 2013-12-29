@@ -25,8 +25,8 @@ struct
     val toString = fn ({ty, params, map}) =>
       let
         val tyDS = ProjTypeScheme.toString ty
-        val map' = Vector.map (map, fn (pat,rexpr) =>
-            (SOME pat,RelLang.Expr rexpr))
+        val map' = Vector.map (map, fn (pat,e) =>
+            (SOME pat,RelLang.termOfExpr e))
         val patmap = StructuralRelation.patMapToString map'
       in
         "{type = "^tyDS^", map = "^patmap^"}"

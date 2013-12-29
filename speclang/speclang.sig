@@ -139,7 +139,7 @@ sig
              | U of expr * expr
              | R1 of RelVar.t
              | R2 of instexpr * Var.t
-    datatype term = Expr of expr
+    datatype term = Atom of ieatom
                   | Star of instexpr
     val elemToString : elem -> string
     val instExprToString : instexpr -> string

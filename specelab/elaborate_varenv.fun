@@ -9,6 +9,7 @@ struct
   structure RE = RelEnv (structure SpecLang = SpecLang)
   structure TyD = TypeDesc
   structure TyDB = TyDBinds
+  structure RL = RelLang
   structure RelTy = RelType
   structure RefTy = RefinementType
   structure RefSS = RefinementSortScheme
@@ -111,8 +112,8 @@ struct
   fun mapToSRMap map = Vector.map (map, 
     fn (pat,rexpr) => (SOME pat,RelLang.termOfExpr rexpr))
   fun srMapToMap srmap = Vector.map (srmap, fn x => case x of 
-      (SOME pat,RelLang.Expr e) => (pat,e) 
-    | _ => Error.bug "reldesc has star\n")
+      (SOME pat, RL.Atom (RL.Re e)) => (pat,e) 
+    | _ => Error.bug "Impossible case of reldesc")
 
   fun elabDatBind (ve : VE.t) {cons,tyvars,tycon} =
     let
@@ -445,6 +446,22 @@ struct
         end
     end
 
+  fun typeSynthInstExpr ve re spsB ie : (C.t * SimpleProjSort.t) =
+    let
+      val baseR = case ie of RelLang.Relation r => r
+        | RelLang.Inst {rel,...} => rel
+        | _ => raise (Fail "Relparam cannot be a term")
+      val {ty = pTyS,...} = RE.find re baseR 
+        handle (RE.RelNotFound _) => raise (Fail $ "Ind of \
+          \unknown relation: " ^ (RelId.toString baseR))
+      val domainTyD = ProjTypeScheme.domain pTyS
+      val (cs,relTy) = typeSynthIEApp (re, spsB, TyDB.empty, 
+        ie, domainTyD)
+      val sort = SPS.newColonArrow (domainTyD, relTy)
+    in
+      (cs,sort)
+    end
+
   fun projTypeScheme ve re {params,map} : ProjTypeScheme.t = 
     let
       (* Initially, assign colonarrow types to all params *)
@@ -452,30 +469,22 @@ struct
         SPSBinds.add spsB r (SPS.newColonArrow
           (TyD.makeTvar $ Tyvar.newNoname {equality=false},
            RelType.newVar $ RelTyvar.new ())))
+      val assertNone = fn x => case x of NONE => ()
+        | SOME _ => Error.bug "Impossible case of IETerm"
       (* Loop over map generating type constraints *)
       val (cs,sortOp) = Vector.fold (map, 
         (Constraints.empty, NONE), 
         fn ((patop,rterm),(csacc,(relTySOp : SPS.t option))) => 
           case (patop,rterm) of 
-            (NONE, RelLang.Star ie) =>
-            let
-              val _ = case relTySOp of NONE => ()
-                | SOME _ => Error.bug "Impossible case star"
-              val baseR = case ie of RelLang.Relation r => r
-                | RelLang.Inst {rel,...} => rel
-                | _ => raise (Fail "Star over rel param not allowed")
-              val {ty = pTyS,...} = RE.find re baseR 
-                handle (RE.RelNotFound _) => raise (Fail $ "Ind of \
-                  \unknown relation: " ^ (RelId.toString baseR))
-              val domainTyD = ProjTypeScheme.domain pTyS
-              val (cs,relTy) = typeSynthIEApp (re, spsB, TyDB.empty, 
-                ie, domainTyD)
-              val sort = SPS.newColonArrow (domainTyD, relTy)
-            in
+            (NONE, RelLang.Star ie) => (assertNone (relTySOp);
               (* types of inductive and simple versions match *)
-              (cs,SOME sort)
-            end
-          | (SOME (Pat.Con (con,valpatop)), RelLang.Expr rexpr) => 
+              (fn (x,y) => (x, SOME y)) $ 
+                typeSynthInstExpr ve re spsB ie)
+          | (NONE, RelLang.Atom (RelLang.Ie ie)) => 
+              (assertNone (relTySOp);
+              (fn (x,y) => (x, SOME y)) $ 
+                typeSynthInstExpr ve re spsB ie)
+          | (SOME (Pat.Con (con,valpatop)), RL.Atom (RL.Re rexpr)) => 
             let
               val convid = Var.fromString (Con.toString con)
               val RefTyS.T {tyvars,sortscheme} = VE.find ve convid
@@ -501,8 +510,31 @@ struct
             in
               (cs,SOME sort)
             end
-          | (SOME (Pat.Value v), RelLang.Expr rexpr) =>
-              raise (Fail "unimpl"))
+          | (SOME (Pat.Value v), RL.Atom (RL.Re rexpr)) =>
+            let
+              val _ = case relTySOp of NONE => ()
+                | SOME _ => raise (Fail "A pattern of non-algeb\
+                    \aic datatype should have only one case.")
+              val tyDB = TyDB.empty
+              val (tyDB,domainTy) = case v of
+                  Pat.Var v => (fn t => (TyDB.add tyDB v t,t))
+                    (TyD.makeTvar $ Tyvar.newNoname {equality=false})
+                | Pat.Tuple vs =>
+                  let
+                    val tys = Vector.map (vs,fn _ =>
+                      TyD.makeTvar $ Tyvar.newNoname {equality=false})
+                    val tyDB = Vector.fold2 (vs,tys,tyDB, 
+                      fn (v,t,tyDB) => TyDB.add tyDB v t)
+                  in
+                    (tyDB, TyD.makeTrecord $ Record.toVector $ 
+                      Record.tuple tys)
+                  end
+                | Pat.Record vr => raise (Fail "Unimpl records")
+              val (cs,rangeRTy) = typeSynthRExpr (re,spsB,tyDB,rexpr)
+              val sort = SPS.newColonArrow (domainTy, rangeRTy)
+            in
+              (cs,SOME sort)
+            end)
       (*  sortOp is the result of looping over the map.  *)
       val initSort = case sortOp of SOME sort => sort 
         | NONE => raise (Fail "impossible case of sort")
@@ -510,7 +542,7 @@ struct
        * reltyvar constraints can contain unsolvable residue.
        *)
       val {tysolop,sortsol,residuecs} = Constraints.solve cs
-      (* Correction for params which are wrongly assigned colonarrow
+      (* Correction for params which were wrongly assigned colonarrow
        * sorts
        *)
       val {yes=nullable,no} = Vector.partition (tysolop, 
@@ -541,6 +573,7 @@ struct
       typeScheme
     end
 
+
   fun elabSRBind (re: RE.t)(ve : VE.t) {id,params,map} =
     let
       (* Replace RIds with RelVars wherever applicable *)
@@ -556,45 +589,49 @@ struct
           (patop, rterm')
         end)
       (*
-       * Expand inductive relations defined with star.
-       * Resultant map is a reldesc map.
+       * An instexpr is a fully instantiated parametric relation.
+       * Expand instexpr and return a reldesc map.
        *)
-      val map2 = (Vector.concatV o Vector.map) (map1, fn (patop,rterm) =>
-        case (patop,rterm) of 
-          (SOME pat,RelLang.Expr rexpr) => Vector.new1 (pat,rexpr)
-        | (NONE, RelLang.Star ie) => 
-          let
-            val (relId,args) = case ie of 
-                RelLang.Relation rid => (rid, Vector.new0 ())
-              | RelLang.Relvar _ => raise (Fail "Star of relvar.\n")
-              | RelLang.Inst {args,rel} => (rel,args)
-            val {ty, params, map} = RE.find re relId 
-              handle (RE.RelNotFound r) => raise (Fail 
-                ("Ind of unknown relation : "^(RelId.toString r)))
-            val _ = assert (leneq (args,params), "Insufficient/too \
-              \ many args to relation : "^(RelId.toString relId))
-            val eqs = Vector.zip (params,args)
-            val sr = SR.new {id = relId, 
-                params = params, map = mapToSRMap map}
-            val map' = srMapToMap $ SR.instantiate (eqs,sr) 
-          in
-            Vector.map (map', fn (pat,rexpr) => case pat of 
-                (Pat.Value _) => (pat,rexpr)
-              | (Pat.Con (con, NONE))=> (pat,rexpr)
-              | (Pat.Con (con, SOME valpat)) => 
-                let
-                  val recvars = Vector.map ((#yes o Vector.partition) 
-                    (unifyConArgs ve con valpat, fn (_,_,_,isrec) => isrec),
-                      fn (cvar,_,_,_) => cvar)
-                  val recRApps = Vector.map (recvars, fn var => 
-                    RelLang.app (ie,var))
-                  val recRAppsUnion = Vector.fold (recRApps,
-                    RelLang.emptyexpr(), RelLang.union)
-                  val rexpr' = RelLang.union (rexpr, recRAppsUnion)
-                in
-                  (pat,rexpr')
-                end)
-          end
+      fun expandInstExpr ie = 
+        let
+          val (relId,args) = case ie of 
+              RelLang.Relation rid => (rid, Vector.new0 ())
+            | RelLang.Relvar _ => raise (Fail "Relvar can't be\
+              \ a top-level instexpr")
+            | RelLang.Inst {args,rel} => (rel,args)
+          val {ty, params, map} = RE.find re relId 
+            handle (RE.RelNotFound r) => raise (Fail 
+              ("Ind of unknown relation : "^(RelId.toString r)))
+          val _ = assert (leneq (args,params), "Insufficient/too \
+            \ many args to relation : "^(RelId.toString relId))
+          val eqs = Vector.zip (params,args)
+          val sr = SR.new {id = relId, 
+              params = params, map = mapToSRMap map}
+          val map' = srMapToMap $ SR.instantiate (eqs,sr)
+        in
+          map'
+        end
+      val map2 = (Vector.concatV o Vector.map) (map1, 
+        fn (patop,rterm) => case (patop,rterm) of 
+          (SOME pat,RelLang.Atom (RL.Re e)) => Vector.new1 (pat,e)
+        | (NONE, RL.Atom (RL.Ie ie)) => expandInstExpr ie
+        | (NONE, RL.Star ie) => Vector.map (expandInstExpr ie, 
+            fn (pat,rexpr) => case pat of 
+              (Pat.Value _) => (pat,rexpr)
+            | (Pat.Con (con, NONE))=> (pat,rexpr)
+            | (Pat.Con (con, SOME valpat)) => 
+              let
+                val recvars = Vector.map ((#yes o Vector.partition) 
+                  (unifyConArgs ve con valpat, fn (_,_,_,isrec) => isrec),
+                    fn (cvar,_,_,_) => cvar)
+                val recRApps = Vector.map (recvars, fn var => 
+                  RelLang.app (ie,var))
+                val recRAppsUnion = Vector.fold (recRApps,
+                  RelLang.emptyexpr(), RelLang.union)
+                val rexpr' = RelLang.union (rexpr, recRAppsUnion)
+              in
+                (pat,rexpr')
+              end)
         | _ => Error.bug "Impossible patop-rterm combination\n")
       (* Annotate reldesc with type (ProjSort) information *)
       val typeScheme = projTypeScheme ve re {params = params, 
