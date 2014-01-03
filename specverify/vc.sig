@@ -5,8 +5,8 @@ sig
   structure RE : REL_ENV
   sharing type RefinementTypeScheme.t = VE.tyscheme
   sharing type Var.t = VE.Var.t
-  sharing type RelLang.RelId.t = RE.SpecLang.RelLang.RelId.t
-  sharing type RelLang.RelTypeScheme.t = RE.SpecLang.RelLang.RelTypeScheme.t
+  sharing type RelId.t = RE.SpecLang.RelId.t
+  (*sharing type RelTypeScheme.t = RE.SpecLang.RelTypeScheme.t*)
 end
 signature VERIFICATION_CONDITION =
 sig

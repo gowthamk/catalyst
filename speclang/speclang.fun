@@ -1028,7 +1028,13 @@ struct
         | tyD => Base (genVar(), tyD, Predicate.truee())
       end
 
-    
+    fun toTyD (Base (_,t,_)) = t
+      | toTyD (Tuple tv) = TyD.makeTrecord $ Vector.map (tv, fn (v,ty) =>
+          (Field.Symbol $ Field.Symbol.fromString $ Var.toString v,
+            toTyD ty))
+      | toTyD (Arrow ((_,argTy),resTy)) = TyD.makeTarrow (toTyD argTy,
+          toTyD resTy)
+      
     fun layout rty = case rty of
           Base(var,td,pred) => L.seq [L.str ("{" ^ (Var.toString var) 
             ^ ":" ^ (TypeDesc.toString td) ^ " | "), 
@@ -1083,6 +1089,8 @@ struct
                         paramrefty : paramrefty }
     fun paramRefTy (params,refty) = {params = params, refty = refty}
 
+    val typedParams = fn ({params,refty}) => params
+
     fun prtMapTyD {params, refty} f = {params = Vector.map 
           (params, fn (r,spt) =>
             (r,SimpleProjSort.mapTyD spt f)),
@@ -1125,8 +1133,29 @@ struct
           (eqs,re))
       end
 
+    fun prtFoldRelTy ({params,refty}) b f =
+      Vector.fold (params, b, fn ((_,sps),acc) => 
+        SPS.foldRelTy sps acc f)
+
+    fun foldRelTy (T {reltyvars,constraints,paramrefty}) b f =
+      Vector.fold (constraints, prtFoldRelTy paramrefty b f, 
+        fn (c,acc) => RelTyC.foldRelTy c acc f)
+
     fun generalizeWith (reltyvs, cs, prefty) =
       T {reltyvars = reltyvs, constraints = cs, paramrefty = prefty}
+
+    fun generalize (cs, prefty) = 
+      let
+        val {add, ...} = List.set {equals = RelTyvar.eq, 
+          layout = (L.str o RelTyvar.toString) }
+        val t = T {reltyvars = Vector.new0 (),
+          constraints = cs, paramrefty = prefty}
+        val reltyvars = Vector.fromList $ foldRelTy t [] 
+          (fn (rt,acc1) => RelType.foldRelTyVar rt acc1 
+            (fn (rv,acc2) => add (acc2,rv)))
+      in
+        T {reltyvars = reltyvars, constraints = cs, paramrefty = prefty}
+      end
 
     fun fromRefTy refty = 
       let

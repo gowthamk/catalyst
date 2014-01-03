@@ -573,6 +573,85 @@ struct
       typeScheme
     end
 
+  fun typeCheckRelPred re spsB tyDB rp : C.t =
+    let
+      open Predicate.RelPredicate
+      val f = fn e =>  typeSynthRExpr (re,spsB,tyDB,e)
+      val g = fn (e1,e2) =>
+        let
+          val (cs1,rt1) = f e1
+          val (cs2,rt2) = f e2
+        in
+          C.newRCstr (C.merge (cs1,cs2)) 
+            (RelTyC.new (rt1,rt2))
+        end
+    in
+      case rp of
+        Eq x => g x | SubEq x => g x  | Sub x => g x
+    end
+
+  fun typeCheckPred re spsB tyDB p : C.t =
+    let
+      open Predicate
+      val f = typeCheckPred re spsB
+      val mergeTyDBs = fn (t1,t2) => Vector.fold (TyDB.toVector t2,t1,
+        fn ((v,ty),t1) => TyDB.add t1 v ty)
+      val g = fn (p1,p2) => C.merge (f tyDB p1, f tyDB p2)
+    in
+      case p of
+        Rel rp => typeCheckRelPred re spsB tyDB rp
+      | Exists (exTyDB, p') => f (mergeTyDBs (tyDB,exTyDB)) p'
+      | Conj x => g x
+      | Disj x => g x
+      | _ => C.empty
+    end
+
+  fun sortSchemeOfRefTy re (params,refTy) =
+    let
+      (* Initially, assign colonarrow types to all params *)
+      val spsB = Vector.foldr (params, SPSBinds.empty, fn (r,spsB) => 
+        SPSBinds.add spsB r (SPS.newColonArrow
+          (TyD.makeTvar $ Tyvar.newNoname {equality=false},
+           RelType.newVar $ RelTyvar.new ())))
+      val f = typeCheckPred re spsB
+      fun doItRefTy tyDB refTy = case refTy of
+        RefTy.Base (v,tyd,p) => f (TyDB.add tyDB v tyd) p
+      | RefTy.Tuple vts => raise (Fail "Unimpl uncurry")
+      | RefTy.Arrow ((v,argTy),resTy) =>
+        let
+          val cs1 = doItRefTy tyDB argTy 
+          val tyDB' = TyDBinds.add tyDB v (RefTy.toTyD argTy)
+          val cs2 = doItRefTy tyDB' resTy
+        in
+          C.merge (cs1,cs2)
+        end
+      val cs = doItRefTy TyDBinds.empty refTy
+      val {tysolop,sortsol,residuecs} = Constraints.solve cs
+      (* Correction for params which were wrongly assigned colonarrow
+       * sorts
+       *)
+      val {yes=nullable,no} = Vector.partition (tysolop, 
+        fn (tyvar,tydop) => case tydop of NONE => true | _ => false)
+      val tysol = Vector.map (no, fn (tyvar,SOME tyd) => 
+        (tyvar,tyd))
+      val initCAPS = Vector.map (params, SPSBinds.find spsB)
+      val initPS = Vector.map (initCAPS, 
+        fn paramSort => case paramSort of 
+          SPS.ColonArrow (TyD.Tvar (tyvar),rt) =>
+            if (Vector.exists (nullable, fn (v,_) => 
+              (Tyvar.toString v = Tyvar.toString tyvar)))
+            then SPS.newBase rt
+            else paramSort
+          | _ => Error.bug "impossible case paramSort")
+      (* Apply solution *)
+      val paramSorts = Vector.map (initPS, fn (srt) => 
+        SPS.instTyvars (tysol, SPS.instRelTyvars (sortsol,srt)))
+      val typedParams = Vector.zip (params, paramSorts)
+      val paramRefTy = RefSS.paramRefTy (typedParams, refTy)
+      val sortScheme = RefSS.generalize (residuecs, paramRefTy)
+    in
+      sortScheme
+    end
 
   fun elabSRBind (re: RE.t)(ve : VE.t) {id,params,map} =
     let
@@ -645,6 +724,26 @@ struct
       RE.add re (id,{ty=typeScheme, params = params, map=map2})
     end
 
+  fun elabTypeSpec (ts as (TypeSpec.T {params,refty, ...})) 
+    : RefTyS.t =
+    let
+      val (tyvars, reltyvars, typedParams) = Vector.unzip3 $
+       Vector.map (params, fn r =>
+        let
+          val tyvar = Tyvar.newNoname {equality=false}
+          val reltyvar = RelTyvar.new ()
+        in
+          (tyvar, reltyvar, (r, SPS.newColonArrow (TyD.makeTvar tyvar,
+            RelType.newVar reltyvar)))
+        end)
+      val pRefTy = RefSS.paramRefTy (typedParams, refty)
+      val refSS = RefSS.generalizeWith (reltyvars, Vector.new0 (), 
+        pRefTy)
+      val refTyS = RefTyS.generalize (tyvars,refSS)
+    in
+      refTyS
+    end
+
   fun elaborate (Program.T {decs = decs}) (RelSpec.T {reldecs, typespecs}) =
     let
       val initialVE = Vector.fold (decs,VE.empty,fn (dec,ve) =>
@@ -666,11 +765,9 @@ struct
                 addRelToConTy ve {id = id, pTyS = ty, params = params, 
                   conPatBind = conPatBind})
           end)
-      (*
       val fullVE = Vector.fold (typespecs, refinedVE, 
-        fn (TypeSpec.T (f,refTy),ve) => VE.add ve (f,RefTyS.generalize 
-          (Vector.new0 (), refTy)))
-      *)
+        fn (ts as TypeSpec.T {name=f, ...},ve) => VE.add ve (f,
+          elabTypeSpec ts))
     in
       (refinedVE,elabRE)
     end

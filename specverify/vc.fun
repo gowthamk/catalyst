@@ -7,9 +7,10 @@ struct
   structure RP = Predicate.RelPredicate
   structure RefTy = RefinementType
   structure RefTyS = RefinementTypeScheme
-  structure RelTy = RelLang.RelType
-  structure RelTyS = RelLang.RelTypeScheme
-  structure RI = RelLang.RelId
+  structure RefSS = RefinementSortScheme
+  structure RelTy = RelType
+  (*structure RelTyS = RelTypeScheme*)
+  structure RI = RelId
   structure TyD = TypeDesc
   structure Env = TyDBinds
   structure L = Layout
@@ -157,8 +158,9 @@ struct
        * Remove polymorphic functions and constructors
        *)
       val vevec = Vector.keepAllMap (VE.toVector ve,
-        fn (v,RefTyS.T{tyvars,refty}) => case Vector.length tyvars of
-            0 =>  SOME (v,refty)
+        fn (v,RefTyS.T{tyvars,sortscheme}) => case Vector.length tyvars of
+            0 =>  (*SOME (v,sortscheme)*)
+              raise (Fail "Unimpl")
           | _ => NONE)
     in
       havocTyBindSeq vevec
@@ -189,7 +191,7 @@ struct
              * Third, add base type of actuals to env
              *)
             val ve = VE.add ve (v1,RefTyS.generalize (Vector.new0 (),
-              RefTy.fromTyD t1))
+              RefSS.fromRefTy $ RefTy.fromTyD t1))
             val envVCs = fn _ => havocVE ve
             val anteVCs = fn _ => havocPred p1
             val vcs = fn _ => join (envVCs (),anteVCs ())
@@ -221,10 +223,10 @@ struct
           end 
     end
 
-  datatype rinst = RInst of RelLang.RelId.t * TypeDesc.t vector
+  datatype rinst = RInst of RelId.t * TypeDesc.t vector
 
   structure RelInstTable : APPLICATIVE_MAP where
-    type Key.t = rinst and type Value.t = RelLang.RelId.t =
+    type Key.t = rinst and type Value.t = RelId.t =
   struct
     structure Key = 
     struct
@@ -242,11 +244,13 @@ struct
         
     end
     structure Map = ApplicativeMap (structure Key = Key
-                                   structure Value = RelLang.RelId)
+                                   structure Value = RelId)
     open Map
   end
 
   fun elaborate (re,vc) =
+    raise (Fail "Unimpl")
+(*
     let
       val T (tydbinds,anteP,conseqP) = vc
 
@@ -324,7 +328,7 @@ struct
         fn (RInst (relId,tydvec),relId') =>
           let
             val {ty,map} = RE.find re relId handle RE.RelNotFound _ =>
-              Error.bug ("Unknown Relation: "^(RelLang.RelId.toString relId))
+              Error.bug ("Unknown Relation: "^(RelId.toString relId))
             val RelTy.Tuple tydvec = RelTyS.instantiate (ty,tydvec)
             val boolTyD = TyD.makeTconstr (Tycon.bool,[])
             val relArgTyd = TyD.Trecord $ Record.tuple tydvec
@@ -338,6 +342,7 @@ struct
     in
       T (tydbinds',anteP',conseqP')
     end
+*)
 
   fun layout (vcs : t vector) =
     let

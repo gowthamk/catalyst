@@ -245,6 +245,7 @@ sig
 
     val layout : t -> Layout.t 
     val fromTyD : TypeDesc.t -> t
+    val toTyD : t -> TypeDesc.t
     val applySubsts : (Var.t * Var.t) vector -> t -> t
     val alphaRename : t -> t
     val alphaRenameToVar : t -> Var.t -> t
@@ -264,6 +265,7 @@ sig
                        paramrefty : paramrefty }
     val paramRefTy : (RelVar.t * SimpleProjSort.t)
                       vector * RefinementType.t -> paramrefty
+    val typedParams : paramrefty -> (RelVar.t * SimpleProjSort.t) vector
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
     val instantiate : (RelTyvar.t * RelType.t) vector * t ->
           (RelTyConstraint.t vector * paramrefty)
@@ -272,6 +274,7 @@ sig
           paramrefty -> RefinementType.t
     val generalizeWith : RelTyvar.t vector * RelTyConstraint.t vector 
           * paramrefty -> t
+    val generalize : RelTyConstraint.t vector * paramrefty -> t
     val fromRefTy : RefinementType.t -> t
     val toRefTy : t -> RefinementType.t
     val layout : t -> Layout.t

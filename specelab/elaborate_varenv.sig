@@ -20,4 +20,6 @@ sig
   sharing VE.SpecLang = RE.SpecLang
 
   val elaborate : ANormalCoreML.Program.t -> SpecLang.RelSpec.t -> (VE.t * RE.t) 
+  val sortSchemeOfRefTy : RE.t -> (SpecLang.RelVar.t vector * 
+    SpecLang.RefinementType.t) -> SpecLang.RefinementSortScheme.t
 end

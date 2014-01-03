@@ -11,6 +11,7 @@ struct
   structure TyD = TypeDesc
   structure RefTy = RefinementType
   structure RefTyS = RefinementTypeScheme
+  structure RefSS = RefinementSortScheme
   structure P = Predicate
   structure BP = Predicate.BasePredicate
   structure RP = Predicate.RelPredicate
@@ -32,8 +33,8 @@ struct
     end
   fun genVar () =  getUniqueId "sv_" 
   fun getUniqueMarker () = getUniqueId "_mark_"
-  fun dummyRefTyS () = RefTyS.generalize (Vector.new0(),RefTy.fromTyD
-    (TyD.makeTunknown()))
+  fun dummyRefTyS () = RefTyS.generalize (Vector.new0(),
+    RefSS.fromRefTy $ RefTy.fromTyD (TyD.makeTunknown()))
   val newLongVar = fn (var,fld) => Var.fromString $
     (Var.toString var)^"."^(Var.toString fld)
   fun varEq (v1,v2) = ((Var.toString v1) = (Var.toString v2))
@@ -121,6 +122,17 @@ struct
       refTy'
     end
 
+  fun mergeTypeToSS re (tyd, ss) =
+    let
+      val RefSS.T {paramrefty, ...} = ss
+      val refTy = mergeTypes (tyd, RefSS.toRefTy ss)
+      val params = Vector.map (RefSS.typedParams paramrefty,#1)
+      val ss = Elab.sortSchemeOfRefTy re (params, refTy)
+    in
+      ss
+    end
+
+(*
   val elabPatVal = fn (ve,tyvars,patval,expty) =>
     let
       open Pat.Val
@@ -598,8 +610,12 @@ struct
               (vcs, VE.add ve'(genVar(), newTyS))
             end
         end
+*)
+  fun typeCheckLambda (ve,lambda,fty) =
+    raise (Fail "Unimpl")
 
-  and doItDecs (ve : VE.t, decs : Dec.t vector) : (VC.t vector * VE.t) =
+  and doItDecs (ve : VE.t, re : RE.t, decs : Dec.t vector) 
+      : (VC.t vector * VE.t) =
     let
       fun elabRecDecs (ve : VE.t) (tyvars : Tyvar.t vector)  decs = 
         Vector.fold (decs,ve, fn ({lambda : Lambda.t, var : Var.t},ve) =>
@@ -608,14 +624,16 @@ struct
             val argTyD = Type.toMyType argType
             val bodyTyD = Type.toMyType $ Exp.ty body
             val funTyD = TyD.makeTarrow (argTyD,bodyTyD)
-            val funRefTy = mergeTypes (funTyD, RefTyS.specialize
-              $ VE.find ve var) handle (VE.VarNotFound _) => RefTy.fromTyD funTyD
-            val funspec = RefTyS.generalize (tyvars,funRefTy)
+            val funSS = mergeTypeToSS re (funTyD, RefTyS.specialize
+              $ VE.find ve var) handle (VE.VarNotFound _) => 
+                RefSS.fromRefTy $ RefTy.fromTyD funTyD
+            val funspec = RefTyS.generalize (tyvars,funSS)
           in
             VE.add ve (var,funspec)
           end)
 
-      fun doItDec (ve : VE.t, dec : Dec.t) : (VC.t vector * VE.t) = case dec of
+      fun doItDec (ve : VE.t, dec : Dec.t) : (VC.t vector * VE.t) = 
+        case dec of
           Dec.Fun {decs,tyvars} => 
             let
               val extendedVE = elabRecDecs ve (tyvars()) decs
@@ -652,6 +670,6 @@ struct
       (Vector.concatV vcsvec, extendedVE)
     end
 
-  fun doIt (ve, Program.T{decs}) = #1 $ doItDecs (ve,decs)
+  fun doIt (ve, re, Program.T{decs}) = #1 $ doItDecs (ve, re, decs)
 
 end

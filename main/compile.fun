@@ -117,13 +117,14 @@ structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
 structure VE = ElaborateVarEnv.VE
 structure RE = ElaborateVarEnv.RE
 
-(*
 structure SpecVerify = SpecVerify (structure VE = VE
                                    structure RE = RE
-                                   structure ANormalCoreML = ANormalCoreML)
+                                   structure ANormalCoreML = ANormalCoreML
+                                   structure Elab = ElaborateVarEnv)
 
 structure VC = SpecVerify.VC
 
+(*
 val (z3_log,z3_log_close) = (fn stream => 
   (fn str => (Out.output (stream,str);
       Out.flush stream), 

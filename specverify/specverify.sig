@@ -3,6 +3,11 @@ sig
   structure VE : VAR_ENV
   structure RE : REL_ENV
   structure ANormalCoreML : A_NORMAL_CORE_ML
+  structure Elab : ELABORATE_VAR_ENV
+  sharing VE = Elab.VE
+  sharing type RE.t = Elab.RE.t
+  sharing ANormalCoreML = Elab.ANormalCoreML
+  sharing VE.SpecLang = Elab.SpecLang
   sharing VE.SpecLang = RE.SpecLang
   sharing VE.Var = ANormalCoreML.Var
   sharing VE.SpecLang.Con = ANormalCoreML.Con
@@ -23,5 +28,5 @@ sig
    * Verifies program in the context of var env.
    * Returns verification conditions.
    *)
-  val doIt : VE.t * ANormalCoreML.Program.t -> VC.t vector
+  val doIt : VE.t * RE.t * ANormalCoreML.Program.t -> VC.t vector
 end
