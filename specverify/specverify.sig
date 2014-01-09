@@ -23,10 +23,9 @@ end
 signature SPEC_VERIFY = 
 sig
   include SPEC_VERIFY_STRUCTS
-  structure VC : VERIFICATION_CONDITION
   (*
    * Verifies program in the context of var env.
    * Returns verification conditions.
    *)
-  val doIt : VE.t * RE.t * ANormalCoreML.Program.t -> VC.t vector
+  val doIt : VE.t * RE.t * ANormalCoreML.Program.t -> unit
 end

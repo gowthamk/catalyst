@@ -10,7 +10,11 @@ sig
 
   structure RelVar :
   sig
-    include ID
+    type t
+    val fromString: string -> t 
+    val toString: t -> string
+    val layout: t -> Layout.t
+    val new : unit -> t
     val eq : t*t -> bool
   end
 
@@ -85,6 +89,7 @@ sig
                               sort : SimpleProjSort.t}
     val toString : t -> string
     val new : SimpleProjSort.t vector * SimpleProjSort.t -> t
+    val simple : SimpleProjSort.t -> t
     val domain : t -> TypeDesc.t
     val range : t -> RelType.t
     val paramSorts : t -> SimpleProjSort.t vector
@@ -101,6 +106,8 @@ sig
                             sort : ProjSort.t}
     val toString : t -> string
     val generalize : RelTyConstraint.t vector * ProjSort.t -> t
+    val generalizeWith : RelTyvar.t vector * RelTyConstraint.t 
+      vector * ProjSort.t -> t
     val specialize : t -> ProjSort.t
     val instantiate : (RelTyvar.t * RelType.t) vector * t ->
       (RelTyConstraint.t vector * ProjSort.t)
@@ -115,6 +122,7 @@ sig
                        sortscheme : ProjSortScheme.t}
     val toString : t -> string
     val generalize : ProjSortScheme.t -> t
+    val generalizeWith : Tyvar.t vector * ProjSortScheme.t -> t
     val specialize : t -> ProjSortScheme.t
     val domain : t ->TypeDesc.t
     val tyvars : t -> Tyvar.t vector
@@ -155,8 +163,10 @@ sig
     val ieatomOfExpr : expr -> ieatom
     (* pre-condition : expr vector not emtpy *)
     val mapRel : term -> (RelId.t -> instexpr) -> term
+    val mapRelExpr : expr -> (RelId.t -> instexpr) -> expr
     val mapRVarToExpr : expr -> (RelVar.t -> expr) -> expr
     val mapRVarToIExpr : expr -> (RelVar.t -> instexpr) -> expr
+    val foldRVar : expr -> 'a -> (RelVar.t * 'a -> 'a) -> 'a
     val instRelVars : ((RelVar.t * ieatom) vector * expr) -> expr
     val instRelVarsInTerm : ((RelVar.t * ieatom) vector * term) -> 
       term
@@ -223,7 +233,10 @@ sig
                |  Rel of RelPredicate.t
                |  Exists of TyDBinds.t * t
                |  Conj of t * t
-               |  Disj of t * t
+               |  Forall of {rtyvs : RelTyvar.t vector,
+                             cs : RelTyConstraint.t vector,
+                             params : (RelVar.t * SimpleProjSort.t) vector
+                             } * t
 
     val layout : t -> Layout.t 
     val truee : unit -> t
@@ -233,7 +246,8 @@ sig
     val applySubst : Var.t * Var.t -> t -> t
     val applySubsts : (Var.t * Var.t) vector -> t -> t
     val exists : TyDBinds.t * t -> t
-    val disj : t*t -> t
+    val forall : RelTyvar.t vector * RelTyConstraint.t vector * 
+      (RelVar.t * SimpleProjSort.t) vector * t -> t
     val mapRExpr : t -> (RelLang.expr -> RelLang.expr) -> t
     end
 
@@ -252,8 +266,12 @@ sig
     val mapBaseTy : t -> ((Var.t * TypeDesc.t * Predicate.t) -> 
           (Var.t * TypeDesc.t * Predicate.t)) -> t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
+    val mapRel : t -> (RelId.t -> RelLang.instexpr) -> t
     val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
+    val instRelVars : (RelVar.t * RelLang.ieatom) vector * t -> t
     val mapRExpr : t -> (RelLang.expr -> RelLang.expr) -> t
+    val foldRExpr : t -> 'a -> (RelLang.expr * 'a -> 'a) -> 'a
+    val unifyWithConj : t vector -> t
       
   end
 
@@ -266,18 +284,27 @@ sig
     val paramRefTy : (RelVar.t * SimpleProjSort.t)
                       vector * RefinementType.t -> paramrefty
     val typedParams : paramrefty -> (RelVar.t * SimpleProjSort.t) vector
+    val refTy : paramrefty -> RefinementType.t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
     val instantiate : (RelTyvar.t * RelType.t) vector * t ->
           (RelTyConstraint.t vector * paramrefty)
     val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
+    val instRelTyvars : (RelTyvar.t * RelType.t) vector * t ->
+      RelTyConstraint.t vector * paramrefty
     val instRelParams : (RelVar.t * RelLang.ieatom) vector * 
           paramrefty -> RefinementType.t
+    val multiInstRelParams : (RelVar.t * RelLang.ieatom vector) 
+      vector * paramrefty -> RefinementType.t
     val generalizeWith : RelTyvar.t vector * RelTyConstraint.t vector 
           * paramrefty -> t
     val generalize : RelTyConstraint.t vector * paramrefty -> t
+    val substRefTy : t * RefinementType.t -> t
     val fromRefTy : RefinementType.t -> t
     val toRefTy : t -> RefinementType.t
     val layout : t -> Layout.t
+    val alphaRename : t -> t
+    val coalesce : t vector -> (RefinementType.t vector -> 
+      RefinementType.t) -> t
   end
 
   structure RefinementTypeScheme :

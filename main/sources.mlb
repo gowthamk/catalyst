@@ -18,8 +18,8 @@ local
    ../specparser/sources.mlb
    ../speclang/sources.mlb
    ../specelab/sources.mlb
-   (*../specverify/sources.mlb
-   ../vcencode/sources.mlb*)
+   ../specverify/sources.mlb
+   (*../vcencode/sources.mlb*)
 
    lookup-constant.sig
    lookup-constant.fun

@@ -1,6 +1,20 @@
 relation (Rhd R)(cons(x,xs)) = R(x) | nil = {()};
 relation (Rmem R) = Rhd[R]*;
 relation (Rob R)(cons(x,xs)) = R(x) X Rmem[R](xs) | nil = {()};
+relation (Roa R)(cons(x,xs)) = Rmem[R](xs) X R(x) | nil = {()};
 relation (Robs R) = Rob[R]*;
+relation (Roas R) = Roa[R]*;
 relation RId (x) = {(x)};
+relation Rmem1 = Rmem[RId];
 relation Robs1 = Robs[RId];
+relation Roas1 = Roas[RId];
+
+
+(R) concat : l1 -> l2 -> { l | Rmem[R](l) = Rmem[R](l1) U Rmem[R](l2) /\
+               Robs[R](l) = Robs[R](l1) U Robs[R](l2) U (Rmem[R](l1) X Rmem[R](l2))};
+
+concat1 : l1 -> l2 -> { l | Rmem1(l) = Rmem1(l1) U Rmem1(l2) /\
+               Robs1(l) = Robs1(l1) U Robs1(l2) U (Rmem1(l1) X Rmem1(l2))};
+rev : l1 -> { l2 | Rmem1(l2) = Rmem1(l1) /\ Robs1(l2) = Roas1(l1)};
+
+(*1. Instantiate with Dummies, 2. Unify, 3. Find solution sets for dummies*)

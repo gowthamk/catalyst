@@ -602,12 +602,25 @@ struct
         Rel rp => typeCheckRelPred re spsB tyDB rp
       | Exists (exTyDB, p') => f (mergeTyDBs (tyDB,exTyDB)) p'
       | Conj x => g x
-      | Disj x => g x
       | _ => C.empty
     end
 
-  fun sortSchemeOfRefTy re (params,refTy) =
+  fun relVarsInRefTy refTy = 
     let
+      val {add, ...} = List.set {equals = RelVar.eq, 
+        layout = RelVar.layout }
+    in
+      Vector.fromList $ RefTy.foldRExpr refTy [] 
+        (fn (e,acc) => RelLang.foldRVar e acc
+          (fn (rv,acc2) => add (acc2,rv)))
+    end 
+  (*
+   * TODO: Refractor the common parts of this function and
+   * ProjTypeScheme into one function.
+   *)
+  fun sortSchemeOfRefTy re refTy =
+    let
+      val params = relVarsInRefTy refTy
       (* Initially, assign colonarrow types to all params *)
       val spsB = Vector.foldr (params, SPSBinds.empty, fn (r,spsB) => 
         SPSBinds.add spsB r (SPS.newColonArrow
@@ -727,6 +740,13 @@ struct
   fun elabTypeSpec (ts as (TypeSpec.T {params,refty, ...})) 
     : RefTyS.t =
     let
+      (* Replace RIds with RelVars wherever applicable *)
+      fun paramOf rid = Vector.peek (params, fn rvar => 
+        RelVar.toString rvar = RelId.toString rid)
+      val refty' = RefTy.mapRel refty (fn rid =>
+        case paramOf rid of 
+          NONE => RelLang.instExprOfRel rid
+        | SOME rvar => RelLang.instExprOfRelVar rvar)
       val (tyvars, reltyvars, typedParams) = Vector.unzip3 $
        Vector.map (params, fn r =>
         let
@@ -736,7 +756,7 @@ struct
           (tyvar, reltyvar, (r, SPS.newColonArrow (TyD.makeTvar tyvar,
             RelType.newVar reltyvar)))
         end)
-      val pRefTy = RefSS.paramRefTy (typedParams, refty)
+      val pRefTy = RefSS.paramRefTy (typedParams, refty')
       val refSS = RefSS.generalizeWith (reltyvars, Vector.new0 (), 
         pRefTy)
       val refTyS = RefTyS.generalize (tyvars,refSS)
@@ -769,6 +789,6 @@ struct
         fn (ts as TypeSpec.T {name=f, ...},ve) => VE.add ve (f,
           elabTypeSpec ts))
     in
-      (refinedVE,elabRE)
+      (fullVE,elabRE)
     end
 end

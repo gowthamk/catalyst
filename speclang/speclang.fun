@@ -37,6 +37,19 @@ struct
   structure RelVar = 
   struct
     open Var
+
+    val symbase = "'R"
+
+    val count = ref 0
+
+    val new = fn _ => 
+      let val id = symbase ^ (Int.toString (!count))
+          val _ = count := !count + 1
+      in
+        Var.fromString id 
+      end
+
+
     val eq = fn (rv1,rv2) => (toString rv1 = toString rv2)
   end
 
@@ -94,7 +107,8 @@ struct
     fun crossPrdType (t1,t2) = case (t1,t2) of
         (Tuple tyds1, Tuple tyds2) =>
         (case (Vector.length tyds1, Vector.length tyds2) of
-          (0,_) => empty | (_,0) => empty)
+          (0,_) => empty | (_,0) => empty 
+        | _ => Tuple $ Vector.concat [tyds1, tyds2])
       | (Tuple tyds1,_) => if Vector.length tyds1 = 0 then empty
           else Cross (t1,t2)
       | (_,Tuple tyds2) => if Vector.length tyds2 = 0 then empty
@@ -192,7 +206,8 @@ struct
         case (rt1,rt2) of
           (Tuple tyds1, Tuple tyds2) =>
           (case (Vector.length tyds1, Vector.length tyds2) of
-            (0,_) => (NONE, rt2) | (_,0) => (NONE,rt1))
+            (0,_) => (NONE, rt2) | (_,0) => (NONE,rt1)
+          | _ => (SOME $ rc (), rt1))
         | (Tuple tyds1,_) => if Vector.length tyds1 = 0 
             then (NONE, rt2) 
             else (SOME $ rc (), rt ())
@@ -213,9 +228,11 @@ struct
         fun assertNotCirc (v,rt) = 
           let
             val rhsvs = relTyVarsIn rt
-            val _ = Vector.foreach (rhsvs, fn rhsv =>
-              assert (not $ relTyVarEq (v,rhsv), "Circular\
-                \ relty constraint. Unsolvable."))
+            val cStr = fn _ => (RelVar.toString v) ^ " = "
+              ^ (RelType.toString rt)
+            val _ = assert (Vector.forall (rhsvs, fn rhsv =>
+              not $ relTyVarEq (v,rhsv)), "Unsolvable circular\
+                \ relty constraint: " ^ (cStr ()))
           in
             ()
           end
@@ -316,6 +333,10 @@ struct
             in
               new (newVar v1, Tuple $ Vector.dropPrefix (tv2,l2-l1))
             end
+          | (Cross (Reltyvar v1,rt1), Cross (Reltyvar v2,rt2)) =>
+              if relTyVarEq (v1,v2) then new (rt1,rt2) else c
+          | (Cross (rt1, Reltyvar v1), Cross (rt2, Reltyvar v2)) =>
+              if relTyVarEq (v1,v2) then new (rt1,rt2) else c
           | _ => c
       in
         Vector.map (cs,doIt)
@@ -325,16 +346,12 @@ struct
       let
         open RelType 
       in
-        Vector.keepAllMap (cs, fn c => case eq c of
+        Vector.keepAll (cs, fn c => case eq c of
           (Tuple tv1,Tuple tv2) => (assertCompatible (tv1,tv2);
-            NONE)
+            false)
         | (Reltyvar v1, Reltyvar v2) => if relTyVarEq (v1,v2) 
-            then NONE else SOME c
-        | (Cross (Reltyvar v1,rt1), Cross (Reltyvar v2,rt2)) =>
-            if relTyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
-        | (Cross (rt1, Reltyvar v1), Cross (rt2, Reltyvar v2)) =>
-            if relTyVarEq (v1,v2) then SOME $ new (rt1,rt2) else SOME c
-        | _ => SOME c)
+            then false else true
+        | _ => true)
       end
 
     (*
@@ -356,7 +373,7 @@ struct
         (t vector)) = 
       let
         open RelType
-        val cs = simplify $ clearTautologies cs
+        val cs = clearTautologies $ simplify cs
         val solEqnOp = Vector.loop (cs, 
           fn c => case trySolveConstraint c of
               SOME sol => SOME $ SOME sol
@@ -366,7 +383,7 @@ struct
           NONE => (Vector.new0 (), cs)
         | SOME solEqn => 
           let
-            val newcs = applyRelTyVarEqn solEqn cs
+            val newcs = clearTautologies $ applyRelTyVarEqn solEqn cs
             val (moreEqns,residue) = relTyVarEqns newcs
             val sol = Vector.concat [Vector.new1 solEqn, moreEqns]
           in
@@ -506,6 +523,9 @@ struct
     fun new (paramsorts, sort) = T {paramsorts = paramsorts,
       sort = sort}
 
+    fun simple sps = T {paramsorts = Vector.new0 (), 
+      sort = sps}
+
     fun domain (T{sort, ...}) = SimpleProjSort.domain sort
 
     fun range (T{sort, ...}) = SimpleProjSort.range sort
@@ -565,6 +585,9 @@ struct
       in
         T {reltyvars = reltyvars, constraints = cstrs, sort = sort}
       end
+
+    fun generalizeWith (reltyvars,cstrs,sort) =
+      T {reltyvars = reltyvars, constraints = cstrs, sort = sort}
       
     fun instantiate (eqs, T {reltyvars, constraints, sort}) =
       let
@@ -605,6 +628,9 @@ struct
       in
         T {tyvars = tyvars, sortscheme = ss}
       end
+
+    fun generalizeWith (tyvars,ss) = T {tyvars = tyvars, 
+      sortscheme = ss}
 
     fun specialize (T{sortscheme, ...}) = sortscheme
 
@@ -748,6 +774,9 @@ struct
         | R2 (ie,v) => R2 (ieMapRVarToIExpr ie f ,v)
         | _ => t
       end
+
+    fun foldRVar t b f = 
+      raise (Fail "Unimpl")
 
     fun ieInstRelVars (eqs, ie) : instexpr = Vector.fold (eqs, ie, 
       fn ((v,ieat), ie) => case ieat of
@@ -948,7 +977,11 @@ struct
                |  Rel of RelPredicate.t
                |  Exists of TyDBinds.t * t
                |  Conj of t * t
-               |  Disj of t * t
+               |  Forall of {rtyvs : RelTyvar.t vector,
+                             cs : RelTyConstraint.t vector,
+                             params : (RelVar.t * SimpleProjSort.t) vector
+                             } * t
+                            
 
     fun layout t = case t of
         True => L.str "true" 
@@ -958,8 +991,7 @@ struct
           layout t)
       | Conj (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
           layout e2)],"/\\ ")
-      | Disj (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
-          layout e2)],"\\/ ")
+      | Forall ({rtyvs,cs,params},t) => L.str "forall pred"
 
     fun truee _ = True
 
@@ -978,7 +1010,7 @@ struct
               \ quantified variable"
             else Exists (tyDB,applySubst subst t)
       | Conj (t1,t2) => Conj (applySubst subst t1, applySubst subst t2)
-      | Disj (t1,t2) => Disj (applySubst subst t1, applySubst subst t2)
+      | Forall (x,t) => Forall (x,applySubst subst t)
 
     (* telescoped substitutions *)
     fun applySubsts substs t = Vector.foldr (substs, t, fn (subst,t) =>
@@ -986,13 +1018,14 @@ struct
 
     fun exists (tyb,t) = Exists (tyb,t)
 
-    fun disj (t1,t2) = Disj (t1,t2)
+    fun forall (rs,cs,params,t) = Forall ({rtyvs = rs, cs = cs, 
+      params = params},t)
 
     fun mapRExpr t f = case t of
         Rel rp => Rel $ RelPredicate.mapRExpr rp f
       | Exists (binds,t) => Exists (binds, mapRExpr t f)
       | Conj (t1,t2) => Conj (mapRExpr t1 f, mapRExpr t2 f)
-      | Disj (t1,t2) => Disj (mapRExpr t1 f, mapRExpr t2 f)
+      | Forall (x,t) => Forall (x, mapRExpr t f)
       | _ => t
   end
 
@@ -1053,7 +1086,7 @@ struct
           mapBaseTy t2 f)
 
     fun mapTyD t f = mapBaseTy t (fn (v,t,p) => (v,f t,p)) 
-      
+
     fun applySubsts substs refty = 
       mapBaseTy refty (fn (bv,t,pred) =>
         if Vector.exists (substs,fn(n,ol) => varStrEq (ol,bv))
@@ -1069,12 +1102,21 @@ struct
    
     val instTyvars = fn (eqs,t) => instTyvars (eqs,t,mapTyD)
 
+    fun instRelVars (eqs, t) = raise (Fail "Unimpl")
+
     fun mapRExpr (t:t) (f : RelLang.expr -> RelLang.expr) = case t of
         Base (v,t,p) => Base (v, t, Predicate.mapRExpr p f)
       | Tuple tv => Tuple $ Vector.map (tv, fn (v,t) => 
           (v, mapRExpr t f))
       | Arrow ((v,t1), t2) => Arrow ((v, mapRExpr t1 f), mapRExpr t2 f)
 
+    fun foldRExpr t b f = 
+      raise (Fail "Unimpl")
+
+    fun mapRel t f = mapRExpr t (fn e => RelLang.mapRelExpr e f)
+
+    fun unifyWithConj ts = raise (Fail "Unimpl")
+      
   end
 
   structure RefinementSortScheme =
@@ -1090,6 +1132,8 @@ struct
     fun paramRefTy (params,refty) = {params = params, refty = refty}
 
     val typedParams = fn ({params,refty}) => params
+
+    val refTy = fn ({params,refty}) => refty
 
     fun prtMapTyD {params, refty} f = {params = Vector.map 
           (params, fn (r,spt) =>
@@ -1124,6 +1168,9 @@ struct
 
     val instTyvars = fn (eqs, t) => instTyvars (eqs, t, mapTyD)
 
+    fun instRelTyvars (eqs, t) =
+      raise (Fail "Unimpl")
+
     fun instRelParams (eqs, {params,refty}) =
       let
         val _ = assert (isValidInst (eqs, Vector.map (params,fst), 
@@ -1132,6 +1179,9 @@ struct
         RefinementType.mapRExpr refty (fn re => RelLang.instRelVars
           (eqs,re))
       end
+
+    fun multiInstRelParams (eqs, t) =
+      raise (Fail "Unimpl")
 
     fun prtFoldRelTy ({params,refty}) b f =
       Vector.fold (params, b, fn ((_,sps),acc) => 
@@ -1156,6 +1206,9 @@ struct
       in
         T {reltyvars = reltyvars, constraints = cs, paramrefty = prefty}
       end
+
+    fun substRefTy (t, newRefTy) =
+      raise (Fail "Unimpl")
 
     fun fromRefTy refty = 
       let
@@ -1184,6 +1237,47 @@ struct
         val prflyt = prtLayout paramrefty
       in
         L.seq [rtyvlyt, L.str ". ", prflyt]
+      end
+
+    fun alphaRename (t as (T {reltyvars, ...})) =
+      let
+        val (tyveqs, reltyvars') = (Vector.unzip o Vector.map)
+          (reltyvars, fn rtyv => 
+            let
+              val newtyv = RelTyvar.new ()
+              val relty = RelType.newVar newtyv
+            in
+              ((newtyv,relty), newtyv)
+            end)
+        val (T {constraints = constraints', paramrefty =
+          {params, refty}, ...}) = instRelTyvars (tyveqs, t)
+        val (rveqs, params') = (Vector.unzip o Vector.map) 
+          (params, fn (rv,sps) => 
+            let
+              val newrv = RelVar.new ()
+              val ieatom = RelLang.ieatomOfRelVar newrv
+            in
+              ((rv, ieatom), (newrv,sps))
+            end)
+        val refty' = RefinementType.mapRExpr refty 
+          (fn e => RelLang.instRelVars (rveqs,e))
+      in
+        T {reltyvars = reltyvars', constraints = constraints', 
+            paramrefty = {params = params', refty = refty'}}
+      end
+
+    fun coalesce ts f =
+      let
+        val (rsv, csv, tpsv) = Vector.unzip3 $ (Vector.map (ts,
+          fn (T {reltyvars, constraints, paramrefty = 
+            {params,refty}}) => (reltyvars, constraints, params)))
+        val (rs, cs, tps) = (Vector.concatV rsv, Vector.concatV csv, 
+          Vector.concatV tpsv)
+        val refty = f $ Vector.map (ts, fn (T {paramrefty = 
+          {params,refty}, ...}) => refty)
+      in
+        T {reltyvars = rs, constraints = cs, paramrefty = 
+            {params = tps, refty = refty}}
       end
 
   end

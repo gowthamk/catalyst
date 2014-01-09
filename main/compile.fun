@@ -537,8 +537,8 @@ in
             val _ = Control.message (Control.Top, fn _ =>
               RE.layout re)
             val _ = print "\n"
+            val vcs = SpecVerify.doIt (ve,re,ancoreML)
             (*
-            val vcs = SpecVerify.doIt (ve,ancoreML)
             fun layouts (vcs,output) = (
               output $ Layout.str "Elaborated VarEnv:\n";
               output $ VE.layout ve;
