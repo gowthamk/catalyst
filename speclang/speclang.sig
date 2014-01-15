@@ -151,6 +151,7 @@ sig
                   | Star of instexpr
     val elemToString : elem -> string
     val instExprToString : instexpr -> string
+    val ieatomToString : ieatom -> string
     val exprToString : expr -> string
     val termToString : term -> string
     val termOfExpr : expr -> term
@@ -289,12 +290,8 @@ sig
     val instantiate : (RelTyvar.t * RelType.t) vector * t ->
           (RelTyConstraint.t vector * paramrefty)
     val instTyvars : (Tyvar.t * TypeDesc.t) vector * t -> t
-    val instRelTyvars : (RelTyvar.t * RelType.t) vector * t ->
-      RelTyConstraint.t vector * paramrefty
     val instRelParams : (RelVar.t * RelLang.ieatom) vector * 
           paramrefty -> RefinementType.t
-    val multiInstRelParams : (RelVar.t * RelLang.ieatom vector) 
-      vector * paramrefty -> RefinementType.t
     val generalizeWith : RelTyvar.t vector * RelTyConstraint.t vector 
           * paramrefty -> t
     val generalize : RelTyConstraint.t vector * paramrefty -> t

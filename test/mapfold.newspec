@@ -6,7 +6,5 @@ relation (Robs R) = Rob[R]*;
 relation (Roas R) = Roa[R]*;
 
 
-(R) concat : l1 -> l2 -> { l | Rmem[R](l) = Rmem[R](l1) U Rmem[R](l2) /\
-               Robs[R](l) = Robs[R](l1) U Robs[R](l2) U (Rmem[R](l1) X Rmem[R](l2))};
-
-(R) rev : l1 -> { l2 | Rmem[R](l2) = Rmem[R](l1) /\ Robs[R](l2) = Roas[R](l1)};
+(R1,R2) map : l1 -> (x -> {y | R2(y)= R1(x)}) -> 
+    {l2 | Rmem[R2](l2) = Rmem[R1](l1)};

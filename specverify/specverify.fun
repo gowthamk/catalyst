@@ -70,11 +70,28 @@ struct
    *)
   fun multiInstRelParams (sols, refty) =
     let
-      val refTys = Vector.map (sols, fn sol =>
-        RefTy.instRelVars (sol,refty))
-      val refTy = RefTy.unifyWithConj refTys
+      val doInst = fn _ => RefTy.unifyWithConj $ Vector.map 
+        (sols, fn sol => if Vector.isEmpty sol then refty 
+          else RefTy.instRelVars (sol,refty))
     in
-      refTy
+      if Vector.isEmpty sols then refty else doInst ()
+    end
+
+  fun rmUnusedRVars refSS = 
+    let
+      val RefSS.T {reltyvars, constraints, paramrefty} = refSS
+      val typedParams = RefSS.typedParams paramrefty
+      val refTy = RefSS.toRefTy refSS
+      val {add, contains, ...} = List.set {equals = RelVar.eq, 
+        layout = RelVar.layout }
+      val used = RefTy.foldRExpr refTy [] 
+        (fn (e,acc) => RelLang.foldRVar e acc
+          (fn (rv,acc2) => add (acc2,rv)))
+      val params' = Vector.keepAll (typedParams, 
+        fn (rv,_) => contains (used,rv))
+      val prt' = RefSS.paramRefTy (params',refTy)
+    in
+      RefSS.generalize (constraints, prt')
     end
  
   (*
@@ -449,8 +466,15 @@ struct
       case node exp of
         App (f,valexp) => 
           let
-            val fss = RefSS.alphaRename $ typeSynthValExp 
+            val fss = typeSynthValExp 
               (ve, re, Val.Atom f)
+            val _ = print "Sortscheme of fn:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              RefSS.layout fss)
+            val fss = RefSS.alphaRename fss
+            val _ = print "Sortscheme of fn (after alpha):\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              RefSS.layout fss)
             val fty = RefSS.toRefTy fss
             val (fargBind as (farg,fargty),fresty)  = case fty of 
                 RefTy.Arrow x => x
@@ -462,17 +486,23 @@ struct
              * Find instantiations for generalized rel params that
              * satisfy the judgement:
              *  Γ ⊢ argSS <: fargSS
-             * 
              *)
             val sols = VC.solveTypeCheck (ve, re, argSS, fargSS)
-            val (_,substs) = unifyArgs (fargBind, valexp)
-            val resTy = RefTy.applySubsts substs $ 
-              multiInstRelParams (sols, fresty)
+            val (binds,substs) = unifyArgs (fargBind, valexp)
             (*
              * Then, determine type of this expression by substitution 
              * of actuals for formals.
              *)
-            val resSS = Elab.sortSchemeOfRefTy re resTy
+            val resTy = RefTy.applySubsts substs $ 
+              multiInstRelParams (sols, fresty)
+            val _ = print "Result type of app:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              RefTy.layout resTy)
+            val templateResSS = RefSS.substRefTy (fss,resTy)
+            val resSS = rmUnusedRVars templateResSS
+            val _ = print "Result sortscheme of app:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              RefSS.layout resSS)
           in
             resSS
           end
@@ -545,17 +575,17 @@ struct
       fn ({pat,exp,...}) =>
         let
           val valbind = Dec.PatBind (pat,test)
-          val (marker,markedVE) = markVE ve
-          (* 
-           * tyvars used, if any, for type instantiations inside
-           * test are bound at any of the enclosing valbinds. 
-           * Therefore, passing empty for tyvars is sound.
-           *)
-          val extendedVE = doItValBind (markedVE, re,
+          val extendedVE = doItValBind (ve, re,
             Vector.new0(),valbind)
         in
           typeCheckExp (extendedVE,re,exp,ty)
         end)
+    | Exp.Let (decs,subExp) => 
+      let
+        val extendedVE = doItDecs (ve,re,decs)
+      in
+        typeCheckExp (extendedVE, re, subExp, ty)
+      end
     | _ => 
       let
         val tySS = toRefSS ty
@@ -734,6 +764,7 @@ struct
       extendedVE
     end
 
-  fun doIt (ve, re, Program.T{decs}) = ignore $ doItDecs (ve, re, decs)
+  fun doIt (ve, re, Program.T{decs}) = (ignore $ doItDecs (ve, re, decs);
+    VC.printVCsToFile ())
 
 end

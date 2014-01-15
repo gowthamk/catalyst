@@ -403,6 +403,8 @@ struct
           Int i => TyD.makeTconstr (Tycon.intInf,[])
         | Bool b => TyD.makeTconstr (Tycon.bool,[])
         | Var v => TyDBinds.find tyDB v 
+            handle TyDBinds.KeyNotFound _ => Error.bug ("Var "
+              ^(Var.toString v)^" not found in tydbinds")
       val emptycs = C.empty
     in
       case rexpr of 
@@ -440,6 +442,8 @@ struct
       | R2 (ie,arg) => 
         let
           val argTy = TyDBinds.find tyDB arg
+            handle TyDBinds.KeyNotFound _ => Error.bug ("Type of "
+              ^(Var.toString arg)^" not found in tydbinds")
           val (cs,ieAppty) = typeSynthIEApp (re, spsB, tyDB, ie, argTy)
         in
           (cs, ieAppty)

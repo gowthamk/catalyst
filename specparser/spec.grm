@@ -66,6 +66,7 @@ infixr 5 $
   | decsandtys of RelSpec.t
   | reldec of StructuralRelation.t
   | params of RelVar.t list
+  | paramseq of RelVar.t list
   | patmatchseq of (Pat.t * term) list
   | patmatch of Pat.t * term
   | pat of Pat.t
@@ -84,10 +85,10 @@ infixr 5 $
   | elemseq of elem list
   | typespec of TypeSpec.t 
   | refty of RefinementType.t
-  | reftyseq of RefinementType.t list
-  | vartyatom of Var.t * RefinementType.t
-  | vartyatomseq of (Var.t * RefTy.t) list
-  | tyatom of RefinementType.t
+  | reftyatom of RefinementType.t 
+  | vartyatom of Var.t * RefinementType.t 
+  | vartyseq of (Var.t * RefinementType.t) list
+  | varty of Var.t * RefinementType.t 
   | basety of RefinementType.t
   | pred of Predicate.t
   | relpred of Predicate.RelPredicate.t
@@ -133,6 +134,9 @@ reldec : RELATION ID patmatchseq  (* 6 *)
 
 params : ID ([RelVar.fromString ID])
        | ID params ((RelVar.fromString ID)::params)
+
+paramseq : ID ([RelVar.fromString ID])
+       | ID COMMA paramseq ((RelVar.fromString ID)::paramseq)
 
 patmatchseq : patmatch PIPE patmatchseq (patmatch :: patmatchseq)
             | patmatch ([patmatch])
@@ -200,29 +204,37 @@ elem : INT (Int(INT))
 
 typespec : ID COLON refty (TypeSpec.T {name = Var.fromString ID,
                   params = Vector.new0 (), refty = refty})
-         | LPAREN params RPAREN ID COLON refty (TypeSpec.T {
+         | LPAREN paramseq RPAREN ID COLON refty (TypeSpec.T {
                   name = Var.fromString ID,
-                  params = Vector.fromList params, refty = refty})
+                  params = Vector.fromList paramseq, refty = refty})
 
 (* alphaRename tyatom to avoid name clashes *)
-refty : tyatom (case tyatom of 
-            RefTy.Base _ => RefTy.alphaRename tyatom | _ => tyatom)
-      | vartyatom ARROW refty (RefinementType.Arrow(vartyatom,refty))
+refty : reftyatom (reftyatom)
+      | vartyatom ARROW refty (RefTy.Arrow (vartyatom, refty))
 
-vartyatom : tyatom (let open RefTy in case tyatom of 
-                      Base (v,_,_) => (v,alphaRename tyatom)
-                    | Tuple _ => (genVar (),tyatom)
-                    | Arrow _ => (genVar (),tyatom)
-                    end)
+reftyatom : basety (basety)
+          | LPAREN vartyseq RPAREN  (case vartyseq of
+                          [(v, refty as RefTy.Base _)] => 
+                              RefTy.alphaRenameToVar refty v
+                        | [(v,refty)] => refty
+                        | _ => RefTy.Tuple (Vector.fromList vartyseq))
 
-vartyatomseq : vartyatom ([vartyatom])
-             | vartyatom COMMA vartyatomseq (vartyatom ::
-                  vartyatomseq)
+vartyatom : basety (case basety of 
+                      RefTy.Base (v,_,_) => (v,RefTy.alphaRename basety)
+                    | _ => Error.bug "Impossible case of basety")
+          | LPAREN vartyseq RPAREN  (case vartyseq of
+                          [x] => x 
+                        | _ => (genVar (), RefTy.Tuple 
+                            (Vector.fromList vartyseq)))
 
-tyatom : basety (basety) (* 53 *)
-       | LPAREN vartyatomseq RPAREN (case vartyatomseq of 
-                  [(v,refty)] => refty
-                | _ => RefTy.Tuple (Vector.fromList vartyatomseq))
+vartyseq : varty ([varty])
+         | varty COMMA vartyseq (varty :: vartyseq)
+
+varty : refty (let open RefTy in case refty of 
+                          Base (v,_,_) => (v,alphaRename refty)
+                        | Tuple _ => (genVar (),refty)
+                        | Arrow _ => (genVar (),refty)
+                        end)
 
 (* Needs extension to specify ML type *)
 basety : ID (RefinementType.Base ((Var.fromString ID), 

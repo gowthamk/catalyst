@@ -9,6 +9,7 @@ struct
   val assert = Control.assert
   val fst = fn (x,y) => x
   fun varStrEq (v1,v2) = (Var.toString v1 = Var.toString v2)
+  val varEq = varStrEq
   fun varSubst (subst as (new,old)) v = if varStrEq (v,old) 
     then new else v
   val tyVarEq = fn (v1,v2) => (Tyvar.toString v1 = Tyvar.toString v2)
@@ -516,8 +517,9 @@ struct
   struct
     datatype t =  T of {paramsorts : SimpleProjSort.t vector,
                         sort : SimpleProjSort.t}
-    fun toString (T {paramsorts,sort}) = (Vector.toString
-        SimpleProjSort.toString paramsorts) 
+    fun toString (T {paramsorts,sort}) = case Vector.length paramsorts of
+      0 => SimpleProjSort.toString sort
+    | _ => (Vector.toString SimpleProjSort.toString paramsorts) 
       ^ " -> " ^ (SimpleProjSort.toString sort)
 
     fun new (paramsorts, sort) = T {paramsorts = paramsorts,
@@ -558,7 +560,7 @@ struct
                             sort : ProjSort.t}
 
     fun toString (T{reltyvars,constraints,sort}) = 
-      (Vector.toString RelTyvar.toString reltyvars)^" "^
+      (Vector.toString RelTyvar.toString reltyvars)^". "^
         (ProjSort.toString sort)
 
     fun specialize (T{sort, ...}) = sort
@@ -775,8 +777,23 @@ struct
         | _ => t
       end
 
-    fun foldRVar t b f = 
-      raise (Fail "Unimpl")
+    fun ieFoldRVar t b f = case t of
+        Relvar rv => f(rv,b)
+      | Inst {args,...} => Vector.fold (args, b, fn (ieat,b) =>
+          ieAtomFoldRVar ieat b f)
+      | Relation rid => b
+
+    and ieAtomFoldRVar t b f = case t of
+        Ie ie => ieFoldRVar ie b f
+      | Re rexpr => foldRVar rexpr b f
+
+    and foldRVar t b f = case t of
+        X (e1,e2) => foldRVar e1 (foldRVar e2 b f) f
+      | U (e1,e2) => foldRVar e1 (foldRVar e2 b f) f
+      | R1 rv => f (rv,b)
+      | R2 (ie,v) => ieFoldRVar ie b f
+      | _ => b
+      
 
     fun ieInstRelVars (eqs, ie) : instexpr = Vector.fold (eqs, ie, 
       fn ((v,ieat), ie) => case ieat of
@@ -971,7 +988,17 @@ struct
           | Sub x => Sub $ doIt x
           | SubEq x => SubEq $ doIt x
         end 
+
+      fun foldRExpr t b f =
+        let
+          val doIt = fn (e1,e2) => f(e1,(f(e2,b)))
+        in
+          case t of Eq x => doIt x
+          | Sub x => doIt x
+          | SubEq x => doIt x
+        end
     end
+                            
     datatype t =  True
                |  Base of BasePredicate.t 
                |  Rel of RelPredicate.t
@@ -981,7 +1008,6 @@ struct
                              cs : RelTyConstraint.t vector,
                              params : (RelVar.t * SimpleProjSort.t) vector
                              } * t
-                            
 
     fun layout t = case t of
         True => L.str "true" 
@@ -991,7 +1017,19 @@ struct
           layout t)
       | Conj (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
           layout e2)],"/\\ ")
-      | Forall ({rtyvs,cs,params},t) => L.str "forall pred"
+      | Forall ({rtyvs,cs,params},t) => 
+        let
+          val rtyvlyt = L.vector $ Vector.map (rtyvs,fn rtyv =>
+            L.str $ RelTyvar.toString rtyv)
+          fun typedParamLyt (r,sprojty) = L.str $ 
+            (RelVar.toString r) ^ " :: " ^
+            (SimpleProjSort.toString sprojty)
+          val paramslyt = L.vector $ Vector.map (params, typedParamLyt)
+          val tylyt = layout t
+        in
+          Pretty.nest ("forall", L.seq [rtyvlyt, L.str ". ", 
+            paramslyt, L.str ". "], tylyt)
+        end
 
     fun truee _ = True
 
@@ -1027,6 +1065,13 @@ struct
       | Conj (t1,t2) => Conj (mapRExpr t1 f, mapRExpr t2 f)
       | Forall (x,t) => Forall (x, mapRExpr t f)
       | _ => t
+
+    fun foldRExpr t b f  = case t of
+        Rel rp => RelPredicate.foldRExpr rp b f
+      | Exists (_,t) => foldRExpr t b f
+      | Conj (t1,t2) => foldRExpr t1 (foldRExpr t2 b f) f
+      | Forall (_,t) => foldRExpr t b f
+      | _ => b
   end
 
   structure RefinementType =
@@ -1102,20 +1147,43 @@ struct
    
     val instTyvars = fn (eqs,t) => instTyvars (eqs,t,mapTyD)
 
-    fun instRelVars (eqs, t) = raise (Fail "Unimpl")
-
     fun mapRExpr (t:t) (f : RelLang.expr -> RelLang.expr) = case t of
         Base (v,t,p) => Base (v, t, Predicate.mapRExpr p f)
       | Tuple tv => Tuple $ Vector.map (tv, fn (v,t) => 
           (v, mapRExpr t f))
       | Arrow ((v,t1), t2) => Arrow ((v, mapRExpr t1 f), mapRExpr t2 f)
 
-    fun foldRExpr t b f = 
-      raise (Fail "Unimpl")
+    fun foldRExpr t b f = case t of
+        Base (v,t,p) => Predicate.foldRExpr p b f
+      | Tuple tv => Vector.fold (tv,b, fn ((_,t),b) =>
+          foldRExpr t b f)
+      | Arrow ((v,t1),t2) => foldRExpr t1 (foldRExpr t2 b f) f
+
+    fun instRelVars (eqs, t) = mapRExpr t (fn e => 
+      RelLang.instRelVars (eqs,e))
 
     fun mapRel t f = mapRExpr t (fn e => RelLang.mapRelExpr e f)
 
-    fun unifyWithConj ts = raise (Fail "Unimpl")
+    fun unifyWithConj ts = 
+      let
+        val (xs,x) = Vector.splitLast ts
+        fun doIt (t:t,t':t) = case (t,t') of
+          (Base (v1,t1,p1), Base (v2,t2,p2)) => (assert 
+            (varEq (v1,v2) andalso TyD.sameType (t1,t2), 
+            "Incompatible base types for unifyWithConj");
+            Base (v1,t1,Predicate.conj (p1,p2)))
+        | (Tuple tv1, Tuple tv2) => Tuple $ Vector.map2 (tv1,tv2,
+            fn ((v1,t1),(v2,t2)) => (assert (varEq (v1,v2),
+              "Incompatible tuple types to unifyWithConj"); 
+              (v1,doIt (t1,t2))))
+        | (Arrow ((v1,t11),t12), Arrow ((v2,t21),t22)) => 
+            (assert (varEq (v1,v2), "unifyWithConj : argvar \
+            \mismatch for function type");
+            Arrow ((v1, doIt (t11,t21)), doIt (t12,t22)))
+        | _ => raise (Fail "Incompatible types to unifyWithConj")
+      in
+        Vector.fold (xs,x, doIt)
+      end
       
   end
 
@@ -1168,9 +1236,6 @@ struct
 
     val instTyvars = fn (eqs, t) => instTyvars (eqs, t, mapTyD)
 
-    fun instRelTyvars (eqs, t) =
-      raise (Fail "Unimpl")
-
     fun instRelParams (eqs, {params,refty}) =
       let
         val _ = assert (isValidInst (eqs, Vector.map (params,fst), 
@@ -1179,9 +1244,6 @@ struct
         RefinementType.mapRExpr refty (fn re => RelLang.instRelVars
           (eqs,re))
       end
-
-    fun multiInstRelParams (eqs, t) =
-      raise (Fail "Unimpl")
 
     fun prtFoldRelTy ({params,refty}) b f =
       Vector.fold (params, b, fn ((_,sps),acc) => 
@@ -1207,8 +1269,10 @@ struct
         T {reltyvars = reltyvars, constraints = cs, paramrefty = prefty}
       end
 
-    fun substRefTy (t, newRefTy) =
-      raise (Fail "Unimpl")
+    fun substRefTy (T {reltyvars = rs, constraints = cs, paramrefty =
+      {params,refty}}, newRefTy) = T {reltyvars = rs,
+        constraints = cs, paramrefty = {params = params,
+          refty = newRefTy}}
 
     fun fromRefTy refty = 
       let
@@ -1247,18 +1311,22 @@ struct
               val newtyv = RelTyvar.new ()
               val relty = RelType.newVar newtyv
             in
-              ((newtyv,relty), newtyv)
+              ((rtyv,relty), newtyv)
             end)
-        val (T {constraints = constraints', paramrefty =
-          {params, refty}, ...}) = instRelTyvars (tyveqs, t)
+        val (constraints',{params, refty}) = instantiate (tyveqs, t)
         val (rveqs, params') = (Vector.unzip o Vector.map) 
           (params, fn (rv,sps) => 
             let
               val newrv = RelVar.new ()
               val ieatom = RelLang.ieatomOfRelVar newrv
+              val _ = print ("RV: "^(RelVar.toString rv))
             in
               ((rv, ieatom), (newrv,sps))
             end)
+        val _ = print "alphaRename rveqs:\n"
+        val _ = print $ Vector.toString (fn (rv,ieat) =>
+          (RelVar.toString rv)^ " := "^
+            (RelLang.ieatomToString ieat)) rveqs
         val refty' = RefinementType.mapRExpr refty 
           (fn e => RelLang.instRelVars (rveqs,e))
       in

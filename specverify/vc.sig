@@ -15,5 +15,6 @@ sig
   type sol = (RelVar.t * RelLang.ieatom) vector
   val solveTypeCheck : VE.t * RE.t * RefinementSortScheme.t * 
     RefinementSortScheme.t -> sol vector
+  val printVCsToFile : unit -> unit
 
 end

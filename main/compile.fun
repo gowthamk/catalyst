@@ -122,8 +122,6 @@ structure SpecVerify = SpecVerify (structure VE = VE
                                    structure ANormalCoreML = ANormalCoreML
                                    structure Elab = ElaborateVarEnv)
 
-structure VC = SpecVerify.VC
-
 (*
 val (z3_log,z3_log_close) = (fn stream => 
   (fn str => (Out.output (stream,str);
@@ -530,14 +528,14 @@ in
             val consty = VE.find ve consvid
             val ve = VE.add (VE.remove (VE.remove ve consvid) consvid')
               (consvid',consty)
-            val _ = print "Var Env:\n"
+            (*val _ = print "Var Env:\n"
             val _ = Control.message (Control.Top, fn _ =>
               VE.layout ve)
             val _ = print "Rel Env:\n"
             val _ = Control.message (Control.Top, fn _ =>
               RE.layout re)
-            val _ = print "\n"
-            val vcs = SpecVerify.doIt (ve,re,ancoreML)
+            val _ = print "\n"*)
+            val _ = SpecVerify.doIt (ve,re,ancoreML)
             (*
             fun layouts (vcs,output) = (
               output $ Layout.str "Elaborated VarEnv:\n";
