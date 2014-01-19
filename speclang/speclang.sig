@@ -302,6 +302,7 @@ sig
     val alphaRename : t -> t
     val coalesce : t vector -> (RefinementType.t vector -> 
       RefinementType.t) -> t
+    val rmUnusedRVars : t -> t
   end
 
   structure RefinementTypeScheme :

@@ -112,5 +112,37 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
       | Tconstr (tycon,tlist) => Tconstr (tycon, List.map (tlist,
           instantiateTyvars substs))
 
+    fun unify (tyd1,tyd2) =
+      let
+        val errMsg = fn _ => "The two types cannot be unified: " 
+          ^(toString tyd1)^", "^(toString tyd2)
+        val fldStrEq = fn (fld1,fld2) => (Field.toString fld1 = 
+          Field.toString fld2)
+      in
+        case (tyd1,tyd2) of
+          (Tvar v1, _) => Vector.new1 (v1,tyd2)
+        | (Tconstr (tycon1,tyds1), Tconstr (tycon2,tyds2)) =>
+          let
+            val _ = Control.assert (Tycon.toString tycon1 = 
+              Tycon.toString tycon2, errMsg ())
+            val insts = Vector.concatV $ Vector.map2 (
+              Vector.fromList tyds1, Vector.fromList tyds2, unify)
+          in
+            insts
+          end
+        | (Trecord tr1, Trecord tr2) =>
+          let
+            val vec1 = Record.toVector tr1
+            val vec2 = Record.toVector tr2
+            val insts = Vector.concatV $ Vector.map (vec1,
+              fn (fld1, tyd1) => case Vector.peek (vec2, 
+                  fn (fld2, _) => fldStrEq (fld1,fld2)) of
+                SOME (_,tyd2) => unify (tyd1,tyd2)
+              | NONE => raise (Fail $ errMsg()))
+          in
+            insts
+          end
+        | _ => raise (Fail $ errMsg ())
+      end
 	end
 	

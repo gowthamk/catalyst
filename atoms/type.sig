@@ -30,4 +30,5 @@ signature TYPE_DESC =
     val mapTvar : t -> (Tyvar.t -> t) -> t
     val foldTvar : t -> 'a -> (Tyvar.t * 'a -> 'a) -> 'a
     val instantiateTyvars : (t * Tyvar.t) vector -> t -> t 
+    val unify : t*t -> (Tyvar.t * t) vector
    end

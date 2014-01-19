@@ -77,23 +77,6 @@ struct
       if Vector.isEmpty sols then refty else doInst ()
     end
 
-  fun rmUnusedRVars refSS = 
-    let
-      val RefSS.T {reltyvars, constraints, paramrefty} = refSS
-      val typedParams = RefSS.typedParams paramrefty
-      val refTy = RefSS.toRefTy refSS
-      val {add, contains, ...} = List.set {equals = RelVar.eq, 
-        layout = RelVar.layout }
-      val used = RefTy.foldRExpr refTy [] 
-        (fn (e,acc) => RelLang.foldRVar e acc
-          (fn (rv,acc2) => add (acc2,rv)))
-      val params' = Vector.keepAll (typedParams, 
-        fn (rv,_) => contains (used,rv))
-      val prt' = RefSS.paramRefTy (params',refTy)
-    in
-      RefSS.generalize (constraints, prt')
-    end
- 
   (*
    * Produces a refTy' with base types taken from TyD and
    * refinements from refTy, given that user-provided base
@@ -173,9 +156,6 @@ struct
     let
       val RefSS.T {paramrefty, ...} = ss
       val refTy = mergeTypes (tyd, RefSS.toRefTy ss)
-      val _ = print "RefTy is\n"
-      val _ = Control.message (Control.Top, fn _ =>
-        RefTy.layout refTy)
       val ss = Elab.sortSchemeOfRefTy re refTy
     in
       ss
@@ -468,6 +448,7 @@ struct
           let
             val fss = typeSynthValExp 
               (ve, re, Val.Atom f)
+            (*
             val _ = print "Sortscheme of fn:\n"
             val _ = Control.message (Control.Top, fn _ =>
               RefSS.layout fss)
@@ -475,6 +456,7 @@ struct
             val _ = print "Sortscheme of fn (after alpha):\n"
             val _ = Control.message (Control.Top, fn _ =>
               RefSS.layout fss)
+            *)
             val fty = RefSS.toRefTy fss
             val (fargBind as (farg,fargty),fresty)  = case fty of 
                 RefTy.Arrow x => x
@@ -495,14 +477,18 @@ struct
              *)
             val resTy = RefTy.applySubsts substs $ 
               multiInstRelParams (sols, fresty)
+            (*
             val _ = print "Result type of app:\n"
             val _ = Control.message (Control.Top, fn _ =>
               RefTy.layout resTy)
+             *)
             val templateResSS = RefSS.substRefTy (fss,resTy)
-            val resSS = rmUnusedRVars templateResSS
+            val resSS = RefSS.rmUnusedRVars templateResSS
+            (*
             val _ = print "Result sortscheme of app:\n"
             val _ = Control.message (Control.Top, fn _ =>
               RefSS.layout resSS)
+             *)
           in
             resSS
           end
@@ -706,9 +692,6 @@ struct
               $ VE.find ve var) handle (VE.VarNotFound _) => 
                 RefSS.fromRefTy $ RefTy.fromTyD funTyD
             val funspec = RefTyS.generalize (tyvars,funSS)
-            val _ = print "The sort scheme is\n"
-            val _ = Control.message (Control.Top, fn _ =>
-              RefTyS.layout funspec)
           in
             VE.add ve (var,funspec)
           end)

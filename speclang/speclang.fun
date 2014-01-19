@@ -793,14 +793,13 @@ struct
       | R1 rv => f (rv,b)
       | R2 (ie,v) => ieFoldRVar ie b f
       | _ => b
-      
 
     fun ieInstRelVars (eqs, ie) : instexpr = Vector.fold (eqs, ie, 
       fn ((v,ieat), ie) => case ieat of
           Ie ie => ieMapRVarToIExpr ie (fn v' => 
-            if RelTyvar.eq (v,v') then ie else Relvar v)
+            if RelVar.eq (v,v') then ie else Relvar v)
         | Re re => ieMapRVarToExpr ie (fn v' => 
-            if RelTyvar.eq (v,v') then re else R1 v))
+            if RelVar.eq (v,v') then re else R1 v))
 
     and ieAtomInstRelVars (eqs, ieat) : ieatom = case ieat of
         Ie ie => Ie (ieInstRelVars (eqs, ie))
@@ -809,9 +808,9 @@ struct
     and instRelVars (eqs, expr) = Vector.fold (eqs, expr, 
       fn ((v,ieat), expr) => case ieat of
           Ie ie => mapRVarToIExpr expr (fn v' => 
-            if RelTyvar.eq (v,v') then ie else Relvar v)
+            if RelVar.eq (v,v') then ie else Relvar v')
         | Re re => mapRVarToExpr expr (fn v' => 
-            if RelTyvar.eq (v,v') then re else R1 v))
+            if RelVar.eq (v,v') then re else R1 v'))
 
     fun instRelVarsInTerm (eqs,Atom ieat) = Atom $ ieAtomInstRelVars
             (eqs, ieat)
@@ -1319,14 +1318,15 @@ struct
             let
               val newrv = RelVar.new ()
               val ieatom = RelLang.ieatomOfRelVar newrv
-              val _ = print ("RV: "^(RelVar.toString rv))
             in
               ((rv, ieatom), (newrv,sps))
             end)
+        (*
         val _ = print "alphaRename rveqs:\n"
         val _ = print $ Vector.toString (fn (rv,ieat) =>
           (RelVar.toString rv)^ " := "^
             (RelLang.ieatomToString ieat)) rveqs
+        *)
         val refty' = RefinementType.mapRExpr refty 
           (fn e => RelLang.instRelVars (rveqs,e))
       in
@@ -1348,6 +1348,23 @@ struct
             {params = tps, refty = refty}}
       end
 
+  fun rmUnusedRVars refSS = 
+    let
+      val T {reltyvars, constraints, paramrefty} = refSS
+      val typedParams = typedParams paramrefty
+      val refTy = toRefTy refSS
+      val {add, contains, ...} = List.set {equals = RelVar.eq, 
+        layout = RelVar.layout }
+      val used = RefinementType.foldRExpr refTy [] 
+        (fn (e,acc) => RelLang.foldRVar e acc
+          (fn (rv,acc2) => add (acc2,rv)))
+      val params' = Vector.keepAll (typedParams, 
+        fn (rv,_) => contains (used,rv))
+      val prt' = paramRefTy (params',refTy)
+    in
+      generalize (constraints, prt')
+    end
+ 
   end
 
   structure RefinementTypeScheme =

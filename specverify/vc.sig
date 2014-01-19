@@ -6,6 +6,7 @@ sig
   sharing type RefinementTypeScheme.t = VE.tyscheme
   sharing type Var.t = VE.Var.t
   sharing type RelId.t = RE.SpecLang.RelId.t
+  sharing RE.SpecLang.ProjTypeScheme = ProjTypeScheme
   (*sharing type RelTypeScheme.t = RE.SpecLang.RelTypeScheme.t*)
 end
 signature VERIFICATION_CONDITION =
