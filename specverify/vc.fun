@@ -22,6 +22,9 @@ struct
   type tydbinds = tydbind vector
 
   type sol = (RelVar.t * RelLang.ieatom) vector
+
+  exception UnsolvableVC of string
+  exception InvalidVC
   
   datatype pred = True 
                 | Base of BP.t
@@ -43,6 +46,19 @@ struct
   fun vectorPrepend (e,vec) = Vector.concat [Vector.new1 e,vec]
   fun vectorFoldrFoldr (vec1,vec2,acc,f) = Vector.foldr (vec1,acc,
     fn (el1,acc) => Vector.foldr (vec2,acc,fn (el2,acc) => f (el1,el2,acc)))
+  val tyVarEq = fn (v1,v2) => (Tyvar.toString v1 = Tyvar.toString v2)
+  fun isValidInst (eqs,els,isEq) = 
+    let
+      (*
+       * Clear tautologies. This is a hack. Unimpl : remove.
+       *)
+      val eqs' = Vector.keepAll (eqs, fn (v,tyd) => case tyd of
+        TyD.Tvar v' => not $ tyVarEq (v,v') | _ => true)
+      val isGeneralized = fn x => Vector.exists (els, fn el =>
+        isEq (x,el))
+    in
+      Vector.forall (eqs', fn (v,_) =>  isGeneralized v)
+    end
 
   structure ElabVC =
   struct
@@ -64,11 +80,25 @@ struct
     | (Conj spv,sp2) => Conj $ vectorAppend (spv,sp2)
     | (sp1,sp2) => Conj (Vector.new2 (sp1,sp2))
 
+  fun vcPredConj (p1 : ElabVC.vc_pred, p2 : ElabVC.vc_pred) =
+    let 
+      open ElabVC
+    in
+      case (p1,p2) of
+        (Simple p1,Simple p2) => Conj $ Vector.new2 (p1,p2)
+      | (Simple p, Conj spv) => Conj $ Vector.concat 
+          [Vector.new1 p, spv]
+      | (Conj spv, Simple p) => Conj $ Vector.concat 
+          [Vector.new1 p, spv]
+      | (Conj spv1, Conj spv2) => Conj $ Vector.concat [spv1,spv2]
+    end
+
   fun coercePTtoPred (pt:P.t) : pred = case pt of
       P.True => True
     | P.Base p => Base p
     | P.Rel p => Rel p
-    | _ => Error.bug "Cannot coerce PT to T"
+    | P.Conj (p1,p2) => conj (coercePTtoPred p1,coercePTtoPred p2)
+    | _ => Error.bug "Cannot coerce PT to pred"
 
   fun coercePredToPT (pred : pred) : P.t = case pred of
       True => P.True
@@ -76,18 +106,26 @@ struct
     | Rel p => P.Rel p
     | Conj ps => Vector.fold (ps,P.True, fn (p,acc) =>
         P.Conj (coercePredToPT p,acc))
-    | Forall (x,p) => P.Forall (x, coercePredToPT p)
+    | _ => Error.bug "Cannot coerce pred to PT"
 
-  fun coercePtoVCP (pred : pred) : ElabVC.vc_pred =
+  fun coercePredtoVCP (pred : pred) : ElabVC.vc_pred =
     case pred of
       True => ElabVC.Simple $ ElabVC.True
     | Base p => ElabVC.Simple $ ElabVC.Base p
     | Rel p => ElabVC.Simple $ ElabVC.Rel p
     | Conj ps => ElabVC.Conj $ Vector.concatV $ Vector.map (ps,
-        fn p => case coercePtoVCP p of 
+        fn p => case coercePredtoVCP p of 
           ElabVC.Simple s => Vector.new1 s
         | ElabVC.Conj sps => sps)
     | Forall _ => Error.bug "Impossible to coerce forall pred"
+
+  fun coerceVCPtoPred (vcp : ElabVC.vc_pred) : pred =
+    case vcp of
+      ElabVC.Simple (ElabVC.True) => True
+    | ElabVC.Simple (ElabVC.Base p) => Base p
+    | ElabVC.Simple (ElabVC.Rel p) => Rel p
+    | ElabVC.Conj sps => Conj $ Vector.map (sps, fn sp =>
+        coerceVCPtoPred $ ElabVC.Simple sp)
     
   fun truee () : pred = True
   
@@ -108,6 +146,24 @@ struct
   fun joinVCs ((binds1,envP1),(binds2,envP2)) : (tydbinds * pred) =
     (Vector.concat [binds1,binds2],conj (envP1,envP2))
 
+  fun joinCons (el,vecvec) = case Vector.length vecvec of 
+    0 => Vector.new1 $ Vector.new1 el
+  | _ => Vector.map (vecvec, fn vec => Vector.concat 
+    [Vector.new1 el, vec])
+
+  (*
+   * Vec[n] -> Vec[m] -> Vec [m*n]
+   *)
+  fun joinWith (vec1,vec2,f) = 
+    case (Vector.length vec1, Vector.length vec2) of
+      (0,_) => vec2 | (_,0) => vec1 
+    | _ =>Vector.fromList $ vectorFoldrFoldr (vec1, vec2, [], 
+      fn (el1,el2,acc) => (f (el1,el2))::acc)
+
+  fun joinAllWith (vecvec,f) =
+    Vector.fold (vecvec, Vector.new0 (), fn (vec,acc) =>
+      joinWith (vec,acc,f))
+
   fun joinSols (sols1,sols2) =
     let
       fun disjointUnion (sol1,sol2) = 
@@ -122,10 +178,7 @@ struct
           Vector.concat [sol1,sol2]
         end
     in
-      case (Vector.length sols1, Vector.length sols2) of
-        (0,_) => sols2 | (_,0) => sols1 
-      | _ => Vector.fromList $ vectorFoldrFoldr (sols1, sols2, [],
-          fn (sol1,sol2,acc) => (disjointUnion (sol1,sol2))::acc)
+       joinWith (sols1, sols2, disjointUnion)
     end
 
   fun havocPred (pred : P.t) : (tydbinds*pred) =
@@ -264,11 +317,18 @@ struct
     end
 
   fun layouts (vcs,output) =
-    (output $ L.str "Verification Conditions:\n" ; output $ layout vcs)
+    (output $ L.str "Verification Conditions:\n" ; 
+      output $ layout vcs)
 
-  fun isValid (re, ElabVC.T (tydbinds,anteP,conseqP)) =
-    raise (Fail "Unimpl")
-    
+  fun isValidVC (re, ElabVC.T (tydbinds,anteP,conseqP)) =
+    let
+      val vc = T (tydbinds, coerceVCPtoPred anteP, 
+        coerceVCPtoPred $ ElabVC.Simple conseqP)
+     val _ = List.push (allvcs,vc)
+    in
+      true
+    end
+
   fun allRVInsts (re,{rtyvs, cs, params}) : sol vector =
     let
       exception NotUnifiable
@@ -283,11 +343,21 @@ struct
           val sps1 = if Vector.length paramsorts = 0 then sort
             else raise NotUnifiable
           val empty = Vector.new0 ()
-          val (tydEqs,(rt1,rt2)) = case (sps1,sps2) of
+          val (tydEqs,(rt1,rt2)) = (case (sps1,sps2) of
               (SPS.Base rt1, SPS.Base rt2) => (empty, (rt1,rt2))
             | (SPS.ColonArrow (tyd1,rt1), SPS.ColonArrow (tyd2,rt2)) 
-              => (TyD.unify (tyd1,tyd2), (rt1,rt2))
-            | _ => raise NotUnifiable
+              => (TyD.unify (tyd1,tyd2), (rt1,rt2))) handle _ =>
+                raise NotUnifiable
+          (*
+           * tydEqs is valid iff its domain is subset of generalized
+           * tyvars
+           *)
+          val PTS.T {tyvars, ...} = pts1
+          val printTyDEqs = fn tydEqs => print $ Vector.toString
+            (fn (v,tyd) => (Tyvar.toString v)^":="
+              ^(TyD.toString tyd)) tydEqs
+          val _ = if isValidInst (tydEqs,tyvars,tyVarEq) then ()
+            else (raise NotUnifiable)
           val rtyc = RelTyC.new (rt2, RelType.instTyvars (tydEqs,rt1))
           val (rtyveqs,residue) = RelTyC.solvePartial $ 
             Vector.new1 rtyc
@@ -298,26 +368,73 @@ struct
         end
       val revec = RE.toVector re
       val findCompatible = fn sps => Vector.keepAllMap (revec, 
-        fn (rid,{ty,map,params}) => SOME (unifySorts (ty,sps), rid)
-          handle NotUnifiable => NONE )
+        fn (rid,{ty,map,params}) => SOME (unifySorts (ty,sps), 
+          RelLang.ieatomOfRel rid) handle NotUnifiable => NONE )
       fun instRelTyvars (eqs,ps) = List.map (ps,
         fn (rv,sps) => (rv,SPS.instRelTyvars (eqs,sps)))
+      fun isSolComplete sol = Vector.forall (sol, fn (_,ridop) =>
+        case ridop of SOME _ => true | _ => false)
+      fun solOpToSol solOp = Vector.map (solOp, fn (rv,SOME rid) =>
+        (rv,rid))
       fun doIt params = case params of
-          [] => [[]]
-        | (rv,sps)::ps' => List.concat $ Vector.toListMap 
-            (findCompatible sps, fn (rtyveqs,rid) => List.map 
-              (doIt $ instRelTyvars (rtyveqs,ps'), fn sol => 
-                (rv,RelLang.ieatomOfRel rid) :: sol))
+          [] => Vector.new0 ()
+        | (rv,sps)::ps' => 
+          let
+            val compats = findCompatible sps
+            val sls = case Vector.length compats of
+                0 => Vector.new1 ((rv,NONE),ps')
+              | _ => Vector.map (compats, fn (rtyveqs,rid) => 
+                ((rv,SOME rid), instRelTyvars (rtyveqs, ps')))
+            val solOps = Vector.concatV $ Vector.map (sls, 
+              fn (eq,ps') => joinCons (eq, doIt ps'))
+          in
+            solOps
+          end 
+      val solOps = doIt $ Vector.toList params
+      val completeSolOps = Vector.keepAll (solOps, isSolComplete)
+      val sols = Vector.map (completeSolOps ,solOpToSol)
+      val _ = Vector.foreachi (sols, fn (i,sol) =>
+        let
+          val istr = Int.toString i
+          val _ = print ("Candidate rvinsts(" ^ istr ^ ") :\n")
+          val _ = print $ Vector.toString (fn (rv,ieat) =>
+            (RelVar.toString rv)^ " := "^
+              (RelLang.ieatomToString ieat)) sol
+          val _ = print "\n"
+        in
+          ()
+        end)
     in
-      Vector.fromList $ List.map (doIt $ Vector.toList params, 
-        Vector.fromList)
+      sols
     end
 
   fun instRVars (eqs,pred) : pred =
-    raise (Fail "Unimpl")
+    coercePTtoPred $ P.mapRExpr (coercePredToPT pred)
+      (fn re => RelLang.instRelVars (eqs,re))
 
-  fun flattenPtoVCPs (re,pred : pred) : ElabVC.vc_pred vector =
-    raise (Fail "Unimpl")
+  fun firstOrderModels (re,pred : pred) : ElabVC.vc_pred vector =
+    case pred of
+      (*
+       * Conj is a join point.
+       *)
+      Conj preds => joinAllWith (Vector.map (preds, fn pred =>
+        firstOrderModels (re,pred)), vcPredConj)
+    | Forall (x,p) => 
+      let
+        (*
+         * Assertion: p must be simple pred)
+         * If there are no first order models for this
+         * second-order assertion, we simply drop it,
+         * weakening the antecedent.
+         *)
+        val candidateSols = allRVInsts (re,x)
+        val foPs = Vector.map (candidateSols, fn sol => 
+          instRVars (sol,p))
+        val foVCPs = Vector.map (foPs, coercePredtoVCP)
+      in
+        foVCPs
+      end
+    | _ => Vector.new1 $ coercePredtoVCP pred
 
   fun solveVC (re,T (tydbinds,anteP,conseqP)) : sol vector =
     let
@@ -330,45 +447,55 @@ struct
           val vcs = Vector.map (conseqPs, fn conseqP =>
             ElabVC.T (tydbinds, anteVCP, conseqP))
         in
-          Vector.forall (vcs, fn vc => isValid (re,vc))
+          Vector.forall (vcs, fn vc => isValidVC (re,vc))
         end
       val emptysol = Vector.new0 ()
-      val solVCPs = case conseqP of 
-        Forall (x,p) => Vector.map (allRVInsts (re,x), 
-          fn sol => (sol,coercePtoVCP $ instRVars (sol,p)))
-      | _ => Vector.new1 (emptysol, coercePtoVCP conseqP)
-      val antePs = flattenPtoVCPs (re,anteP)
-      val solvcs = case conseqP of True => Vector.new0 ()
-        | _ => Vector.map (solVCPs, fn (sol,conseqVCP) => 
+      val solConseqVCPPairs = case conseqP of 
+        Forall (x,p) => 
+          let
+            val candidateSols = allRVInsts (re,x)
+            val _ = case Vector.length candidateSols of
+                0 => raise (UnsolvableVC "No candidate sols for\
+                  \ 2nd order consequent.")
+              | _ => ()
+            val foConseqPs = Vector.map (candidateSols, 
+              fn sol => instRVars (sol,p))
+            val foConseqVCPs = Vector.map (foConseqPs,
+              coercePredtoVCP)
+          in
+            Vector.zip (candidateSols,foConseqVCPs)
+          end
+      | p => Vector.new1 (emptysol, coercePredtoVCP p)
+      val antePs = firstOrderModels (re,anteP)
+      val solVCPairs = case conseqP of 
+          True => Vector.map (solConseqVCPPairs, 
+            fn (sol,_) => (sol, Vector.new0 ()))
+        | _ => Vector.map (solConseqVCPPairs, fn (sol,conseqVCP) => 
           (sol, Vector.map (antePs, fn anteP => 
             T1 (tydbinds,anteP,conseqVCP))))
-      fun validateSolVC (sol,t1s) = Vector.exists (t1s, t1IsValid)
-      val validSolVCs = Vector.keepAll (solvcs, validateSolVC)
+      (*
+       * An instantiation (sol) is a solution for VC iff there 
+       * exists a first order model of antecedent under which
+       * the instantiated consequent is valid
+       *)
+      fun validateSol (sol,t1s) = case Vector.length t1s of
+          0 => true
+        | _ => Vector.exists (t1s, t1IsValid)
+      (*
+       * For first-order conseqP, validSols is a unary vector
+       * of trivial (null) instantiation.
+       *)
+      val validSols : sol vector = Vector.map (Vector.keepAll 
+        (solVCPairs, validateSol), fst)
+      val _ = case Vector.length validSols of 
+          0 => raise (UnsolvableVC "validSols is empty") | _ => ()
     in
-      case Vector.length validSolVCs of 
-        0 => raise (Fail "VC cannot be validated")
-      | _ => Vector.map (validSolVCs,fst)
+      validSols
     end
 
   fun solveTypeCheck (ve, re, subSS, supSS) :
      sol vector =
     let
-      (*
-      val _ = print "VC Typecheck\n"
-      val _ = print "Var Env:\n"
-      val _ = Control.message (Control.Top, fn _ =>
-        VE.layout ve)
-      val _ = print "Rel Env:\n"
-      val _ = Control.message (Control.Top, fn _ =>
-        RE.layout re)
-      val _ = print "--------------------------\n"
-      val _ = Control.message (Control.Top, fn _ =>
-        RefSS.layout subSS)
-      val _ = print " <: "
-      val _ = Control.message (Control.Top, fn _ =>
-        RefSS.layout supSS)
-      val _ = print "--------------------------\n"
-      *)
       val subSS = RefSS.rmUnusedRVars subSS
       val supSS = RefSS.rmUnusedRVars supSS
       val subTy = RefSS.toRefTy subSS
@@ -405,8 +532,8 @@ struct
                 (assert (Vector.isEmpty tydbinds', "Existential in\
                   \ consequent. Impossible."); 
                 vcOf (tydbinds, anteP, conseqP))
-            val sol = solveVC (re,fullVC)
             val _ = List.push (allvcs,fullVC)
+            val sol = solveVC (re,fullVC)
           in
             sol
           end
@@ -436,7 +563,7 @@ struct
     fun printVCsToFile () =
       let
         val vcs = Vector.fromList $ List.rev $ !allvcs
-        val _ = Control.saveToFile ({suffix = "newvcs"}, Control.No, 
+        val _ = Control.saveToFile ({suffix = "evcs"}, Control.No, 
                  vcs, Control.Layouts layouts)
       in
         ()

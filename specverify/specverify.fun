@@ -11,6 +11,7 @@ struct
   structure TyD = TypeDesc
   structure PSS = ProjSortScheme
   structure PTS = ProjTypeScheme
+  structure SPS = SimpleProjSort
   structure RefTy = RefinementType
   structure RefTyS = RefinementTypeScheme
   structure RefSS = RefinementSortScheme
@@ -706,20 +707,37 @@ struct
                   val fss = RefTyS.specialize $ VE.find extendedVE var
                     handle (VE.VarNotFound _) => Error.bug "ImpossibleCase!"
                   (*
+                   * Alpha-rename to avoid name clashes with bound
+                   * relvars in subsequent var env.
+                   *)
+                  val fss = RefSS.alphaRename fss
+                  (*
                    * For recursive function lambdas are checked against 
                    * user-provided type or trivial type.
                    *)
-                  val RefSS.T {paramrefty, ...} = fss
+                  val RefSS.T {paramrefty, reltyvars, ...} = fss
                   val typedParams = RefSS.typedParams paramrefty
                   (*
                    * relvars must be concretized as uninterpreted 
-                   * relations.
+                   * relations. Corresponding reltyvars are
+                   * concretized as unary tuples of new tyvars.
                    *)
+                  val newRelTy = fn _ => RelType.newTuple $ 
+                    Vector.new1 $ TyD.makeTvar $ Tyvar.newNoname 
+                        {equality = false}
+                  val rtyveqs = Vector.map (reltyvars, fn rv =>
+                    (rv, newRelTy ()))
                   val typedRelIds = Vector.map (typedParams, 
                     fn (r,sps) => (RelId.fromString $ 
-                      RelVar.toString r, sps))
+                      RelVar.toString r, SPS.instRelTyvars
+                      (rtyveqs,sps)))
                   val extendedRE = Vector.fold (typedRelIds, re, 
                     fn ((rid,sps),re) => addURelToRE re (rid,sps))
+                  (* Print extended RE *)
+                  val _ = print "Rel Env:\n"
+                  val _ = Control.message (Control.Top, fn _ =>
+                    RE.layout extendedRE)
+                  val _ = print "\n"
                   val insts = Vector.map2 (typedParams,typedRelIds,
                     fn ((r,_),(rid,_)) => (r,RelLang.ieatomOfRel rid))
                   val fty = RefSS.instRelParams (insts,paramrefty)

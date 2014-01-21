@@ -23,7 +23,7 @@ struct
     in
       mapTyD t mapf
     end
-  fun isValidInst (eqs, vars, isEq) = 
+  fun isCompleteInst (eqs, vars, isEq) = 
     let
       fun inst v' = Vector.peekMap (eqs, fn (v,x) => 
         if isEq (v,v') then SOME x else NONE)
@@ -147,10 +147,13 @@ struct
 
     fun instRelTyvars (eqs,t) = 
       let
+        fun resolveCross (Cross (t1,t2)) = crossPrdType 
+          (resolveCross t1, resolveCross t2)
+          | resolveCross t = t
         fun inst v' = Vector.peekMap (eqs, fn (v,rt) => 
           if RelTyvar.eq (v,v') then SOME rt else NONE)
       in
-        mapRelTyVar t (fn v => case inst v of 
+        resolveCross $ mapRelTyVar t (fn v => case inst v of 
           SOME rt => rt | NONE => newVar v)
       end 
   end
@@ -593,7 +596,7 @@ struct
       
     fun instantiate (eqs, T {reltyvars, constraints, sort}) =
       let
-        val _ = assert (isValidInst (eqs, reltyvars, RelTyvar.eq),
+        val _ = assert (isCompleteInst (eqs, reltyvars, RelTyvar.eq),
            "Reltyvar instantiation incomplete")
         val cs' = RelTyC.instRelTyvars (eqs,constraints)
         val sort' = ProjSort.instRelTyvars (eqs,sort)
@@ -642,7 +645,7 @@ struct
 
     fun instantiate (eqs, T{tyvars,sortscheme}) = 
       let
-        val _ = assert (isValidInst (eqs, tyvars, tyVarEq),
+        val _ = assert (isCompleteInst (eqs, tyvars, tyVarEq),
            "Reltyvar instantiation incomplete")
       in
         ProjSortScheme.instTyvars (eqs,sortscheme)
@@ -893,7 +896,7 @@ struct
     
     fun instantiate (eqs, (T{id, params, map})) =
       let
-        val _ = assert (isValidInst (eqs, params, RelVar.eq),
+        val _ = assert (isCompleteInst (eqs, params, RelVar.eq),
            "RelVar instantiation incomplete")
         val map' = Vector.map (map, fn (pato,rterm) =>
           (pato, RelLang.instRelVarsInTerm (eqs, rterm)))
@@ -1225,7 +1228,7 @@ struct
 
     fun instantiate (eqs, T {reltyvars, constraints, paramrefty}) =
       let
-        val _ = assert (isValidInst (eqs, reltyvars, RelTyvar.eq),
+        val _ = assert (isCompleteInst (eqs, reltyvars, RelTyvar.eq),
            "RelVar instantiation incomplete")
         val cs' = RelTyC.instRelTyvars (eqs,constraints)
         val prt' = prtInstRelTyvars (eqs, paramrefty)
@@ -1237,7 +1240,7 @@ struct
 
     fun instRelParams (eqs, {params,refty}) =
       let
-        val _ = assert (isValidInst (eqs, Vector.map (params,fst), 
+        val _ = assert (isCompleteInst (eqs, Vector.map (params,fst), 
           RelVar.eq), "Relvar instantiation incomplete")
       in
         RefinementType.mapRExpr refty (fn re => RelLang.instRelVars
