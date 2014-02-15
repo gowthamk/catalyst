@@ -37,6 +37,7 @@ sig
     datatype expr = T of elem vector
                   | X of expr * expr
                   | U of expr * expr
+                  | D of expr * expr
                   | R of RelId.t * Var.t
     datatype term = Expr of expr
                   | Star of RelId.t
@@ -46,6 +47,7 @@ sig
     val app : RelId.t * Var.t -> expr
     val union : expr * expr -> expr
     val crossprd : expr * expr -> expr
+    val diff : expr * expr -> expr
     val emptyexpr : unit -> expr
     val applySubsts : (Var.t * Var.t) vector -> expr -> expr
   end
@@ -75,6 +77,7 @@ sig
                   | Eq of expr * expr
       val toString : t -> string
       val varEq : Var.t * Var.t -> t
+      val varBoolEq : Var.t * bool -> t
       val applySubst : (Var.t * Var.t) -> t -> t
     end
 
@@ -88,21 +91,29 @@ sig
       val applySubst : (Var.t * Var.t) -> t -> t
     end
     datatype t =  True
+               |  False
                |  Base of BasePredicate.t 
                |  Rel of RelPredicate.t
                |  Exists of TyDBinds.t * t
+               |  Not of t
                |  Conj of t * t
                |  Disj of t * t
+               |  If of t * t
+               |  Iff of t * t
+               |  Dot of t * t
 
     val layout : t -> Layout.t 
     val truee : unit -> t
+    val falsee : unit -> t
+    val isFalse : t -> bool
+    val baseP : BasePredicate.t -> t 
     val conj : t*t -> t
     val conjR : t*RelPredicate.t -> t
     val conjP : t*BasePredicate.t -> t
     val applySubst : Var.t * Var.t -> t -> t
     val applySubsts : (Var.t * Var.t) vector -> t -> t
     val exists : TyDBinds.t * t -> t
-    val disj : t*t -> t
+    val dot: t*t -> t
     end
 
   structure RefinementType : 
@@ -129,14 +140,20 @@ sig
     val mapBaseTy : t -> ((Var.t * TypeDesc.t * Predicate.t) -> 
           (Var.t * TypeDesc.t * Predicate.t)) -> t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
+    val exnTyp : unit -> t
       
   end
 
   structure RefinementTypeScheme :
     sig
       datatype t = T of {tyvars : Tyvar.t vector,
-                        refty : RefinementType.t }
+                        refty : RefinementType.t,
+                        (* ICFP taking its toll *)
+                        isAssume : bool}
       val generalize : Tyvar.t vector * RefinementType.t -> t
+      val generalizeAssump : Tyvar.t vector * RefinementType.t * bool
+        -> t
+      val isAssumption : t -> bool
       val specialize: t -> RefinementType.t
       val instantiate : t * TypeDesc.t vector -> RefinementType.t
       val layout : t -> Layout.t 
@@ -146,7 +163,7 @@ sig
   sig
     structure TypeSpec:
     sig
-      datatype t = T of Var.t * RefinementType.t
+      datatype t = T of bool * Var.t * RefinementType.t
       val layout : t -> Layout.t
     end
     datatype t = T of {reldecs : StructuralRelation.t vector,

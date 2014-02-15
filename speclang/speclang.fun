@@ -20,6 +20,7 @@ struct
     datatype expr = T of elem vector
                   | X of expr * expr
                   | U of expr * expr
+                  | D of expr * expr
                   | R of RelId.t * Var.t
 
     datatype term = Expr of expr
@@ -110,6 +111,8 @@ struct
           ^ (exprToString e2) ^ ")"
       | U (e1,e2) => "(" ^ (exprToString e1) ^ " U " 
           ^ (exprToString e2) ^ ")"
+      | D (e1,e2) => "(" ^ (exprToString e1) ^ " - " 
+          ^ (exprToString e2) ^ ")"
       | R (rel,arg) => (RelId.toString rel) ^ "(" ^ (Var.toString arg) ^ ")"
     
     val exprToString = exprToString
@@ -121,6 +124,7 @@ struct
     fun app (relId,var) = R(relId,var)
     fun union (e1,e2) = U (e1,e2)
     fun crossprd (e1,e2) = X (e1,e2)
+    fun diff (e1,e2) = D (e1,e2)
     fun emptyexpr _ = T (Vector.fromList [])
     fun applySubsts substs rexpr = 
       let
@@ -136,6 +140,7 @@ struct
           T elemv => T (Vector.map (elemv,elemSubst))
         | X (e1,e2) => X (doIt e1, doIt e2)
         | U (e1,e2) => U (doIt e1, doIt e2)
+        | D (e1,e2) => D (doIt e1, doIt e2)
         | R (relId,argvar) => R (relId, subst argvar)
       end
   end
@@ -198,9 +203,13 @@ struct
             ^ (Bool.toString b2)
         | Eq (Var v1, Var v2) => (Var.toString v1) ^ " = " 
             ^ (Var.toString v2)
+        | Eq (Var v, Bool b) => (Var.toString v) ^ " = " 
+            ^ (Bool.toString b)
         | Iff (t1,t2) => (toString t1) ^ " <=> " ^ (toString t2) 
 
       fun varEq (v1,v2) = Eq (Var v1,Var v2)
+
+      fun varBoolEq (v,b) = Eq (Var v,Bool b)
 
       fun applySubst subst t = 
       let
@@ -237,24 +246,43 @@ struct
         (RelLang.applySubsts $ Vector.new1 subst)
     end
     datatype t =  True
+               |  False
                |  Base of BasePredicate.t 
                |  Rel of RelPredicate.t
                |  Exists of TyDBinds.t * t
+               |  Not of t
                |  Conj of t * t
+               |  If of t * t
+               |  Iff of t * t
                |  Disj of t * t
+               |  Dot of t * t
 
     fun layout t = case t of
         True => L.str "true" 
+      | False => L.str "false" 
       | Base bp => L.str $ BasePredicate.toString bp
       | Rel rp => L.str $ RelPredicate.toString rp 
       | Exists (binds,t) => Pretty.nest ("exist",(TyDBinds.layout binds),
           layout t)
+      | Not t => L.seq [L.str "not (", layout t, L.str ")"]
       | Conj (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
           layout e2)],"/\\ ")
       | Disj (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
           layout e2)],"\\/ ")
+      | If (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
+          layout e2)]," => ")
+      | Iff (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
+          layout e2)]," <=> ")
+      | Dot (e1,e2) => L.align $ L.separateLeft ([(layout e1), (
+          layout e2)]," o ")
 
     fun truee _ = True
+
+    fun falsee _ = False
+
+    fun isFalse False = true | isFalse _ = false
+
+    fun baseP p = Base p
 
     fun conj (t1,t2) = Conj (t1,t2)
 
@@ -264,14 +292,19 @@ struct
 
     fun applySubst (subst as (new,old)) t = case t of
         True => True
+      | False => False
       | Base bp => Base (BasePredicate.applySubst subst bp)
       | Rel rp => Rel (RelPredicate.applySubst subst rp)
       | Exists (tyDB,t) => if (TyDBinds.mem tyDB old)
             then Error.bug "Attempted substitution on existentially \
               \ quantified variable"
             else Exists (tyDB,applySubst subst t)
+      | Not t => Not $ applySubst subst t
       | Conj (t1,t2) => Conj (applySubst subst t1, applySubst subst t2)
       | Disj (t1,t2) => Disj (applySubst subst t1, applySubst subst t2)
+      | If (t1,t2) => If (applySubst subst t1, applySubst subst t2)
+      | Iff (t1,t2) => Iff (applySubst subst t1, applySubst subst t2)
+      | Dot (t1,t2) => Dot (applySubst subst t1, applySubst subst t2)
 
     (* telescoped substitutions *)
     fun applySubsts substs t = Vector.foldr (substs, t, fn (subst,t) =>
@@ -279,7 +312,7 @@ struct
 
     fun exists (tyb,t) = Exists (tyb,t)
 
-    fun disj (t1,t2) = Disj (t1,t2)
+    fun dot (t1,t2) = Dot (t1,t2)
   end
 
   structure RefinementType =
@@ -347,26 +380,35 @@ struct
 
     fun alphaRename refty = alphaRenameToVar refty (genVar())
 
+    val exnTyp = fn _ => Base (genVar(),TypeDesc.makeTunknown (),
+      Predicate.falsee())
+
   end
 
   structure RefinementTypeScheme =
     struct
       datatype t = T of {tyvars : Tyvar.t vector,
-                        refty : RefinementType.t}
+                        refty : RefinementType.t,
+                        isAssume : bool}
     
       val generalize = fn (tyvars, refty) =>
-        T {tyvars = tyvars, refty = refty}
-      val specialize = fn (T {tyvars,refty}) =>
+        T {tyvars = tyvars, refty = refty, isAssume = false}
+      val generalizeAssump = fn (tyvars, refty, isAssume) =>
+        T {tyvars = tyvars, refty = refty, isAssume = isAssume}
+      val isAssumption = fn(T {isAssume, ...}) => isAssume
+      val specialize = fn (T {tyvars,refty,...}) =>
         refty
-      fun layout (T {tyvars,refty}) =
+      fun layout (T {tyvars,refty,isAssume}) =
         let
+          val flaglyt = (if isAssume then L.str "Assumption: " else
+            L.empty)
           val tyvlyt = L.vector $ Vector.map (tyvars,fn tyv =>
             L.str $ Tyvar.toString tyv)
           val reftylyt = RefinementType.layout refty
         in
-          L.seq [tyvlyt,reftylyt]
+          L.seq [flaglyt,tyvlyt,reftylyt]
         end
-      fun instantiate (T{tyvars,refty},tydvec) =
+      fun instantiate (T{tyvars,refty,...},tydvec) =
         let
           val len = Vector.length
           val _ = assert (len tyvars = len tydvec,
@@ -387,8 +429,8 @@ struct
   struct
     structure TypeSpec =
     struct
-      datatype t = T of Var.t * RefinementType.t
-      val layout = fn T(var,refty) => L.seq [
+      datatype t = T of bool * Var.t * RefinementType.t
+      val layout = fn T(_,var,refty) => L.seq [
         L.str ((Var.toString var) ^ " : "),
         RefinementType.layout refty]
     end

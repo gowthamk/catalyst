@@ -54,7 +54,7 @@ struct
 
   val symbase = "anc_"
 
-  val count = ref 1024
+  val count = ref 0
 
   val genVar = fn _ => 
     let val id = symbase ^ (Int.toString (!count))
@@ -332,7 +332,8 @@ struct
         in
           Exp.PrimApp {args = newargs, prim = prim, targs = newtargs}
         end
-      | Exp.Raise v => Exp.Raise (applyTyVarSubstsInExpVal substs v)
+      (*| Exp.Raise v => Exp.Raise (applyTyVarSubstsInExpVal substs
+      v)*)
       | Exp.Seq expv => Exp.Seq (Vector.map (expv, 
           applyTyVarSubstsInExp substs))
       | Exp.Value v => Exp.Value (applyTyVarSubstsInExpVal substs v)
@@ -591,13 +592,13 @@ struct
           end
         | C.Exp.Const cth => ([], Exp.make (Exp.Value (Exp.Val.Atom (
             Exp.Val.Const (cth()))) ,expty))
-        | C.Exp.Raise exp => 
-          let
+        | C.Exp.Raise exp => ([], Exp.make (Exp.Nop, expty))
+          (*let
             val (predecs,value) = doItExpToValue exp tyvars
             val expnode = Exp.Raise value
           in
             (predecs, Exp.make (expnode,expty))
-          end
+          end*)
         | C.Exp.EnterLeave (exp,si) =>
           let
             val (predecs,value) = doItExpToValue exp tyvars

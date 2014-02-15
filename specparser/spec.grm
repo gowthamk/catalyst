@@ -33,6 +33,8 @@ infixr 5 $
 %term   RELATION
       | TRUE
       | FALSE
+      | ASSUME
+      | NOT
       | PLUS
       | MINUS
       | UNION
@@ -40,8 +42,10 @@ infixr 5 $
       | SUBSETEQ
       | SUBSET
       | EQUALOP
+      | IMP
       | IFF
       | CONJ
+      | DISJ
       | COLON
       | SEMICOLON
       | COMMA
@@ -50,6 +54,8 @@ infixr 5 $
       | RPAREN
       | LCURLY
       | RCURLY
+      | LBRACE
+      | RBRACE
       | ARROW
       | PIPE
       | ID of string
@@ -80,6 +86,8 @@ infixr 5 $
   | pred of Predicate.t
   | relpred of Predicate.RelPredicate.t
   | rpatom of Predicate.RelPredicate.t
+  | bpatom of Predicate.BasePredicate.t
+  | patom of Predicate.t
 %verbose
 %pure
 
@@ -128,6 +136,7 @@ rterm : ID STAR (Star(RelId.fromString ID))
 
 rexpr : ratom CROSSPRD rexpr (X(ratom,rexpr))
       | ratom UNION rexpr (U(ratom,rexpr))
+      | ratom MINUS rexpr (D(ratom,rexpr))
       | ratom (ratom)
 
 ratom : LCURLY LPAREN RPAREN RCURLY (T(Vector.fromList []))
@@ -143,7 +152,8 @@ elem : INT (Int(INT))
      | FALSE (Bool(false))
      | ID (Var(Var.fromString ID))
 
-typespec : ID COLON refty (TypeSpec.T ((Var.fromString ID),refty))
+typespec : ASSUME ID COLON refty (TypeSpec.T (true,(Var.fromString ID),refty))
+         | ID COLON refty (TypeSpec.T (false,(Var.fromString ID),refty))
 
 (* alphaRename tyatom to avoid name clashes *)
 refty : tyatom (case tyatom of RefTy.Base _ => RefTy.alphaRename tyatom
@@ -176,10 +186,27 @@ basety : ID (RefinementType.Base ((Var.fromString ID),
                 TypeDesc.makeTunknown(), pred))
 
 (* Needs extension for base predicates *)
-pred :  TRUE (Predicate.truee()) 
-     |  rpatom (Predicate.Rel rpatom)
-     |  rpatom CONJ pred (Predicate.conjR (pred,rpatom))
+(* (v=true) => (not ('R1(x)= Rnull(x))) /\
+   (v=false) => ('R2(x) = Rnull)*)
+pred :  patom (patom)
+     |  patom IMP pred (Predicate.If (patom,pred)) 
+     |  patom IFF pred (Predicate.Iff (patom,pred)) 
+     |  patom CONJ pred (Predicate.Conj (patom,pred))
+     |  patom DISJ pred (Predicate.Disj (patom,pred))
 
+patom : TRUE (Predicate.truee())
+      | NOT patom (Predicate.Not patom)
+      | LPAREN pred RPAREN (pred)
+      | rpatom (Predicate.Rel rpatom)
+      | bpatom (Predicate.Base bpatom)
+
+bpatom : LBRACE ID EQUALOP ID RBRACE (Predicate.BasePredicate.varEq 
+                      (Var.fromString ID1, Var.fromString ID2))
+       | LBRACE ID EQUALOP TRUE RBRACE (Predicate.BasePredicate.varBoolEq 
+                      (Var.fromString ID, true)) 
+       | LBRACE ID EQUALOP FALSE RBRACE (Predicate.BasePredicate.varBoolEq 
+                      (Var.fromString ID, false)) 
+    
 rpatom : rexpr EQUALOP rexpr (Predicate.RelPredicate.Eq(rexpr1,rexpr2))
        | rexpr SUBSET rexpr (Predicate.RelPredicate.Sub(rexpr1,rexpr2))
        | rexpr SUBSETEQ rexpr (Predicate.RelPredicate.SubEq(rexpr1,rexpr2))

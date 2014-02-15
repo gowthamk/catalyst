@@ -12,18 +12,23 @@ signature VERIFICATION_CONDITION =
 sig
   include VERIFICATION_CONDITION_STRUCTS
 
-  datatype simple_pred = True
+  datatype simple_pred =  True
+                       |  False
                        |  Base of Predicate.BasePredicate.t 
                        |  Rel of Predicate.RelPredicate.t
 
   datatype vc_pred =  Simple of simple_pred
-                   |  Conj of simple_pred vector
+                   |  If of vc_pred * vc_pred
+                   |  Iff of vc_pred * vc_pred
+                   |  Conj of vc_pred vector
+                   |  Disj of vc_pred vector
+                   |  Not of vc_pred
 
   type tydbind = Var.t * TypeDesc.t
 
   type tydbinds = tydbind vector
 
-  datatype t = T of tydbinds * vc_pred* simple_pred
+  datatype t = T of tydbinds * vc_pred* vc_pred
   
   val fromTypeCheck : VE.t * RefinementType.t * RefinementType.t -> t vector
 

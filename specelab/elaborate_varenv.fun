@@ -12,12 +12,31 @@ struct
   structure RelTyS = RelLang.RelTypeScheme
   structure RefTy = RefinementType
   structure RefTyS = RefinementTypeScheme
-  structure RP = Predicate.RelPredicate
+  structure P = Predicate
+  structure RP = P.RelPredicate
+  structure BP = P.BasePredicate
   structure TypeSpec = RelSpec.TypeSpec
 
   val assert = Control.assert
   fun $ (f,arg) = f arg
   infixr 5 $
+
+  fun bootStrapBools (ve: VE.t) = 
+    let
+      val boolTyD = TyD.makeTconstr (Tycon.bool,[])
+      val tvid = Var.fromString $ Con.toString Con.truee
+      val fvid = Var.fromString $ Con.toString Con.falsee
+      val RefTy.Base (v,t,_) = RefTy.fromTyD boolTyD
+      val eqPred1 = P.baseP $ BP.varBoolEq (v,true)
+      val eqPred2 = P.baseP $ BP.varBoolEq (v,false)
+      val empty = Vector.new0 ()
+      val tTyS = RefTyS.generalize (empty, RefTy.Base (v,t,eqPred1))
+      val fTyS = RefTyS.generalize (empty, RefTy.Base (v,t,eqPred2))
+      val ve' = VE.add ve (tvid,tTyS)
+      val ve'' = VE.add ve' (fvid,fTyS)
+    in
+      ve''
+    end
 
   fun elabDatBind (ve : VE.t) {cons,tyvars,tycon} =
     let
@@ -81,7 +100,7 @@ struct
           fn (cvar,var,_,_) => (cvar,var))
       val rexpr' = RelLang.applySubsts substs rexpr
       val newref = fn var => RP.Eq (RelLang.app(id,var),rexpr')
-      val RefTyS.T {tyvars,refty} = VE.find ve convid
+      val RefTyS.T {tyvars,refty,...} = VE.find ve convid
         handle (VE.VarNotFound v) => Error.bug ("Could not find constructor "
           ^ (Var.toString convid) ^ " in varenv\n")
       val annotConTy = case refty of
@@ -100,6 +119,7 @@ struct
    * Rel Env is constructed during elaboration, hence this function
    * is also part of elaboration.
    *)
+  exception CantInferType
   fun typeSynthRExpr (re,tyDB,rexpr) : RelLang.RelType.t =
     let
       open RelLang
@@ -114,6 +134,7 @@ struct
         T elemvec => Tuple $ Vector.map (elemvec, typeSynthRElem)
       | X (e1,e2) => crossPrdType (typeSynthRExpr e1, typeSynthRExpr e2)
       | U (e1,e2) => unionType (typeSynthRExpr e1, typeSynthRExpr e2)
+      | D (e1,e2) => unionType (typeSynthRExpr e1, typeSynthRExpr e2)
       | R (relId,arg) => 
         let
           val relName = RelId.toString relId
@@ -123,8 +144,7 @@ struct
             | _ => Error.bug "Instantiating relation on a variable\
               \ of non-algebraic datatype")
           val {ty = relTyS,...} = RE.find re relId handle 
-            RE.RelNotFound _ => Error.bug ("Instantiating unknown \
-              \relation "^relName)
+            RE.RelNotFound _ => raise CantInferType 
           val Tuple formalTyDs = RelTyS.instantiate (relTyS,tyds) 
           val _ = assert (TyD.sameType (argTy, Vector.sub 
             (formalTyDs,0)), "Type of formal and actual arguments \
@@ -164,10 +184,13 @@ struct
           end)
       val relTySOp = Vector.fold (map, NONE, fn ((con,valop,rterm),relTySOp) => 
         case rterm of 
-          RelLang.Expr rexpr => (case valop of NONE => relTySOp | SOME vars =>
+          RelLang.Expr rexpr => (case valop of NONE => relTySOp 
+            | SOME vars => 
             let
               val convid = Var.fromString (Con.toString con)
-              val RefTyS.T {tyvars,refty} = VE.find ve convid
+              val RefTyS.T {tyvars,refty,...} = VE.find ve convid handle
+                VE.VarNotFound _ => Error.bug ("Constructor " ^
+                  (Con.toString con) ^ " not found in var env.")
               val datTyD = case refty of RefTy.Base (_,datTyD,_) => datTyD
                 | RefTy.Arrow (_,RefTy.Base (_,datTyD,_)) => datTyD
                 | _ => raise (Fail "Impossible case")
@@ -186,7 +209,7 @@ struct
                   (relTyS',relTyS)
             in
               SOME relTyS
-            end)
+            end handle CantInferType => relTySOp)
         | RelLang.Star relId => 
           let
             val {ty,...} = RE.find re relId 
@@ -196,7 +219,7 @@ struct
             (* types of inductive and simple versions match *)
             SOME ty
           end)
-      val ty' = case relTySOp of NONE => raise (Fail "Impossible case")
+      val ty' = case relTySOp of NONE => raise CantInferType
         | SOME relTyS => relTyS
     in
       RE.add re (id,{ty=ty',map=map'})
@@ -204,7 +227,8 @@ struct
 
   fun elaborate (Program.T {decs=decs}) (RelSpec.T {reldecs, typespecs}) =
     let
-      val initialVE = Vector.fold (decs,VE.empty,fn (dec,ve) =>
+      val veWithBool = bootStrapBools VE.empty
+      val initialVE = Vector.fold (decs,veWithBool,fn (dec,ve) =>
         case dec of Dec.Datatype datbinds => Vector.fold (datbinds, ve,
           fn (datbind,ve)   => elabDatBind ve datbind) 
           | _ => ve)
@@ -214,8 +238,8 @@ struct
         fn ((id,{ty,map}),ve) => Vector.fold (map, ve, 
           fn (conPatBind,ve) => addRelToConTy ve conPatBind id))
       val fullVE = Vector.fold (typespecs, refinedVE, 
-        fn (TypeSpec.T (f,refTy),ve) => VE.add ve (f,RefTyS.generalize 
-          (Vector.new0 (), refTy)))
+        fn (TypeSpec.T (isAssume,f,refTy),ve) => VE.add ve
+        (f,RefTyS.generalizeAssump (Vector.new0 (), refTy, isAssume)))
     in
       (fullVE,elabRE)
     end

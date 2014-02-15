@@ -98,7 +98,8 @@ signature A_NORMAL_CORE_ML =
              | PrimApp of {args: Val.t vector, (*GK*)
                            prim: Type.t Prim.t,
                            targs: Type.t vector}
-             | Raise of Val.t (*GK*)
+             (*| Raise of Val.t *)
+             | Nop
              | Seq of t vector 
              | Value of Val.t
             val dest: t -> node * Type.t

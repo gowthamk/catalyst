@@ -131,6 +131,7 @@ val (z3_log,z3_log_close) = (fn stream =>
 
 structure VCE = VCEncode (structure VC = VC
                           val z3_log = z3_log)
+
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
 (* ------------------------------------------------- *)
@@ -459,7 +460,12 @@ local
                                             (Vector.new2
                                              (Type.var a,
                                               Type.list (Type.var a))))})}
-       end)
+       end
+       (*,{tycon = Tycon.bool,
+        tyvars = Vector.new0 (),
+        cons = Vector.new2 ({con = Con.truee, arg = NONE},
+                            {con = Con.falsee, arg = NONE})
+       }*))
    fun genMLB {input: File.t list}: MLBString.t =
       let
          val basis = "$(SML_LIB)/basis/default.mlb"

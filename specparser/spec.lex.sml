@@ -1,9 +1,9 @@
-(*#line 14.10 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)functor SpecLexFun (structure Tokens : Spec_TOKENS)(*#line 1.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
+(*#line 14.10 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)functor SpecLexFun (structure Tokens : Spec_TOKENS)(*#line 1.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
 =
    struct
     structure UserDeclarations =
       struct
-(*#line 1.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)structure Tokens = Tokens
+(*#line 1.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)structure Tokens = Tokens
 type pos = int
 type ('a,'b) token = ('a,'b) Tokens.token
 type svalue = Tokens.svalue
@@ -15,7 +15,7 @@ val debug = fn s => if (!debugFlag) then print s else ()
 (*
   Spec_TOKENS defined using term declaration in grm
 *)
-(*#line 18.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
+(*#line 18.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
 end (* end of user routines *)
 exception LexError (* raised if illegal leaf action tried *)
 structure Internal =
@@ -38,13 +38,13 @@ val s = [
 \\000"
 ),
  (1, 
-"\000\000\000\000\000\000\000\000\000\046\048\000\000\047\000\000\
+"\000\000\000\000\000\000\000\000\000\060\062\000\000\061\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\046\000\000\000\000\000\000\000\045\044\043\042\041\039\000\037\
-\\036\036\036\036\036\036\036\036\036\036\035\034\031\030\000\000\
-\\000\006\006\028\006\006\006\006\006\006\006\006\006\006\006\006\
-\\006\006\006\006\006\027\006\006\026\006\006\000\000\000\000\006\
-\\000\006\006\006\006\006\021\006\006\006\006\006\006\006\006\006\
+\\060\000\000\000\000\000\000\000\059\058\057\056\055\053\000\051\
+\\050\050\050\050\050\050\050\050\050\050\049\048\045\043\000\000\
+\\000\006\006\041\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\040\006\006\039\006\006\038\036\035\000\006\
+\\000\029\006\006\006\006\024\006\006\006\006\006\006\006\021\006\
 \\006\006\013\006\009\006\006\006\006\006\006\005\004\003\000\000\
 \\000"
 ),
@@ -198,7 +198,7 @@ val s = [
 \\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
 \\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
 \\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
-\\000\022\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\022\
 \\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
 \\000"
 ),
@@ -209,19 +209,8 @@ val s = [
 \\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
 \\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
 \\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
-\\000\006\006\006\006\006\006\006\006\006\006\006\023\006\006\006\
-\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
-\\000"
-),
- (23, 
-"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
-\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
 \\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
-\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
-\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
-\\006\006\006\024\006\006\006\006\006\006\006\000\000\000\000\000\
+\\006\006\006\006\023\006\006\006\006\006\006\000\000\000\000\000\
 \\000"
 ),
  (24, 
@@ -231,70 +220,136 @@ val s = [
 \\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
 \\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
 \\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
-\\000\006\006\006\006\025\006\006\006\006\006\006\006\006\006\006\
+\\000\025\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
 \\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
 \\000"
 ),
- (28, 
+ (25, 
 "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
-\\007\007\007\007\007\007\007\007\007\007\000\000\000\029\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\006\006\006\006\006\006\006\026\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (26, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\027\006\006\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (27, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\028\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (29, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\030\006\006\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (30, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\031\006\006\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (31, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\032\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (32, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\033\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (33, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\000\000\000\
+\\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
+\\000\006\006\006\006\034\006\006\006\006\006\006\006\006\006\006\
+\\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
+\\000"
+),
+ (36, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\037\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000"
+),
+ (41, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\008\000\000\000\000\000\000\000\000\
+\\007\007\007\007\007\007\007\007\007\007\000\000\000\042\000\000\
 \\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
 \\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\006\
 \\000\006\006\006\006\006\006\006\006\006\006\006\006\006\006\006\
 \\006\006\006\006\006\006\006\006\006\006\006\000\000\000\000\000\
 \\000"
 ),
- (31, 
+ (43, 
 "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\032\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\044\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000"
 ),
- (32, 
+ (45, 
 "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\033\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000"
-),
- (36, 
-"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\036\036\036\036\036\036\036\036\036\036\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000"
-),
- (37, 
-"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\038\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000"
-),
- (39, 
-"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\040\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\046\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
@@ -302,9 +357,53 @@ val s = [
 \\000"
 ),
  (46, 
-"\000\000\000\000\000\000\000\000\000\046\000\000\000\000\000\000\
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
-\\046\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\047\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000"
+),
+ (50, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\050\050\050\050\050\050\050\050\050\050\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000"
+),
+ (51, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\052\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000"
+),
+ (53, 
+"\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\054\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\000"
+),
+ (60, 
+"\000\000\000\000\000\000\000\000\000\060\000\000\000\000\000\000\
+\\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
+\\060\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
@@ -312,8 +411,8 @@ val s = [
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000"
 ),
- (47, 
-"\000\000\000\000\000\000\000\000\000\000\048\000\000\000\000\000\
+ (61, 
+"\000\000\000\000\000\000\000\000\000\000\062\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
 \\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\
@@ -334,51 +433,65 @@ in Vector.fromList(map g
 [{fin = [], trans = 0},
 {fin = [], trans = 1},
 {fin = [], trans = 1},
-{fin = [(N 65)], trans = 0},
-{fin = [(N 70)], trans = 0},
-{fin = [(N 63)], trans = 0},
-{fin = [(N 77)], trans = 6},
-{fin = [(N 77)], trans = 7},
-{fin = [(N 77)], trans = 8},
-{fin = [(N 77)], trans = 9},
-{fin = [(N 77)], trans = 10},
-{fin = [(N 77)], trans = 11},
-{fin = [(N 21),(N 77)], trans = 6},
-{fin = [(N 77)], trans = 13},
-{fin = [(N 77)], trans = 14},
-{fin = [(N 77)], trans = 15},
-{fin = [(N 77)], trans = 16},
-{fin = [(N 77)], trans = 17},
-{fin = [(N 77)], trans = 18},
-{fin = [(N 77)], trans = 19},
-{fin = [(N 16),(N 77)], trans = 6},
-{fin = [(N 77)], trans = 21},
-{fin = [(N 77)], trans = 22},
-{fin = [(N 77)], trans = 23},
-{fin = [(N 77)], trans = 24},
-{fin = [(N 27),(N 77)], trans = 6},
-{fin = [(N 35),(N 77)], trans = 6},
-{fin = [(N 33),(N 77)], trans = 6},
-{fin = [(N 40),(N 77)], trans = 28},
-{fin = [(N 38)], trans = 0},
-{fin = [(N 42)], trans = 0},
-{fin = [], trans = 31},
-{fin = [], trans = 32},
-{fin = [(N 46)], trans = 0},
-{fin = [(N 53)], trans = 0},
-{fin = [(N 51)], trans = 0},
-{fin = [(N 80)], trans = 36},
-{fin = [], trans = 37},
+{fin = [(N 82)], trans = 0},
+{fin = [(N 91)], trans = 0},
+{fin = [(N 80)], trans = 0},
+{fin = [(N 98)], trans = 6},
+{fin = [(N 98)], trans = 7},
+{fin = [(N 98)], trans = 8},
+{fin = [(N 98)], trans = 9},
+{fin = [(N 98)], trans = 10},
+{fin = [(N 98)], trans = 11},
+{fin = [(N 21),(N 98)], trans = 6},
+{fin = [(N 98)], trans = 13},
+{fin = [(N 98)], trans = 14},
+{fin = [(N 98)], trans = 15},
+{fin = [(N 98)], trans = 16},
+{fin = [(N 98)], trans = 17},
+{fin = [(N 98)], trans = 18},
+{fin = [(N 98)], trans = 19},
+{fin = [(N 16),(N 98)], trans = 6},
+{fin = [(N 98)], trans = 21},
+{fin = [(N 98)], trans = 22},
+{fin = [(N 38),(N 98)], trans = 6},
+{fin = [(N 98)], trans = 24},
+{fin = [(N 98)], trans = 25},
+{fin = [(N 98)], trans = 26},
+{fin = [(N 98)], trans = 27},
+{fin = [(N 34),(N 98)], trans = 6},
+{fin = [(N 98)], trans = 29},
+{fin = [(N 98)], trans = 30},
+{fin = [(N 98)], trans = 31},
+{fin = [(N 98)], trans = 32},
+{fin = [(N 98)], trans = 33},
+{fin = [(N 28),(N 98)], trans = 6},
+{fin = [(N 86)], trans = 0},
+{fin = [], trans = 36},
+{fin = [(N 66)], trans = 0},
+{fin = [(N 84)], trans = 0},
+{fin = [(N 46),(N 98)], trans = 6},
+{fin = [(N 44),(N 98)], trans = 6},
+{fin = [(N 51),(N 98)], trans = 41},
 {fin = [(N 49)], trans = 0},
-{fin = [(N 31)], trans = 39},
+{fin = [(N 53)], trans = 43},
+{fin = [(N 56)], trans = 0},
+{fin = [], trans = 45},
+{fin = [], trans = 46},
+{fin = [(N 60)], trans = 0},
+{fin = [(N 70)], trans = 0},
 {fin = [(N 68)], trans = 0},
-{fin = [(N 55)], trans = 0},
-{fin = [(N 29)], trans = 0},
-{fin = [(N 57)], trans = 0},
-{fin = [(N 61)], trans = 0},
-{fin = [(N 59)], trans = 0},
-{fin = [(N 7)], trans = 46},
-{fin = [(N 4)], trans = 47},
+{fin = [(N 101)], trans = 50},
+{fin = [], trans = 51},
+{fin = [(N 63)], trans = 0},
+{fin = [(N 42)], trans = 53},
+{fin = [(N 89)], trans = 0},
+{fin = [(N 72)], trans = 0},
+{fin = [(N 40)], trans = 0},
+{fin = [(N 74)], trans = 0},
+{fin = [(N 78)], trans = 0},
+{fin = [(N 76)], trans = 0},
+{fin = [(N 7)], trans = 60},
+{fin = [(N 4)], trans = 61},
 {fin = [(N 4)], trans = 0}])
 end
 structure StartStates =
@@ -422,61 +535,73 @@ let fun continue() = lex() in
 
 			(* Application actions *)
 
-  16 => ((*#line 25.27 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "relation"; Tokens.RELATION(!line,yypos)(*#line 425.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 21 => ((*#line 26.23 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "true"; Tokens.TRUE(!line,yypos)(*#line 427.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 27 => ((*#line 27.24 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "false"; Tokens.FALSE(!line,yypos)(*#line 429.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 29 => ((*#line 28.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "plus"; Tokens.PLUS(!line,yypos)(*#line 431.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 31 => ((*#line 29.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "minus"; Tokens.MINUS(!line,yypos)(*#line 433.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 33 => ((*#line 30.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "union"; Tokens.UNION(!line,yypos)(*#line 435.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 35 => ((*#line 31.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "crossprd"; Tokens.CROSSPRD(!line,yypos)(*#line 437.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 38 => ((*#line 32.21 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "subseteq"; Tokens.SUBSETEQ(!line,yypos)(*#line 439.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 4 => ((*#line 23.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)line := (!line)+1; lex()(*#line 441.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 40 => ((*#line 33.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "subset"; Tokens.SUBSET(!line,yypos)(*#line 443.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 42 => ((*#line 34.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "equalop";Tokens.EQUALOP(!line,yypos)(*#line 445.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 46 => ((*#line 35.22 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "iff";Tokens.IFF(!line,yypos)(*#line 447.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 49 => ((*#line 36.22 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "conj";Tokens.CONJ(!line,yypos)(*#line 449.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 51 => ((*#line 37.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "colon\n";Tokens.COLON(!line,yypos)(*#line 451.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 53 => ((*#line 38.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "semicolon\n";Tokens.SEMICOLON(!line,yypos)(*#line 453.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 55 => ((*#line 39.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "comma\n";Tokens.COMMA(!line,yypos)(*#line 455.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 57 => ((*#line 40.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "star\n";Tokens.STAR(!line,yypos)(*#line 457.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 59 => ((*#line 41.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "lparen\n"; Tokens.LPAREN(!line,yypos)(*#line 459.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 61 => ((*#line 42.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "rparen\n"; Tokens.RPAREN(!line,yypos)(*#line 461.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 63 => ((*#line 43.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "lcurly\n"; Tokens.LCURLY(!line,yypos)(*#line 463.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 65 => ((*#line 44.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "rcurly\n"; Tokens.RCURLY(!line,yypos)(*#line 465.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 68 => ((*#line 45.21 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "arrow\n"; Tokens.ARROW(!line,yypos)(*#line 467.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 7 => ((*#line 24.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "whitespace"; lex()(*#line 469.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 70 => ((*#line 46.20 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug "pipe\n"; Tokens.PIPE(!line,yypos)(*#line 471.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
-)
-| 77 => let val yytext=yymktext() in (*#line 47.25 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug ("var: "^yytext^"\n"); Tokens.ID(yytext,!line,yypos)(*#line 473.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
- end
-| 80 => let val yytext=yymktext() in (*#line 48.23 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex"*)debug ("int: "^yytext^"\n"); 
+  101 => let val yytext=yymktext() in (*#line 54.23 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug ("int: "^yytext^"\n"); 
                       case Int.fromString yytext of
                           SOME n => Tokens.INT(n,!line,yypos) 
                         | NONE => raise (Fail "Number couldn't be obtained")
-                     (*#line 479.1 "/Users/gowtham/git/relspecs/implementation/catalyst/specparser/spec.lex.sml"*)
+                     (*#line 542.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+ end
+| 16 => ((*#line 25.27 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "relation"; Tokens.RELATION(!line,yypos)(*#line 544.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 21 => ((*#line 26.23 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "true"; Tokens.TRUE(!line,yypos)(*#line 546.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 28 => ((*#line 27.25 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "assume"; Tokens.ASSUME(!line,yypos)(*#line 548.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 34 => ((*#line 28.24 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "false"; Tokens.FALSE(!line,yypos)(*#line 550.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 38 => ((*#line 29.22 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "not"; Tokens.NOT(!line,yypos)(*#line 552.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 4 => ((*#line 23.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)line := (!line)+1; lex()(*#line 554.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 40 => ((*#line 30.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "plus"; Tokens.PLUS(!line,yypos)(*#line 556.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 42 => ((*#line 31.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "minus"; Tokens.MINUS(!line,yypos)(*#line 558.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 44 => ((*#line 32.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "union"; Tokens.UNION(!line,yypos)(*#line 560.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 46 => ((*#line 33.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "crossprd"; Tokens.CROSSPRD(!line,yypos)(*#line 562.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 49 => ((*#line 34.21 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "subseteq"; Tokens.SUBSETEQ(!line,yypos)(*#line 564.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 51 => ((*#line 35.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "subset"; Tokens.SUBSET(!line,yypos)(*#line 566.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 53 => ((*#line 36.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "equalop";Tokens.EQUALOP(!line,yypos)(*#line 568.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 56 => ((*#line 37.21 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "implies";Tokens.IMP(!line,yypos)(*#line 570.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 60 => ((*#line 38.22 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "iff";Tokens.IFF(!line,yypos)(*#line 572.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 63 => ((*#line 39.22 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "conj";Tokens.CONJ(!line,yypos)(*#line 574.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 66 => ((*#line 40.22 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "disj";Tokens.DISJ(!line,yypos)(*#line 576.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 68 => ((*#line 41.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "colon\n";Tokens.COLON(!line,yypos)(*#line 578.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 7 => ((*#line 24.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "whitespace"; lex()(*#line 580.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 70 => ((*#line 42.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "semicolon\n";Tokens.SEMICOLON(!line,yypos)(*#line 582.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 72 => ((*#line 43.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "comma\n";Tokens.COMMA(!line,yypos)(*#line 584.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 74 => ((*#line 44.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "star\n";Tokens.STAR(!line,yypos)(*#line 586.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 76 => ((*#line 45.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "lparen\n"; Tokens.LPAREN(!line,yypos)(*#line 588.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 78 => ((*#line 46.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "rparen\n"; Tokens.RPAREN(!line,yypos)(*#line 590.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 80 => ((*#line 47.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "lcurly\n"; Tokens.LCURLY(!line,yypos)(*#line 592.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 82 => ((*#line 48.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "rcurly\n"; Tokens.RCURLY(!line,yypos)(*#line 594.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 84 => ((*#line 49.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "lbrace\n"; Tokens.LBRACE(!line,yypos)(*#line 596.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 86 => ((*#line 50.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "rbrace\n"; Tokens.RBRACE(!line,yypos)(*#line 598.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 89 => ((*#line 51.21 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "arrow\n"; Tokens.ARROW(!line,yypos)(*#line 600.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 91 => ((*#line 52.20 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug "pipe\n"; Tokens.PIPE(!line,yypos)(*#line 602.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
+)
+| 98 => let val yytext=yymktext() in (*#line 53.25 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex"*)debug ("var: "^yytext^"\n"); Tokens.ID(yytext,!line,yypos)(*#line 604.1 "/Users/gowtham/git/catalyst-fo/catalyst/specparser/spec.lex.sml"*)
  end
 | _ => raise Internal.LexerError
 

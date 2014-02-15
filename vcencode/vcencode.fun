@@ -60,10 +60,12 @@ struct
       val mkSingletonSet = #mkSingletonSet api
       val mkUnion = #mkUnion api
       val mkCrossPrd = #mkCrossPrd api
+      val mkDiff = #mkDiff api
       val mkSetEqAssertion = #mkSetEqAssertion api
       val mkSubSetAssertion = #mkSubSetAssertion api
       val mkConstEqAssertion = #mkConstEqAssertion api
       val mkNot = #mkNot api
+      val mkIf = #mkIf api
       val mkIff = #mkIff api
       val mkAnd = #mkAnd api
       val mkOr = #mkOr api
@@ -167,6 +169,8 @@ struct
                 encodeRelExpr e2)
             | U (e1,e2) => mkUnion (encodeRelExpr e1, 
                 encodeRelExpr e2)
+            | D (e1,e2) => mkDiff (encodeRelExpr e1, 
+                encodeRelExpr e2)
             | R (rid,v) => mkStrucRelApp (getStrucRelForRelId rid,
                 getConstForVar v)
           val f = encodeRelExpr
@@ -185,15 +189,27 @@ struct
 
       val assertSimplePred  = dischargeAssertion o encodeSimplePred
 
-      fun assertVCPred vcp = case vcp of VC.Simple sp => assertSimplePred sp
-        | VC.Conj spv => Vector.foreach (spv,assertSimplePred)
+      fun encodeVCPred vcp = case vcp of 
+          VC.Simple sp => encodeSimplePred sp
+        | VC.Conj vcps => mkAnd $ Vector.map (vcps, encodeVCPred)
+        | VC.Disj vcps => mkOr $ Vector.map (vcps, encodeVCPred)
+        | VC.Not vcp => mkNot $ encodeVCPred vcp
+        | VC.If (vcp1,vcp2) => mkIf (encodeVCPred vcp1, 
+              encodeVCPred vcp2)
+        | VC.Iff (vcp1,vcp2) => mkIff (encodeVCPred vcp1, 
+              encodeVCPred vcp2)
+
+      fun assertVCPred vcp = case vcp of 
+          VC.Simple sp => assertSimplePred sp
+        | VC.Conj spv => Vector.foreach (spv,assertVCPred)
+        | _ => dischargeAssertion $ encodeVCPred vcp
      
       val _ = Vector.foreach (tydbinds, processTyDBind)
       val _ = assertVCPred anteP
       (*
        * We check the SAT of ¬conseqP
        *)
-      val _ = dischargeAssertion $ mkNot $ encodeSimplePred conseqP
+      val _ = dischargeAssertion $ mkNot $ encodeVCPred conseqP
       val res = Z3_Encode.checkContext ctx
       val _ = Z3_Encode.delContext ctx
     in

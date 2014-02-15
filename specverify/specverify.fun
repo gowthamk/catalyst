@@ -305,7 +305,9 @@ struct
         open RefTy
       in
         case (refTy1,refTy2) of
-          (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
+          (Base (_,TyD.Tunknown,_),_) => refTy2
+        | (_,Base (_,TyD.Tunknown,_)) => refTy1
+        | (Base (bv1,td1,pred1),Base (bv2,td2,pred2)) =>
             let
               val _ = assert (TyD.sameType (td1,td2), "Typedescs from \
                 \ two branches of case did not match. Two types are:\n \
@@ -313,7 +315,7 @@ struct
                 \ 2. "^(TyD.toString td2) ^ "\n")
               val pred1' = Predicate.applySubst (bv2,bv1) pred1
             in
-              Base (bv2,td2,Predicate.disj(pred1',pred2))
+              Base (bv2,td2,Predicate.dot (pred1',pred2))
             end
         | (Tuple t1,Tuple t2) => (Tuple o Vector.map2) (t1,t2, 
             fn ((v1,r1),(v2,r2)) => 
@@ -385,6 +387,7 @@ struct
       val expTy = ty exp
       val trivialAns = fn _ => (Vector.new0(), RefTy.fromTyD $ 
         Type.toMyType expTy)
+      val nopAns = fn _ => (Vector.new0(), RefTy.exnTyp ())
     in
       case node exp of
         App (f,valexp) => 
@@ -450,7 +453,7 @@ struct
             wellFormedType (marker,extendedVE,subExpTy))
         end
       | PrimApp {args, prim, targs} => trivialAns ()
-      | Raise _ => trivialAns ()
+      | Nop => nopAns ()
       | Seq tv => typeSynthExp (ve,Vector.last tv)
       | Value v => (Vector.new0(),typeSynthValExp (ve,v))
     end
@@ -608,9 +611,13 @@ struct
             val argTyD = Type.toMyType argType
             val bodyTyD = Type.toMyType $ Exp.ty body
             val funTyD = TyD.makeTarrow (argTyD,bodyTyD)
+            val funTyS = VE.find ve var handle (VE.VarNotFound _) => 
+                RefTyS.generalize (Vector.new0 (), RefTy.fromTyD
+                  funTyD)
             val funRefTy = mergeTypes (funTyD, RefTyS.specialize
-              $ VE.find ve var) handle (VE.VarNotFound _) => RefTy.fromTyD funTyD
-            val funspec = RefTyS.generalize (tyvars,funRefTy)
+                funTyS) 
+            val funspec = RefTyS.generalizeAssump (tyvars,funRefTy,
+              RefTyS.isAssumption funTyS)
           in
             VE.add ve (var,funspec)
           end)
@@ -622,13 +629,18 @@ struct
               val vcs = (Vector.concatV o Vector.map) (decs,
                 fn ({lambda,var}) => 
                   let
-                    val fty = RefTyS.specialize $ VE.find extendedVE var
+                    val ftys = VE.find extendedVE var
                       handle (VE.VarNotFound _) => Error.bug "ImpossibleCase!"
+                    val fty = RefTyS.specialize ftys
                     (*
                      * For recursive function lambdas are checked against 
                      * user-provided type or trivial type.
                      *)
-                    val vcs = typeCheckLambda (extendedVE, lambda, fty)
+                    val vcs = case RefTyS.isAssumption ftys of
+                        false => (print ((Var.toString var)^" will be\
+                          \ checked\n"); typeCheckLambda (extendedVE, lambda,
+                        fty))
+                      | true => Vector.new0 ()
                   in
                     vcs
                   end)

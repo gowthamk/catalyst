@@ -366,7 +366,30 @@ struct
             s
           end
 
+      val mkDiff = fn (Null,s2) => Null | (s1,Null) => s1 
+        | (Set {ty=sorts1,pred=pred1}, Set {ty=sorts2,pred=pred2}) =>
+          let
+            val s as Set {ty,pred} = mkSet (genSetName (), sorts1)
+            val _ = assertSetProp (ty, fn bvAsts =>
+              let
+                val fnapp = pred bvAsts
+                val fnapp1 = pred1 bvAsts
+                val fnapp2 = pred2 bvAsts
+                val nfnapp2 = Z3_mk_not (ctx,fnapp2)
+                val conj = Z3_mk_and (ctx,2,Vector.fromList 
+                  [fnapp1,nfnapp2])
+                val iff = Z3_mk_iff (ctx,fnapp,conj)
+                val pats = mkSimplePatterns [fnapp, fnapp1, fnapp2]
+              in
+                (pats, iff)
+              end)
+          in
+            s
+          end
+
       fun mkNot asr = Z3_mk_not (ctx, asr) 
+
+      fun mkIf (asr1,asr2) = Z3_mk_implies (ctx, asr1, asr2) 
 
       fun mkIff (asr1,asr2) = Z3_mk_iff (ctx, asr1, asr2) 
 
@@ -399,10 +422,12 @@ struct
         mkSingletonSet = mkSingletonSet,
         mkUnion = mkUnion,
         mkCrossPrd = mkCrossPrd,
+        mkDiff = mkDiff,
         mkSetEqAssertion = mkSetEqAssertion,
         mkSubSetAssertion = mkSubSetAssertion,
         mkConstEqAssertion = mkConstEqAssertion,
         mkNot = mkNot,
+        mkIf = mkIf,
         mkIff = mkIff,
         mkAnd = mkAnd,
         mkOr = mkOr,

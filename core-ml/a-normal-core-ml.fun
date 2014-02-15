@@ -141,7 +141,8 @@ and expNode =
  | PrimApp of {args: exp_val_t vector,
                prim: Type.t Prim.t,
                targs: Type.t vector}
- | Raise of exp_val_t
+ (*| Raise of exp_val_t*)
+ | Nop 
  | Seq of exp vector
  | Value of exp_val_t
 
@@ -231,7 +232,8 @@ in
             Pretty.primApp {args = Vector.map (args, exp_val_layt),
                             prim = Prim.layout prim,
                             targs = Vector.map (targs, Type.layout)}
-       | Raise v => Pretty.raisee (exp_val_layt v)
+       (*| Raise v => Pretty.raisee (exp_val_layt v)*)
+       | Nop => str "Nop"
        | Seq es => Pretty.seq (Vector.map (es, layoutExp))
         | Value v => exp_val_layt v
 

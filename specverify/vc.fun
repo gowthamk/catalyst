@@ -14,17 +14,24 @@ struct
   structure Env = TyDBinds
   structure L = Layout
 
+  exception TrivialVC (* raised when antecedent has false *)
+
   type tydbind = Var.t * TyD.t
   type tydbinds = tydbind vector
 
   datatype simple_pred = True
-                       |  Base of BP.t 
-                       |  Rel of RP.t
+                       | False
+                       | Base of BP.t 
+                       | Rel of RP.t
 
   datatype vc_pred =  Simple of simple_pred
-                   |  Conj of simple_pred vector
+                   |  If of vc_pred * vc_pred
+                   |  Iff of vc_pred * vc_pred
+                   |  Conj of vc_pred vector
+                   |  Disj of vc_pred vector
+                   |  Not of vc_pred
 
-  datatype t = T of tydbinds * vc_pred* simple_pred
+  datatype t = T of tydbinds * vc_pred * vc_pred
   
   val assert = Control.assert
   fun $ (f,arg) = f arg
@@ -37,15 +44,37 @@ struct
   fun conj (p1 : vc_pred,p2 : vc_pred) : vc_pred = case (p1,p2) of 
       (Simple True,_) => p2
     | (_, Simple True) => p1
-    | (Simple sp1,Simple sp2) => Conj (Vector.new2 (sp1,sp2))
-    | (Simple sp1,Conj spv) => Conj $ vectorPrepend (sp1,spv)
-    | (Conj spv,Simple sp2) => Conj $ vectorAppend (spv,sp2)
+    | (Simple False,_) => Simple False
+    | (_, Simple False) => Simple False
+    | (Simple sp1,Conj spv) => Conj $ vectorPrepend (p1,spv)
+    | (Conj spv,Simple sp2) => Conj $ vectorAppend (spv,p2)
     | (Conj spv1,Conj spv2) => Conj $ Vector.concat [spv1,spv2]
+    | _ => Conj $ Vector.new2 (p1,p2)
+
+  fun disj(p1 : vc_pred,p2 : vc_pred) : vc_pred = case (p1,p2) of 
+      (Simple True,_) => Simple True
+    | (_, Simple True) => Simple True
+    | (Simple False,_) => p2
+    | (_, Simple False) => p1
+    | (Simple sp1,Disj spv) => Disj $ vectorPrepend (p1,spv)
+    | (Disj spv,Simple sp2) => Disj $ vectorAppend (spv,p2)
+    | (Disj spv1,Disj spv2) => Disj $ Vector.concat [spv1,spv2]
+    | _ => Disj $ Vector.new2 (p1,p2)
+
+  fun negate (p : vc_pred) : vc_pred = case p of
+      Simple True => Simple False
+    | Simple False => Simple True
+    | _ => Not p
   
+
   fun coercePTtoT (pt:P.t) : vc_pred = case pt of
       P.True => Simple True
+    | P.False => Simple False
     | P.Base p => Simple $ Base p
     | P.Rel p => Simple $ Rel p
+    | P.Not p => negate $ coercePTtoT p
+    | P.If (p1,p2) => If (coercePTtoT p1, coercePTtoT p2)
+    | P.Iff (p1,p2) => Iff (coercePTtoT p1, coercePTtoT p2)
     | P.Conj (p1,p2) => 
         let
           val t1 = coercePTtoT p1
@@ -53,9 +82,11 @@ struct
         in
           conj (t1,t2)
         end
+    | P.Disj (p1,p2) => disj (coercePTtoT p1, coercePTtoT p2)
     | _ => Error.bug "Cannot coerce PT to T"
 
   fun truee () : vc_pred = Simple True
+  fun falsee () : vc_pred = Simple False
 
   (*
    * join-order(vc,vc1,vc2) : binds = binds1@binds2
@@ -101,9 +132,9 @@ struct
             (* conj is a join point *)
             join (vcs1,vcs2)
           end
-      | P.Disj (p1,p2) => Vector.concat [havocPred p1,
+      | P.Dot (p1,p2) => Vector.concat [havocPred p1,
           havocPred p2]
-      | _ => trivialAns ()
+      | _ => trivialAns () (* May need havoc here.*)
     end
         
   fun havocTyBind (v : Var.t,refTy : RefTy.t) : (tydbinds*vc_pred) vector =
@@ -157,9 +188,19 @@ struct
        * Remove polymorphic functions and constructors
        *)
       val vevec = Vector.keepAllMap (VE.toVector ve,
-        fn (v,RefTyS.T{tyvars,refty}) => case Vector.length tyvars of
+        fn (v,RefTyS.T{tyvars,refty,...}) => case Vector.length tyvars of
             0 =>  SOME (v,refty)
           | _ => NONE)
+      (*
+       * Remove true and false constructors
+       *)
+      val vevec = Vector.keepAllMap (vevec, 
+        fn (v,refty) => case refty of
+          RefTy.Base (_,TyD.Tconstr (tycon,_),_) => 
+            if Tycon.isBool tycon andalso (Var.toString v = "true" 
+              orelse Var.toString v = "false") then NONE 
+              else SOME (v,refty)
+        | _ => SOME (v,refty))
     in
       havocTyBindSeq vevec
     end
@@ -169,7 +210,10 @@ struct
       open RefTy
     in
       case (subTy,supTy) of
-        (Base (v1,t1,p1), Base (v2,t2,p2)) => 
+        (Base (_,TyD.Tunknown,p),_) => if P.isFalse p 
+          then raise TrivialVC
+          else raise (Fail "ML type of subtype is unknown")
+      | (Base (v1,t1,p1), Base (v2,t2,p2)) => 
           let
             (*
              * First, make sure that base types are same.
@@ -194,13 +238,14 @@ struct
             val anteVCs = fn _ => havocPred p1
             val vcs = fn _ => join (envVCs (),anteVCs ())
             val conseqPs = fn _ => case coercePTtoT p2 of
-                Conj spv => spv | Simple sp => Vector.new1 (sp)
+                Conj vcps => vcps | vcp => Vector.new1 (vcp)
           in
             case p2 of P.True => Vector.new0()
               | _ => Vector.fromList $ vectorFoldrFoldr 
                 (vcs(), conseqPs(), [],
-                  fn ((tybinds,anteP),conseqP,vcacc) => 
-                    (T (tybinds,anteP,conseqP))::vcacc)
+                  fn ((tybinds,anteP),conseqP,vcacc) =>
+                    case anteP of Simple False => vcacc
+                    | _ => (T (tybinds,anteP,conseqP))::vcacc)
           end
       | (Tuple t1v,Tuple t2v) => 
           (*
@@ -218,8 +263,8 @@ struct
             val vcs2 = fromTypeCheck (ve,t12',t22)
           in
             Vector.concat [vcs1, vcs2]
-          end 
-    end
+          end
+    end handle TrivialVC => Vector.new0 ()
 
   datatype rinst = RInst of RelLang.RelId.t * TypeDesc.t vector
 
@@ -289,6 +334,7 @@ struct
             RelLang.T _ => (tab,rexpr)
           | RelLang.X t => mapSnd RelLang.X (mapper t)
           | RelLang.U t => mapSnd RelLang.U (mapper t)
+          | RelLang.D t => mapSnd RelLang.D (mapper t)
           | RelLang.R (relId,v) => 
             let
               val rinst = (relId,tyArgsinTypeOf v)
@@ -314,11 +360,16 @@ struct
         (RelInstTable.t*vc_pred) = 
         case vcpred of
           Simple sp  => mapSnd Simple (elabSimplePred rinstTab sp)
-        | Conj spvec => mapSnd Conj ((inv o Vector.mapAndFold) 
-           (spvec, rinstTab, fn (sp,rt) => inv $ elabSimplePred rt sp))
+        | Conj vcps => mapSnd Conj ((inv o Vector.mapAndFold) 
+           (vcps, rinstTab, fn (vcp,rt) => inv $ elabVCPred rt vcp))
+        | Disj vcps => mapSnd Disj ((inv o Vector.mapAndFold) 
+           (vcps, rinstTab, fn (vcp,rt) => inv $ elabVCPred rt vcp))
+        | Not vcp => mapSnd Not (elabVCPred rinstTab vcp)
+        | If vcps => mapSnd If $ mapFoldTuple rinstTab elabVCPred vcps
+        | Iff vcps => mapSnd Iff $ mapFoldTuple rinstTab elabVCPred vcps
 
       val (rinstTab,anteP') = elabVCPred RelInstTable.empty anteP
-      val (rinstTab,conseqP') = elabSimplePred rinstTab conseqP
+      val (rinstTab,conseqP') = elabVCPred rinstTab conseqP
 
       val newtydbinds = Vector.map (RelInstTable.toVector rinstTab,
         fn (RInst (relId,tydvec),relId') =>
@@ -347,20 +398,28 @@ struct
 
       fun laytSimplePred sp = case sp of 
           True => L.str "true"
+        | False => L.str "false"
         | Base bp => L.str $ BP.toString bp
         | Rel rp => L.str $ RP.toString rp
 
       fun laytVCPred vcpred = case vcpred of 
           Simple p => laytSimplePred p
-        | Conj simpv => L.align $ Vector.toListMap (simpv,
-            laytSimplePred)
+        | Conj vcv => L.align $ Vector.toListMap (vcv,
+            laytVCPred)
+        | Disj vcv => L.align $ Vector.toListMap (vcv,
+            fn vc => L.seq [L.str "OR [",laytVCPred vc, L.str "]"])
+        | Not vc => L.seq [L.str "NOT [", laytVCPred vc, L.str "]"]
+        | If (vc1,vc2) => L.seq [laytVCPred vc1, L.str " => ", 
+              laytVCPred vc2]
+        | Iff (vc1,vc2) => L.seq [laytVCPred vc1, L.str " <=> ", 
+              laytVCPred vc2]
 
-      fun layoutVC (T (tybinds,vcp,sp)) = 
+      fun layoutVC (T (tybinds,vcp1,vcp2)) = 
         Pretty.nest ("bindings",laytTyDBinds tybinds,
           L.align [
-            L.indent(laytVCPred vcp,3),
+            L.indent(laytVCPred vcp1,3),
             L.str "=>",
-            L.indent (laytSimplePred sp,3)])
+            L.indent (laytVCPred vcp2,3)])
     in
       L.align $ Vector.toListMap (vcs, layoutVC)
     end
