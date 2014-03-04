@@ -388,6 +388,8 @@ fun parseAndElaborateMLB (input: MLBString.t)
              (Const.lookup := lookupConstant
               ; elaborateMLB (lexAndParseMLB input, {addPrim = addPrim})))}
 
+
+
 (* ------------------------------------------------- *)
 (*                      compile                      *)
 (* ------------------------------------------------- *)
@@ -506,7 +508,15 @@ in
               (CoreML.Dec.Datatype o Vector.new1))
             val coreML = CoreML.Program.T{decs = Vector.concat 
               [primitiveDecs, userDecs]}
-            val ancoreML = ANormalize.doIt coreML
+            val ancoreML = Control.pass 
+              {
+                display = Control.NoDisplay,
+                name = "A-Normalize",
+                stats = fn _ => Layout.empty,
+                style = Control.ML,
+                suffix = "ancore-ml",
+                thunk = (fn () => ANormalize.doIt coreML)
+              }
             val _ =
                let open Control
                in
@@ -520,7 +530,16 @@ in
             fun $ (f,arg) = f arg
             infixr 5 $
             val speclang = specast
-            val (ve,re) = ElaborateVarEnv.elaborate ancoreML speclang
+            val (ve,re) = Control.pass 
+              {
+                display = Control.NoDisplay,
+                name = "Spec Elab",
+                stats = fn _ => Layout.empty,
+                style = Control.ML,
+                suffix = "elr",
+                thunk = (fn () => ElaborateVarEnv.elaborate ancoreML speclang)
+              }
+            
             (* 
              * Hack : ML has ::, but not cons. So, ty(::) <- ty(cons) 
              * and remove cons from ve.
@@ -540,16 +559,33 @@ in
             val _ = Control.message (Control.Top, fn _ =>
               RE.layout re)
             val _ = print "\n"
-            val vcs = SpecVerify.doIt (ve,ancoreML)
+            val vcs = Control.pass 
+              {
+                display = Control.NoDisplay,
+                name = "Spec Verify",
+                stats = fn _ => Layout.empty,
+                style = Control.ML,
+                suffix = "specverify",
+                thunk = (fn () =>SpecVerify.doIt (ve,ancoreML))
+              }
             fun layouts (vcs,output) = (
               output $ Layout.str "Elaborated VarEnv:\n";
               output $ VE.layout ve;
               VC.layouts (vcs,output))
-            val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
-                                      Layouts layouts)
-            val elabvcs = Vector.map (vcs, fn vc => VC.elaborate (re,vc))
-            val _ = Control.saveToFile ({suffix = "evcs"}, No, elabvcs,
-                                      Layouts VC.layouts)
+            (*val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
+                                      Layouts layouts)*)
+            val elabvcs = Control.pass 
+              {
+                display = Control.NoDisplay,
+                name = "Elaborate VCs",
+                stats = fn _ => Layout.empty,
+                style = Control.ML,
+                suffix = "elabvcs",
+                thunk = (fn () =>Vector.map (vcs, fn vc =>
+                    VC.elaborate (re,vc)))
+              }
+            (*val _ = Control.saveToFile ({suffix = "evcs"}, No, elabvcs,
+                                      Layouts VC.layouts)*)
             exception CantDischargeVC
             fun dischargeVC (i,vc) = case VCE.discharge vc of
                 VCE.Success => print ("VC# "^(Int.toString i)^" discharged\n")
@@ -561,8 +597,15 @@ in
                 " is invalid!"); 
                   z3_log_close ();
                   raise CantDischargeVC)
-            val _ = Vector.foreachi (elabvcs,dischargeVC)
-            (*val _ = dischargeVC (0,Vector.sub (elabvcs,0))*)
+            val _ = Control.pass 
+              {
+                display = Control.NoDisplay,
+                name = "Discharge VCs",
+                stats = fn _ => Layout.empty,
+                style = Control.ML,
+                suffix = "discharge",
+                thunk = (fn () => Vector.foreachi (elabvcs,dischargeVC))
+              }
             val _ = z3_log_close ()
          in
             print $ (!Control.inputFile)^" is correct w.r.t given specification!\n"
