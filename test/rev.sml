@@ -11,3 +11,8 @@ fun rev l = case l of
 fun snoc n l = case l of
     [] => [n]
   | x::xs => x::(snoc n xs)
+
+fun foldl l b f = case l of
+    [] => b
+  | x::xs => foldl xs (f x b) f
+

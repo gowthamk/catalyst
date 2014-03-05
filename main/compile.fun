@@ -572,8 +572,8 @@ in
               output $ Layout.str "Elaborated VarEnv:\n";
               output $ VE.layout ve;
               VC.layouts (vcs,output))
-            (*val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
-                                      Layouts layouts)*)
+            val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
+                                      Layouts layouts)
             val elabvcs = Control.pass 
               {
                 display = Control.NoDisplay,
@@ -584,8 +584,8 @@ in
                 thunk = (fn () =>Vector.map (vcs, fn vc =>
                     VC.elaborate (re,vc)))
               }
-            (*val _ = Control.saveToFile ({suffix = "evcs"}, No, elabvcs,
-                                      Layouts VC.layouts)*)
+            val _ = Control.saveToFile ({suffix = "evcs"}, No, elabvcs,
+                                      Layouts VC.layouts)
             exception CantDischargeVC
             fun dischargeVC (i,vc) = case VCE.discharge vc of
                 VCE.Success => print ("VC# "^(Int.toString i)^" discharged\n")
