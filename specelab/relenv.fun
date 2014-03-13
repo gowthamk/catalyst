@@ -5,25 +5,25 @@ struct
 
   structure TyD = TypeDesc
 
-  type reldesc = { ty : RelLang.RelTypeScheme.t,
+  type reldesc = { ty : ProjTypeScheme.t,
                   map : (Con.t * Var.t vector option * RelLang.expr) 
                     vector}
 
   val relIdStrEq = fn (v,v') => 
-    (RelLang.RelId.toString v) = (RelLang.RelId.toString v')
+    (RelId.toString v) = (RelId.toString v')
 
   structure Key:KEY = 
   struct
-    type t = RelLang.RelId.t
+    type t = RelId.t
     val equal = relIdStrEq
-    val layout = Layout.str o RelLang.RelId.toString
+    val layout = Layout.str o RelId.toString
   end
   structure Value:VALUE = 
   struct
     type t = reldesc
     val toString = fn ({ty,map}) =>
       let
-        val tyDS = RelLang.RelTypeScheme.toString ty
+        val tyDS = ProjTypeScheme.toString ty
         val conmap = "{" ^ (Vector.toString (fn (c,vlo,rexpr) =>
             let
               val cstr = Con.toString c
@@ -42,7 +42,7 @@ struct
   structure RelMap = ApplicativeMap (structure Key = Key
                                      structure Value = Value)
 
-  exception RelNotFound of RelLang.RelId.t
+  exception RelNotFound of RelId.t
 
   type t = RelMap.t
 

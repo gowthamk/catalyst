@@ -116,7 +116,9 @@ structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
                                    structure ANormalCoreML = ANormalCoreML)
 structure VE = ElaborateVarEnv.VE
 structure RE = ElaborateVarEnv.RE
+structure PRE = ElaborateVarEnv.PRE
 
+(*
 structure SpecVerify = SpecVerify (structure VE = VE
                                    structure RE = RE
                                    structure ANormalCoreML = ANormalCoreML)
@@ -131,6 +133,7 @@ val (z3_log,z3_log_close) = (fn stream =>
 
 structure VCE = VCEncode (structure VC = VC
                           val z3_log = z3_log)
+*)
 
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
@@ -530,7 +533,7 @@ in
             fun $ (f,arg) = f arg
             infixr 5 $
             val speclang = specast
-            val (ve,re) = Control.pass 
+            val (ve,re,pre) = Control.pass 
               {
                 display = Control.NoDisplay,
                 name = "Spec Elab",
@@ -539,7 +542,6 @@ in
                 suffix = "elr",
                 thunk = (fn () => ElaborateVarEnv.elaborate ancoreML speclang)
               }
-            
             (* 
              * Hack : ML has ::, but not cons. So, ty(::) <- ty(cons) 
              * and remove cons from ve.
@@ -558,7 +560,11 @@ in
             val _ = print "Rel Env:\n"
             val _ = Control.message (Control.Top, fn _ =>
               RE.layout re)
+            val _ = print "Param Rel Env:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              PRE.layout pre)
             val _ = print "\n"
+            (*
             val vcs = Control.pass 
               {
                 display = Control.NoDisplay,
@@ -607,6 +613,7 @@ in
                 thunk = (fn () => Vector.foreachi (elabvcs,dischargeVC))
               }
             val _ = z3_log_close ()
+            *)
          in
             print $ (!Control.inputFile)^" is correct w.r.t given specification!\n"
          end
