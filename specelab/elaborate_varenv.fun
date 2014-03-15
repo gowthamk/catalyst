@@ -560,7 +560,11 @@ struct
       val svars = Vector.fromList $ Vector.fold (sortedParams, empty, 
         fn ((_,SPS.ColonArrow (_,tupTy)),set) => 
           unions [set, TS.getSVars tupTy])
-      val prf = PRf.parametrize (sortedParams,refty')
+      (*
+       * solfn has to be applied to sort arguments in refty.
+       *)
+      val prf = PRf.parametrize (sortedParams, 
+        RefTy.mapSVar refty' solfn)
       val refSS = RefSS.generalize (svars,prf)
     in
       refSS

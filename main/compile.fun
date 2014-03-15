@@ -120,6 +120,7 @@ structure PRE = ElaborateVarEnv.PRE
 
 structure SpecVerify = SpecVerify (structure VE = VE
                                    structure RE = RE
+                                   structure PRE = PRE
                                    structure ANormalCoreML = ANormalCoreML)
 
 structure VC = SpecVerify.VC
@@ -573,7 +574,7 @@ in
                 stats = fn _ => Layout.empty,
                 style = Control.ML,
                 suffix = "specverify",
-                thunk = (fn () =>SpecVerify.doIt (ve,RE.empty,ancoreML))
+                thunk = (fn () =>SpecVerify.doIt (ve,PRE.empty,ancoreML))
               }
             fun layouts (vcs,output) = (
               output $ Layout.str "Elaborated VarEnv:\n";
@@ -581,7 +582,6 @@ in
               VC.layouts (vcs,output))
             val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
                                       Layouts layouts)
-            (*
             val elabvcs = Control.pass 
               {
                 display = Control.NoDisplay,
@@ -590,10 +590,11 @@ in
                 style = Control.ML,
                 suffix = "elabvcs",
                 thunk = (fn () =>Vector.map (vcs, fn vc =>
-                    VC.elaborate (re,vc)))
+                    VC.elaborate (re,pre,vc)))
               }
             val _ = Control.saveToFile ({suffix = "evcs"}, No, elabvcs,
                                       Layouts VC.layouts)
+            (*
             exception CantDischargeVC
             fun dischargeVC (i,vc) = case VCE.discharge vc of
                 VCE.Success => print ("VC# "^(Int.toString i)^" discharged\n")

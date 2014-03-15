@@ -10,6 +10,7 @@ sig
   sig
     include ID
     val eq : t*t -> bool
+    val equal : t*t -> bool
   end
 
   structure SVar :
@@ -126,6 +127,7 @@ sig
     datatype term = Expr of expr
                   | Star of instexpr
     val elemToString : elem -> string
+    val ieToString : instexpr -> string
     val exprToString : expr -> string
     val termToString : term -> string
     val rId : Var.t -> expr
@@ -136,6 +138,8 @@ sig
     val crossprd : expr * expr -> expr
     val diff : expr * expr -> expr
     val applySubsts : (Var.t * Var.t) vector -> expr -> expr
+    (* More utils in the structure. Not exposed through signature. 
+       Check before adding new. *)
   end
 
   structure StructuralRelation :
@@ -218,7 +222,7 @@ sig
           (Var.t * TypeDesc.t * Predicate.t)) -> t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
     val exnTyp : unit -> t
-      
+    val mapSVar : t -> (SVar.t -> TupSort.t) -> t
   end
 
   structure ParamRefType :
@@ -289,11 +293,14 @@ sig
     datatype def = Def of  {tyvars : Tyvar.t vector,
                             params : RelId.t vector,
                             abs : abs}
+                 | BogusDef
 
     val defToString : def -> string
     val makeGroundDef : RelId.t vector * RelLang.term -> RelLang.term
     val makeBindDef : RelId.t * RelId.t vector * ProjTypeScheme.t
       -> def
     val groundRelTyS : ProjTypeScheme.t -> ProjTypeScheme.t
+    val instantiate : def * TypeDesc.t vector * RelId.t vector -> abs
+    val fromAbs : abs -> def
   end
 end

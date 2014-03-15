@@ -28,6 +28,7 @@ struct
   structure RelId =
   struct
     open Var
+    val equal= fn (r1,r2) => toString r1 = toString r2
     val eq = fn (r1,r2) => toString r1 = toString r2
   end
 
@@ -433,10 +434,19 @@ struct
         | D (e1,e2) => D (doIt e1, doIt e2)
         | R (ie,argvar) => R (ie, subst argvar)
       end
+
+    fun mapInstExpr t f = 
+      let
+        val g = fn x => mapInstExpr x f
+        val doIt = fn cons => fn (x1,x2) => cons (g x1, g x2)
+      in
+        case t of X x => doIt X x | U x => doIt U x
+        | D x => doIt D x | T _ => t
+        | R (ie,x) => R (f ie,x)
+      end
+
     fun mapTyD t f =
       let
-        val g = fn x => mapTyD x f
-        val doIt = fn cons => fn (x1,x2) => cons (g x1, g x2)
         fun doItIE (RInst {targs,sargs,args,rel}) = 
           let
             val targs' = Vector.map (targs,f)
@@ -446,9 +456,33 @@ struct
             RInst {targs=targs', sargs=sargs', args=args',rel=rel}
           end
       in
-        case t of X x => doIt X x | U x => doIt U x
-        | D x => doIt D x | T _ => t
-        | R (ie,x) => R (doItIE ie,x)
+        mapInstExpr t doItIE
+      end
+
+    fun mapSVar t f =
+      let
+        fun doItIE (RInst {targs,sargs,args,rel}) = 
+          let
+            val sargs' = Vector.map (sargs, fn ts => TS.instSVars ts f)
+            val args' = Vector.map (args,doItIE)
+          in
+            RInst {targs=targs, sargs=sargs', args=args',rel=rel}
+          end
+      in
+        mapInstExpr t doItIE
+      end
+
+    fun mapRel t f =
+      let
+        fun doItIE (RInst {targs,sargs,args,rel}) = 
+          let
+            val rel' = f rel
+            val args' = Vector.map (args,doItIE)
+          in
+            RInst {targs=targs, sargs=sargs, args=args',rel=rel'}
+          end
+      in
+        mapInstExpr t doItIE
       end
   end
 
@@ -501,6 +535,8 @@ struct
                                    structure Value = TypeDesc)
     open Map
   end
+
+  structure TyDB = TyDBinds
 
   structure Predicate =
   struct
@@ -562,13 +598,22 @@ struct
         (RelLang.applySubsts $ Vector.new1 subst)
 
       fun mapTyD t f = 
-      let
-        val g = RelLang.mapTyD
-        val doIt = fn (x1,x2) => (g x1 f, g x2 f)
-      in
-        case t of Eq x => Eq $ doIt x | Sub x => Sub $ doIt x
-        | SubEq x => SubEq $ doIt x
-      end 
+        let
+          val g = RelLang.mapTyD
+          val doIt = fn (x1,x2) => (g x1 f, g x2 f)
+        in
+          case t of Eq x => Eq $ doIt x | Sub x => Sub $ doIt x
+          | SubEq x => SubEq $ doIt x
+        end 
+
+      fun mapSVar t f = 
+        let
+          val g = RelLang.mapSVar
+          val doIt = fn (x1,x2) => (g x1 f, g x2 f)
+        in
+          case t of Eq x => Eq $ doIt x | Sub x => Sub $ doIt x
+          | SubEq x => SubEq $ doIt x
+        end 
          
     end
     datatype t =  True
@@ -640,9 +685,21 @@ struct
 
     fun dot (t1,t2) = Dot (t1,t2)
 
+    fun mapRP t f =case t of 
+      Rel rp => Rel $ f rp
+    | Exists (tyDB,t) => Exists (tyDB, mapRP t f)
+    | Not t => Not $ mapRP t f
+    | Conj (t1,t2) => Conj (mapRP t1 f, mapRP t2 f)
+    | Disj (t1,t2) => Disj (mapRP t1 f, mapRP t2 f)
+    | If (t1,t2) => If (mapRP t1 f, mapRP t2 f)
+    | Iff (t1,t2) => Iff (mapRP t1 f, mapRP t2 f)
+    | Dot (t1,t2) => Dot (mapRP t1 f, mapRP t2 f)
+    | _ => t 
+
     fun mapTyD t f = case t of 
       Rel rp => Rel $ RelPredicate.mapTyD rp f
-    | Exists (tyDB,t) => Exists (tyDB, mapTyD t f)
+    | Exists (tyDB,t) => Exists (TyDBinds.map tyDB 
+      (fn (v,tyd) => (v,f tyd)), mapTyD t f)
     | Not t => Not $ mapTyD t f
     | Conj (t1,t2) => Conj (mapTyD t1 f, mapTyD t2 f)
     | Disj (t1,t2) => Disj (mapTyD t1 f, mapTyD t2 f)
@@ -650,6 +707,8 @@ struct
     | Iff (t1,t2) => Iff (mapTyD t1 f, mapTyD t2 f)
     | Dot (t1,t2) => Dot (mapTyD t1 f, mapTyD t2 f)
     | _ => t
+
+    fun mapSVar t f = mapRP t (fn rp => RelPredicate.mapSVar rp f)
   end
 
   structure P = Predicate
@@ -732,6 +791,9 @@ struct
 
     val exnTyp = fn _ => Base (genVar(),TypeDesc.makeTunknown (),
       Predicate.falsee())
+
+    fun mapSVar t f = mapBaseTy t (fn (v,t,p) =>
+      (v,t, Predicate.mapSVar p f))
 
   end
 
@@ -889,6 +951,7 @@ struct
     datatype def = Def of  {tyvars : Tyvar.t vector,
                             params : RelId.t vector,
                             abs : abs}
+                 | BogusDef
 
     val symbase = "v_"
 
@@ -935,6 +998,7 @@ struct
         case Vector.length rs of 0 => absStr
         | _ => tyvStr ^" \\"^(rsStr ())^". "^absStr
       end
+      | defToString (BogusDef) = "-- NA --"
 
     fun groundRelTyS pts = 
       let
@@ -965,7 +1029,7 @@ struct
           | D (e1,e2) => D (doItExp e1, doItExp e2)
           | R (RInst {rel,targs,sargs,args},x) => if isParam rel 
               then RelLang.rId x
-              else (R (RInst {rel=rel, targs=targs, sargs=sargs, 
+              else (R (RInst {rel=rel, targs=targs, sargs=empty(), 
                   args=empty()},x))
           | _ => exp
               
@@ -1008,5 +1072,28 @@ struct
         Def {tyvars=tyvars, params=params, abs=bindabs}
       end
 
+  fun instantiate (Def {tyvars,params,abs},tydvec,ridvec) : abs =
+    let
+      val tsubsts = Vector.zip (tydvec,tyvars) handle _ =>
+        Error.bug $ "Bind : tyvar inst error"
+      val rmap = Vector.toList $ Vector.zip (params,ridvec) 
+        handle _ => Error.bug $ "Bind : params inst error"
+      val err = fn _ => Error.bug "Bind: inst error"
+      val mapt = TyD.instantiateTyvars tsubsts 
+      val mapr = mkMapper rmap RelId.equal err
+      val Abs (bv,Expr {ground=(gr,targs,_), fr=Fr (xs,rexpr)}) = abs
+      val targs' = Vector.map (targs, mapt)
+      val ground' = (gr,targs',bv)
+      val rexpr' = RelLang.mapRel rexpr mapr
+      val expr' = Expr {ground=ground', fr = Fr (xs,rexpr')}
+      val abs' = Abs (bv, expr')
+    in
+      abs'
+    end
+    | instantiate (BogusDef, _, _) = Error.bug "Cannot instantiate \
+      \ bogus bind def"
+
+  fun fromAbs (abs:abs) : def =
+    Def {tyvars=empty (), params=empty (), abs=abs}
   end
 end
