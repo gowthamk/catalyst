@@ -5,8 +5,7 @@ sig
   structure RE : REL_ENV
   sharing type RefinementTypeScheme.t = VE.tyscheme
   sharing type Var.t = VE.Var.t
-  sharing type RelLang.RelId.t = RE.SpecLang.RelLang.RelId.t
-  sharing type RelLang.RelTypeScheme.t = RE.SpecLang.RelLang.RelTypeScheme.t
+  sharing type RelId.t = RE.SpecLang.RelId.t
 end
 signature VERIFICATION_CONDITION =
 sig
@@ -27,12 +26,16 @@ sig
   type tydbind = Var.t * TypeDesc.t
 
   type tydbinds = tydbind vector
+  type bindings = {tbinds: tydbinds, rbinds:RE.t}
 
-  datatype t = T of tydbinds * vc_pred* vc_pred
+  datatype t = T of bindings * vc_pred * vc_pred
   
-  val fromTypeCheck : VE.t * RefinementType.t * RefinementType.t -> t vector
+  val fromTypeCheck : VE.t * RE.t * RefinementType.t * 
+    RefinementType.t -> t vector
 
+  (*
   val elaborate : RE.t * t -> t
+  *)
 
   val layout : t vector -> Layout.t
 

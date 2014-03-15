@@ -23,5 +23,5 @@ sig
    * Verifies program in the context of var env.
    * Returns verification conditions.
    *)
-  val doIt : VE.t * ANormalCoreML.Program.t -> VC.t vector
+  val doIt : VE.t * RE.t * ANormalCoreML.Program.t -> VC.t vector
 end

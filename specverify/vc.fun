@@ -5,12 +5,11 @@ struct
   structure P = Predicate
   structure BP = Predicate.BasePredicate
   structure RP = Predicate.RelPredicate
-  structure RelId = RelLang.RelId
+  structure RelId = RelId
   structure RefTy = RefinementType
+  structure RefSS = RefinementSortScheme
   structure RefTyS = RefinementTypeScheme
-  structure RelTy = RelLang.RelType
-  structure RelTyS = RelLang.RelTypeScheme
-  structure RI = RelLang.RelId
+  structure RI = RelId
   structure TyD = TypeDesc
   structure Env = TyDBinds
   structure L = Layout
@@ -19,6 +18,7 @@ struct
 
   type tydbind = Var.t * TyD.t
   type tydbinds = tydbind vector
+  type bindings = {tbinds:tydbinds, rbinds:RE.t}
 
   datatype simple_pred = True
                        | False
@@ -32,7 +32,7 @@ struct
                    |  Disj of vc_pred vector
                    |  Not of vc_pred
 
-  datatype t = T of tydbinds * vc_pred * vc_pred
+  datatype t = T of bindings * vc_pred * vc_pred
   
   val assert = Control.assert
   fun $ (f,arg) = f arg
@@ -191,9 +191,10 @@ struct
        * Remove polymorphic functions and constructors
        *)
       val vevec = Vector.keepAllMap (VE.toVector ve,
-        fn (v,RefTyS.T{tyvars,refty,...}) => case Vector.length tyvars of
-            0 =>  SOME (v,refty)
-          | _ => NONE)
+        fn (v,RefTyS.T{tyvars, refss, ...}) => 
+          case Vector.length tyvars of
+              0 =>  SOME (v,RefSS.toRefTy refss)
+            | _ => NONE)
       (*
        * Remove true and false constructors
        *)
@@ -208,7 +209,7 @@ struct
       havocTyBindSeq vevec
     end
 
-  fun fromTypeCheck (ve, subTy, supTy) : t vector = 
+  fun fromTypeCheck (ve, re, subTy, supTy) : t vector = 
     let
       open RefTy
     in
@@ -236,7 +237,7 @@ struct
              * Third, add base type of actuals to env
              *)
             val ve = VE.add ve (v1,RefTyS.generalize (Vector.new0 (),
-              RefTy.fromTyD t1))
+              RefSS.fromRefTy $ RefTy.fromTyD t1))
             val envVCs = fn _ => havocVE ve
             val anteVCs = fn _ => havocPred p1
             val vcs = fn _ => join (envVCs (),anteVCs ())
@@ -248,17 +249,18 @@ struct
                 (vcs(), conseqPs(), [],
                   fn ((tybinds,anteP),conseqP,vcacc) =>
                     case anteP of Simple False => vcacc
-                    | _ => (T (tybinds,anteP,conseqP))::vcacc)
+                    | _ => (T ({tbinds=tybinds, rbinds=re}, 
+                        anteP, conseqP))::vcacc)
           end
       | (Tuple t1v,Tuple t2v) => 
           (*
            * Unimpl: records
            *)
           (Vector.concatV o Vector.map2) (t1v,t2v, 
-            fn ((v1,t1),(v2,t2)) => fromTypeCheck (ve,t1,t2))
+            fn ((v1,t1),(v2,t2)) => fromTypeCheck (ve,re,t1,t2))
       | (Arrow ((arg1,t11),t12),Arrow ((arg2,t21),t22)) => 
           let
-            val vcs1 = fromTypeCheck (ve,t21,t11)
+            val vcs1 = fromTypeCheck (ve,re,t21,t11)
             (*
              * Typecheck results modulo argvar
              *)
@@ -267,13 +269,14 @@ struct
              * Extend the environment with type for arg2
              *)
             val ve'  = VE.add ve (arg2, RefTyS.generalize 
-              (Vector.new0 (), t21))
-            val vcs2 = fromTypeCheck (ve',t12',t22)
+              (Vector.new0 (), RefSS.fromRefTy t21))
+            val vcs2 = fromTypeCheck (ve',re,t12',t22)
           in
             Vector.concat [vcs1, vcs2]
           end
     end handle TrivialVC => Vector.new0 ()
 
+  (*
   datatype rinst = RInst of RelLang.RelId.t * TypeDesc.t vector
 
   structure RelInstTable : APPLICATIVE_MAP where
@@ -408,6 +411,7 @@ struct
     in
       T (tydbinds',anteP',conseqP')
     end
+  *)
 
   fun layout (vcs : t vector) =
     let
@@ -433,8 +437,11 @@ struct
         | Iff (vc1,vc2) => L.seq [laytVCPred vc1, L.str " <=> ", 
               laytVCPred vc2]
 
-      fun layoutVC (T (tybinds,vcp1,vcp2)) = 
-        Pretty.nest ("bindings",laytTyDBinds tybinds,
+      fun layoutVC (T ({tbinds=tybinds, rbinds=re},vcp1,vcp2)) = 
+        Pretty.nest ("bindings",
+          L.align[
+            laytTyDBinds tybinds,
+            RE.layout re],
           L.align [
             L.indent(laytVCPred vcp1,3),
             L.str "=>",

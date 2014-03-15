@@ -228,6 +228,7 @@ sig
     val layout : t -> Layout.t
     val parametrize : (RelId.t * SimpleProjSort.t) vector *
       RefinementType.t -> t
+    val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
   end
 
   structure RefinementSortScheme :
@@ -237,6 +238,7 @@ sig
     val toRefTy : t -> RefinementType.t
     val fromRefTy : RefinementType.t -> t
     val generalize : (SVar.t vector * ParamRefType.t) -> t
+    val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
   end
 
   structure RefinementTypeScheme :
@@ -252,9 +254,9 @@ sig
       val generalizeAssump : Tyvar.t vector * RefinementSortScheme.t 
         * bool -> t
       val isAssumption : t -> bool
+      val instantiate : t * TypeDesc.t vector -> RefinementSortScheme.t
       (*
       val specialize: t -> RefinementType.t
-      val instantiate : t * TypeDesc.t vector -> RefinementType.t
       *)
       val layout : t -> Layout.t 
     end
@@ -279,12 +281,14 @@ sig
 
     datatype transformer = Fr of Var.t vector * RelLang.expr 
 
-    datatype expr = Expr of {ground : RelId.t * Var.t,
+    datatype expr = Expr of {ground : RelId.t * TypeDesc.t vector * Var.t,
                              fr : transformer}
 
     datatype abs = Abs of Var.t * expr
 
-    datatype def = Def of  RelId.t vector * abs
+    datatype def = Def of  {tyvars : Tyvar.t vector,
+                            params : RelId.t vector,
+                            abs : abs}
 
     val defToString : def -> string
     val makeGroundDef : RelId.t vector * RelLang.term -> RelLang.term

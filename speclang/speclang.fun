@@ -18,6 +18,13 @@ struct
       fn (t,ts) => if cmp (t,t') then SOME ts else NONE) of
         SOME ts => ts | NONE => restore t'
 
+  structure Tyvar =
+  struct
+    open Tyvar
+    val equal= fn (t,t') => toString t = toString t'
+    val eq = equal
+  end
+
   structure RelId =
   struct
     open Var
@@ -83,6 +90,9 @@ struct
     fun instSVars (Tuple ttl) mapSVar  = Tuple $ List.concat $ 
       List.map (ttl, fn tt => case tt of T _ => [tt] | S t => 
         (fn (Tuple ttl') => ttl') (mapSVar t))
+
+    fun mapTyD (Tuple ttl) f = Tuple (List.map (ttl, fn tt =>
+      case tt of T tyd => T $ f tyd | _ => tt))
 
     (*
      * Tuple Sort constraint solving
@@ -223,6 +233,9 @@ struct
     fun domain (ColonArrow (d,_)) = d
 
     fun range (ColonArrow (_,r)) = r
+   
+    fun mapTyD (ColonArrow (tyd,ts)) f =
+      ColonArrow (f tyd, TS.mapTyD ts f)
   end
 
   structure SPS = SimpleProjSort
@@ -305,16 +318,17 @@ struct
 
     fun instantiate (T {tyvars,sortscheme=ss},tydv) =
       let
-        val tyvarMap = Vector.zip (tydv,tyvars) handle _ =>
-          Error.bug "PTS inst error"
+        val tyvarMap = Vector.toList $ Vector.zip (tyvars,tydv) 
+          handle _ => Error.bug "PTS inst error"
+        val mapTvar = mkMapper tyvarMap Tyvar.equal TyD.makeTvar
+        val f = fn tyd => case tyd of TyD.Tvar v => mapTvar v
+          | _ => tyd
         val  PSS.T {sort = PS.T{paramsorts, 
           sort = SPS.ColonArrow (tyd,ts)}, svars} = ss
-        val instTyvars = TyD.instantiateTyvars
-        val sort' = SPS.ColonArrow (instTyvars tyvarMap
-          tyd, ts)
+        val sort' = SPS.ColonArrow (f tyd, TS.mapTyD ts f)
         val ps' = Vector.map (paramsorts,
           fn (SPS.ColonArrow (tyd,ts)) => SPS.ColonArrow 
-            (instTyvars tyvarMap tyd, ts))
+            (f tyd, ts)) (* params co-domain is always an svar *)
         val s' = PS.T {paramsorts = ps', sort = sort'}
         val ss' = PSS.T {svars=svars, sort=s'}
       in
@@ -419,6 +433,23 @@ struct
         | D (e1,e2) => D (doIt e1, doIt e2)
         | R (ie,argvar) => R (ie, subst argvar)
       end
+    fun mapTyD t f =
+      let
+        val g = fn x => mapTyD x f
+        val doIt = fn cons => fn (x1,x2) => cons (g x1, g x2)
+        fun doItIE (RInst {targs,sargs,args,rel}) = 
+          let
+            val targs' = Vector.map (targs,f)
+            val sargs' = Vector.map (sargs, fn ts => TS.mapTyD ts f)
+            val args' = Vector.map (args,doItIE)
+          in
+            RInst {targs=targs', sargs=sargs', args=args',rel=rel}
+          end
+      in
+        case t of X x => doIt X x | U x => doIt U x
+        | D x => doIt D x | T _ => t
+        | R (ie,x) => R (doItIE ie,x)
+      end
   end
 
   structure StructuralRelation =
@@ -510,7 +541,7 @@ struct
     structure RelPredicate =
     struct
       type expr = RelLang.expr
-      datatype t =   Eq of expr * expr
+      datatype t = Eq of expr * expr
                  | Sub of expr * expr
                  | SubEq of expr * expr
                  
@@ -529,6 +560,16 @@ struct
 
       fun applySubst subst t = exprMap t 
         (RelLang.applySubsts $ Vector.new1 subst)
+
+      fun mapTyD t f = 
+      let
+        val g = RelLang.mapTyD
+        val doIt = fn (x1,x2) => (g x1 f, g x2 f)
+      in
+        case t of Eq x => Eq $ doIt x | Sub x => Sub $ doIt x
+        | SubEq x => SubEq $ doIt x
+      end 
+         
     end
     datatype t =  True
                |  False
@@ -598,7 +639,20 @@ struct
     fun exists (tyb,t) = Exists (tyb,t)
 
     fun dot (t1,t2) = Dot (t1,t2)
+
+    fun mapTyD t f = case t of 
+      Rel rp => Rel $ RelPredicate.mapTyD rp f
+    | Exists (tyDB,t) => Exists (tyDB, mapTyD t f)
+    | Not t => Not $ mapTyD t f
+    | Conj (t1,t2) => Conj (mapTyD t1 f, mapTyD t2 f)
+    | Disj (t1,t2) => Disj (mapTyD t1 f, mapTyD t2 f)
+    | If (t1,t2) => If (mapTyD t1 f, mapTyD t2 f)
+    | Iff (t1,t2) => Iff (mapTyD t1 f, mapTyD t2 f)
+    | Dot (t1,t2) => Dot (mapTyD t1 f, mapTyD t2 f)
+    | _ => t
   end
+
+  structure P = Predicate
 
   structure RefinementType =
   struct
@@ -660,7 +714,8 @@ struct
       | Arrow ((v1,t1),t2) => Arrow ((v1,mapBaseTy t1 f), 
           mapBaseTy t2 f)
 
-    fun mapTyD t f = mapBaseTy t (fn (v,t,p) => (v,f t,p)) 
+    fun mapTyD t f = mapBaseTy t (fn (v,t,p) => 
+      (v,f t, P.mapTyD p f)) 
       
     fun applySubsts substs refty = 
       mapBaseTy refty (fn (bv,t,pred) =>
@@ -680,6 +735,8 @@ struct
 
   end
 
+  structure RefTy = RefinementType
+
   structure ParamRefType =
   struct
     datatype t = T of {params : (RelId.t * SimpleProjSort.t) vector,
@@ -698,6 +755,15 @@ struct
 
     fun parametrize (sortedParams,refTy) = T {params=sortedParams,
       refty=refTy}
+
+    fun mapTyD (T {params,refty}) f = 
+      let
+        val params' = Vector.map (params, fn (r,sps) => 
+          (r, SPS.mapTyD sps f))
+        val refty' = RefTy.mapTyD refty f
+      in
+        T {params=params', refty=refty'}
+      end
   end
 
   structure PRf = ParamRefType
@@ -724,6 +790,9 @@ struct
 
     val generalize = fn (svars,prefty) => 
       T {svars=svars, prefty=prefty}
+
+    fun mapTyD (T {svars,prefty}) f = T {svars=svars,
+      prefty=PRf.mapTyD prefty f}
   end
 
   structure RefSS = RefinementSortScheme
@@ -763,23 +832,22 @@ struct
         in
           L.seq [flaglyt,tyvlyt,refsslyt]
         end
-      (*
+
       fun instantiate (T{tyvars,refss,...},tydvec) =
         let
           val len = Vector.length
           val _ = assert (len tyvars = len tydvec,
             "insufficient number of type args")
-          val substs = Vector.zip (tydvec,tyvars)
+          val tyvmap = Vector.zip (tydvec,tyvars)
           (*
            * It is possible that we encounter a tyvar
            * that is not generalized in this RefTyS.
            * We do not panic.
            *)
         in
-          RefinementType.mapTyD refss 
-            (TypeDesc.instantiateTyvars substs)
+          RefSS.mapTyD refss $ TyD.instantiateTyvars tyvmap
         end
-      *)
+
     end
 
   structure RefTyS = RefinementTypeScheme
@@ -813,12 +881,14 @@ struct
   struct
     datatype transformer = Fr of Var.t vector * RelLang.expr 
 
-    datatype expr = Expr of {ground : RelId.t * Var.t,
+    datatype expr = Expr of {ground : RelId.t * TypeDesc.t vector * Var.t,
                              fr : transformer}
 
     datatype abs = Abs of Var.t * expr
 
-    datatype def = Def of  RelId.t vector * abs
+    datatype def = Def of  {tyvars : Tyvar.t vector,
+                            params : RelId.t vector,
+                            abs : abs}
 
     val symbase = "v_"
 
@@ -839,9 +909,11 @@ struct
         "\\"^vsStr^". "^reStr
       end
 
-    fun bindExprToString (Expr {ground = (r,x),fr}) =
+    fun bindExprToString (Expr {ground = (r,tydv,x),fr}) =
       let
-        val gStr = (RelId.toString r)^"("^(Var.toString x)^")"
+        val tydStr = Vector.toString TyD.toString tydv
+        val vStr = Var.toString x
+        val gStr = (RelId.toString r)^" "^tydStr^" ("^vStr^")"
         val frStr = frToString fr
       in
         "bind ("^gStr^","^frStr^")"
@@ -854,13 +926,14 @@ struct
         "\\"^(Var.toString v)^". "^bStr
       end
 
-    fun defToString (Def (rs,abs)) = 
+    fun defToString (Def {tyvars,params=rs,abs}) = 
       let
+        val tyvStr = Vector.toString Tyvar.toString tyvars
         val absStr = absToString abs
         val rsStr = fn _ => Vector.toString RelId.toString rs
       in
         case Vector.length rs of 0 => absStr
-        | _ => "\\"^(rsStr ())^". "^absStr
+        | _ => tyvStr ^" \\"^(rsStr ())^". "^absStr
       end
 
     fun groundRelTyS pts = 
@@ -908,7 +981,7 @@ struct
     fun makeBindDef (id,params,pts) : def =
       let
         val PTS.T {sortscheme = PSS.T {sort = PS.T {paramsorts = 
-          paramSorts, sort=groundSort}, ...}, ...} = pts
+          paramSorts, sort=groundSort}, ...}, tyvars} = pts
         (* SVar to RelId map *)
         val svarMap = Vector.map2 (paramSorts,params, 
           fn (SPS.ColonArrow (_,TS.Tuple [TS.S t]),rid) => (t,rid))
@@ -928,10 +1001,11 @@ struct
           | SOME xexpr => SOME $ RelLang.crossprd (rApp,xexpr))
         val bv = genVar ()
         val fr = Fr (Vector.fromList bvs,xexpr)
-        val bindex = Expr {ground = (id,bv), fr=fr}
+        val targs = Vector.map (tyvars, TyD.makeTvar)
+        val bindex = Expr {ground = (id,targs,bv), fr=fr}
         val bindabs = Abs (bv,bindex)
       in
-        Def (params,bindabs)
+        Def {tyvars=tyvars, params=params, abs=bindabs}
       end
 
   end

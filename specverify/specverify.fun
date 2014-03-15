@@ -9,20 +9,31 @@ struct
   open SpecLang
   open ANormalCoreML
   structure TyD = TypeDesc
+  structure PTS = ProjTypeScheme
   structure RefTy = RefinementType
+  structure PRf = ParamRefType
+  structure RefSS = RefinementSortScheme
   structure RefTyS = RefinementTypeScheme
   structure P = Predicate
   structure BP = Predicate.BasePredicate
   structure RP = Predicate.RelPredicate
   structure L = Layout
+  structure Tyvar =
+  struct
+    open Tyvar
+    val equal= fn (t,t') => toString t = toString t'
+    val eq = equal
+  end
 
   type subst = Var.t*Var.t
   type substs = subst Vector.t
   fun $ (f,arg) = f arg
   infixr 5 $
   val assert = Control.assert
+  val empty = fn _ => Vector.new0 ()
   val unifiable = TyD.unifiable
-  fun toRefTyS refTy = RefTyS.generalize (Vector.new0(), refTy)
+  fun toRefTyS refTy = RefTyS.generalize (Vector.new0(), 
+    RefSS.fromRefTy refTy)
   val count = ref 4096
   fun getUniqueId symbase =
     let val id = symbase ^ (Int.toString (!count))
@@ -32,8 +43,8 @@ struct
     end
   fun genVar () =  getUniqueId "sv_" 
   fun getUniqueMarker () = getUniqueId "_mark_"
-  fun dummyRefTyS () = RefTyS.generalize (Vector.new0(),RefTy.fromTyD
-    (TyD.makeTunknown()))
+  fun dummyRefTyS () = RefTyS.generalize (Vector.new0(),
+    RefSS.fromRefTy $RefTy.fromTyD (TyD.makeTunknown()))
   val newLongVar = fn (var,fld) => Var.fromString $
     (Var.toString var)^"."^(Var.toString fld)
   fun varEq (v1,v2) = ((Var.toString v1) = (Var.toString v2))
@@ -46,7 +57,7 @@ struct
       (marker,VE.add ve (marker,dummyRefTyS()))
     end 
 
-  val elabPatVal = fn (ve,tyvars,patval,expty) =>
+  val elabPatVal = fn (ve,tyvars,patval,expty:RefTy.t) =>
     let
       open Pat.Val
       val err = fn _ => String.concat 
@@ -55,11 +66,12 @@ struct
           "Type of expression is ",L.toString $ RefTy.layout expty,
             "\n" ]
       val len = Vector.length
-      fun elabPatVal (ve,patval,expty) : VE.t = case (patval,expty) of
+      fun elabPatVal (ve,patval,expty:RefTy.t) : VE.t = 
+        case (patval,expty) of
         (Atom (Wild),_) => ve
       | (Atom (Const c),_) => Error.bug ("unimpl constant pats")
       | (Atom (Var v),_) => VE.add ve (v, RefTyS.generalize 
-          (tyvars,expty))
+          (tyvars,RefSS.fromRefTy expty))
       | (Tuple patatoms,_) => (case (len patatoms,expty) of 
           (* Unit tuples are atoms *)
           (1,_) => elabPatVal (ve,Atom (Vector.sub (patatoms,0)),expty)
@@ -115,7 +127,7 @@ struct
        * from type refinements.
        *)
       val extyvec = Vector.map (Vector.prefix (vevec,i), 
-        fn (v,rtys) => (v,RefTyS.specialize rtys))
+        fn (v,rtys) => (v,RefSS.toRefTy $ RefTyS.specialize rtys))
       val flattened = Vector.concatV $ Vector.map (extyvec, fn (v,ty) 
         => case ty of RefTy.Tuple _ => decomposeTupleBind (v,ty)
         | _ => Vector.new1 (v,ty))
@@ -254,7 +266,8 @@ struct
         | _ => Error.bug "Case rules types not unifiable"
       end 
 
-  fun typeSynthValExp (ve:VE.t, valexp : Exp.Val.t) : RefTy.t = 
+  fun typeSynthValExp (ve:VE.t, re:RE.t, valexp : Exp.Val.t) 
+      : RefTy.t = 
     let
       open Exp
     in
@@ -265,7 +278,11 @@ struct
           val tydvec = Vector.map (typv,Type.toMyType)
           val vtys = VE.find ve v handle (VE.VarNotFound _) => Error.bug
             ((Var.toString v) ^ " not found in the current environment\n")
-          val vty = RefTyS.instantiate (vtys,tydvec)  
+          val vss = RefTyS.instantiate (vtys,tydvec)  
+          val vty = RefSS.toRefTy vss
+          val _ = case vss of RefSS.T {prefty = PRf.T {params, ...}, 
+            ...} => assert (Vector.isEmpty params, "Non-recursive use\
+              \ of a param type, without instantiating rel params.")
           (*
            * Keep track of variable equality.
            * We currently cannot keep track of equality if rhs
@@ -280,7 +297,7 @@ struct
                     val newvar = newLongVar (v,fldvar)
                     val extendedVE = VE.add ve (newvar,toRefTyS refty)
                     val newvarexp = varToExpVal (newvar, Vector.new0 ())
-                    val refty' = typeSynthValExp (extendedVE, newvarexp)
+                    val refty' = typeSynthValExp (extendedVE, re, newvarexp)
                   in
                     (fldvar, refty')
                   end)
@@ -291,7 +308,7 @@ struct
         end
       | Val.Tuple atomvec => RefTy.Tuple $ Vector.mapi (atomvec, fn (i,atm) => 
           let
-            val atmTy = typeSynthValExp (ve,Val.Atom atm)
+            val atmTy = typeSynthValExp (ve, re, Val.Atom atm)
             val fldvar = Var.fromString $ Int.toString (i+1) (* tuple BVs *)
           in
             (fldvar, atmTy)
@@ -299,14 +316,15 @@ struct
       | Val.Record atomrec => RefTy.Tuple $ Vector.map (Record.toVector atomrec, 
           fn (lbl,atm) => 
             let
-              val atmTy = typeSynthValExp (ve,Val.Atom atm)
+              val atmTy = typeSynthValExp (ve, re, Val.Atom atm)
               val fldvar = Var.fromString $ Field.toString lbl (* Record BVs *)
             in
               (fldvar, atmTy)
             end)
     end
 
-  fun typeSynthExp (ve : VE.t, exp : Exp.t) : VC.t vector * RefTy.t =
+  fun typeSynthExp (ve : VE.t, re : RE.t, exp : Exp.t) : 
+        VC.t vector * RefTy.t =
     let
       open Exp
       val expTy = ty exp
@@ -317,16 +335,16 @@ struct
       case node exp of
         App (f,valexp) => 
           let
-            val fty  = typeSynthValExp (ve,Val.Atom f)
+            val fty  = typeSynthValExp (ve,re,Val.Atom f)
             val (fargBind as (farg,fargty),fresty)  = case fty of 
                 RefTy.Arrow x => x
               | _ => Error.bug ("Type of " ^ (Layout.toString $ 
                 Exp.Val.layout $ Val.Atom f) ^ " not an arrow")
-            val argTy = typeSynthValExp (ve,valexp)
+            val argTy = typeSynthValExp (ve,re,valexp)
             (*
              *  Γ ⊢ argTy <: fargty
              *)
-            val vcs = VC.fromTypeCheck (ve,argTy,fargty)
+            val vcs = VC.fromTypeCheck (ve,re,argTy,fargty)
             (*
              * Then, determine type of this expression by substituion of
              * actuals for formals.
@@ -349,8 +367,8 @@ struct
                  * passing empty for tyvars is sound.
                  *)
                 val (vcs1,extendedVE) = doItValBind (markedVE,
-                  Vector.new0(),valbind)
-                val (vcs2,ty) = typeSynthExp (extendedVE,exp)
+                  re, Vector.new0(), valbind)
+                val (vcs2,ty) = typeSynthExp (extendedVE,re,exp)
                 val wftype = wellFormedType (marker,extendedVE,ty)
               in
                 (wftype, Vector.concat [vcs, vcs1, vcs2])
@@ -367,23 +385,24 @@ struct
           end
       | EnterLeave _ => trivialAns ()
       | Handle _ => trivialAns ()
-      | Lambda l => typeSynthLambda (ve,l)
+      | Lambda l => typeSynthLambda (ve, re, l)
       | Let (decs,subExp) => 
         let
           val (marker,markedVE) = markVE ve
-          val (vcs1,extendedVE) = doItDecs (markedVE,decs)
-          val (vcs2,subExpTy) = typeSynthExp (extendedVE,subExp)
+          val (vcs1,extendedVE) = doItDecs (markedVE,re,decs)
+          val (vcs2,subExpTy) = typeSynthExp (extendedVE,re,subExp)
         in
           (Vector.concat [vcs1, vcs2], 
             wellFormedType (marker,extendedVE,subExpTy))
         end
       | PrimApp {args, prim, targs} => trivialAns ()
       | Nop => nopAns ()
-      | Seq tv => typeSynthExp (ve,Vector.last tv)
-      | Value v => (Vector.new0(),typeSynthValExp (ve,v))
+      | Seq tv => typeSynthExp (ve,re,Vector.last tv)
+      | Value v => (Vector.new0(),typeSynthValExp (ve,re,v))
     end
 
-  and typeSynthLambda (ve : VE.t,lam : Lambda.t) : (VC.t vector * RefTy.t) =
+  and typeSynthLambda (ve : VE.t, re :RE.t, lam : Lambda.t) 
+            : (VC.t vector * RefTy.t) =
     let
       val {arg,argType,body} = Lambda.dest lam
       val argRefTy = RefTy.fromTyD (Type.toMyType argType)
@@ -394,12 +413,13 @@ struct
       (*
        * Γ[arg↦argTy] ⊢ body => bodyTy
        *)
-      val (bodyvcs,bodyRefTy) = typeSynthExp (extendedVE,body)
+      val (bodyvcs,bodyRefTy) = typeSynthExp (extendedVE, re, body)
     in
       (bodyvcs,RefTy.Arrow (argBind,bodyRefTy))
     end
 
-  and typeCheckLambda (ve : VE.t,lam : Lambda.t, ty : RefTy.t) : VC.t vector =
+  and typeCheckLambda (ve : VE.t, re:RE.t, lam : Lambda.t, 
+      ty : RefTy.t) : VC.t vector =
     let
       val (argBind as (_,argRefTy),resRefTy) = case ty of 
           RefTy.Arrow v => v
@@ -418,31 +438,31 @@ struct
       (*
        * Γ[arg↦argRefTy] ⊢ body <= resRefTy
        *)
-      typeCheckExp (extendedVE,body,resRefTy')
+      typeCheckExp (extendedVE,re,body,resRefTy')
     end
 
-  and typeCheckExp (ve : VE.t, exp: Exp.t, ty: RefTy.t) : VC.t vector =
-    case Exp.node exp of
-      Exp.Lambda l => typeCheckLambda (ve,l,ty)
+  and typeCheckExp (ve : VE.t, re:RE.t, exp: Exp.t, ty: RefTy.t) 
+            : VC.t vector = case Exp.node exp of
+      Exp.Lambda l => typeCheckLambda (ve,re,l,ty)
     | _ => 
       let
         (*
          * Γ ⊢ exp => expRefTy
          *)
-        val (expvcs,expRefTy) = typeSynthExp (ve,exp)
+        val (expvcs,expRefTy) = typeSynthExp (ve,re,exp)
         (*
          * Γ ⊢ expRefTy <: ty
          *)
-        val newvcs = VC.fromTypeCheck (ve,expRefTy,ty)
+        val newvcs = VC.fromTypeCheck (ve,re,expRefTy,ty)
       in
         Vector.concat [expvcs,newvcs]
       end
 
-  and doItValBind (ve,tyvars,valbind) : (VC.t vector * VE.t) = 
+  and doItValBind (ve,re,tyvars,valbind) : (VC.t vector * VE.t) = 
     case valbind of
       Dec.ExpBind (patval,exp) =>
         let
-          val (vcs,expty) = typeSynthExp (ve,exp)
+          val (vcs,expty) = typeSynthExp (ve,re,exp)
         in
           (vcs,elabPatVal (ve,tyvars,patval,expty))
         end
@@ -450,7 +470,7 @@ struct
         let
           val patnode = Pat.node pat
           (*  unimpl : Exp.Val.ty *)
-          val (vcs,expty) = typeSynthExp (ve,Exp.make (Exp.Value expval,
+          val (vcs,expty) = typeSynthExp (ve,re,Exp.make (Exp.Value expval,
             Type.var $ Tyvar.newNoname {equality=false}))
           (*
            * This function is an unfortunate consequence of having separate
@@ -493,7 +513,8 @@ struct
               val conTyS = VE.find ve convid handle (VE.VarNotFound _) =>
                 Error.bug ("Constructor "^(Var.toString convid) ^ 
                   " not found in current env")
-              val conTy  = RefTyS.instantiate (conTyS,tydargs)
+              val conTy  = RefSS.toRefTy $ RefTyS.instantiate 
+                (conTyS,tydargs)
               (*
                * extend ve with new bindings for matched arguments.
                *)
@@ -508,7 +529,8 @@ struct
                       val argExpVal = patValToExpVal argPatVal
                       val (argTyMap,substs) = unifyArgs (conArgBind,argExpVal)
                       val ve' = Vector.fold (argTyMap, ve, fn ((arg,refTy),ve) =>
-                        VE.add ve $ (arg,RefTyS.generalize (tyvars,refTy)))
+                        VE.add ve $ (arg,RefTyS.generalize (tyvars,
+                          RefSS.fromRefTy refTy)))
                     in
                       (ve', RefTy.applySubsts substs conResTy)
                     end
@@ -520,34 +542,33 @@ struct
               val RefTy.Base (bv,td,p) = RefTy.alphaRenameToVar resTy rhsvar
               val _ = assert (Var.toString bv = Var.toString rhsvar, 
                 "RefTy alpha rename incorrect")
-              val newTyS = RefTyS.generalize (tyvars, RefTy.Base (genVar(),
-                td, p))
+              val newTyS = RefTyS.generalize (tyvars, RefSS.fromRefTy
+                  $ RefTy.Base (genVar(), td, p))
             in
               (vcs, VE.add ve'(genVar(), newTyS))
             end
         end
 
-  and doItDecs (ve : VE.t, decs : Dec.t vector) : (VC.t vector * VE.t) =
+  and doItDecs (ve : VE.t, re:RE.t, decs : Dec.t vector) : 
+      (VC.t vector * VE.t) =
     let
       fun elabRecDecs (ve : VE.t) (tyvars : Tyvar.t vector)  decs = 
-        Vector.fold (decs,ve, fn ({lambda : Lambda.t, var : Var.t},ve) =>
-          let
-            val {arg,argType,body} = Lambda.dest lambda
-            val argTyD = Type.toMyType argType
-            val bodyTyD = Type.toMyType $ Exp.ty body
-            val funTyD = TyD.makeTarrow (argTyD,bodyTyD)
-            val funTyS = VE.find ve var handle (VE.VarNotFound _) => 
-                RefTyS.generalize (Vector.new0 (), RefTy.fromTyD
-                  funTyD)
-            val funRefTy = mergeTypes (funTyD, RefTyS.specialize
-                funTyS) 
-            val funspec = RefTyS.generalizeAssump (tyvars,funRefTy,
-              RefTyS.isAssumption funTyS)
-          in
-            VE.add ve (var,funspec)
-          end)
+        Vector.fold (decs,ve, 
+          fn ({lambda : Lambda.t, var : Var.t},ve) =>
+          if VE.mem ve var then ve else (* add trivial ref type *)
+            let
+              val {arg,argType,body} = Lambda.dest lambda
+              val argTyD = Type.toMyType argType
+              val bodyTyD = Type.toMyType $ Exp.ty body
+              val funTyD = TyD.makeTarrow (argTyD,bodyTyD)
+              val funTyS = RefTyS.generalizeAssump (tyvars,
+                RefSS.fromRefTy $ RefTy.fromTyD funTyD, true)
+            in
+              VE.add ve (var,funTyS)
+            end)
 
-      fun doItDec (ve : VE.t, dec : Dec.t) : (VC.t vector * VE.t) = case dec of
+      fun doItDec (ve : VE.t, re : RE.t, dec : Dec.t) : (VC.t vector 
+          * VE.t) = case dec of
           Dec.Fun {decs,tyvars} => 
             let
               val extendedVE = elabRecDecs ve (tyvars()) decs
@@ -556,15 +577,25 @@ struct
                   let
                     val ftys = VE.find extendedVE var
                       handle (VE.VarNotFound _) => Error.bug "ImpossibleCase!"
-                    val fty = RefTyS.specialize ftys
+                    val RefSS.T {prefty = PRf.T {refty=fty,params},
+                      ...} = RefTyS.specialize ftys
+                    (*
+                     * Unimpl. Mutually recursive functions with
+                     * parametric types.
+                     *)
+                    val extendedVE = VE.add (VE.remove ve var) (var,
+                      RefTyS.generalize (tyvars(),RefSS.fromRefTy fty))
+                    val extendedRE = Vector.fold (params, re, 
+                      fn ((r,sps),re) => RE.addUniterp re (r, 
+                        PTS.simple (empty(),sps)))
                     (*
                      * For recursive function lambdas are checked against 
                      * user-provided type or trivial type.
                      *)
                     val vcs = case RefTyS.isAssumption ftys of
                         false => (print ((Var.toString var)^" will be\
-                          \ checked\n"); typeCheckLambda (extendedVE, lambda,
-                        fty))
+                          \ checked\n"); typeCheckLambda (extendedVE, 
+                           extendedRE, lambda, fty))
                       | true => Vector.new0 ()
                   in
                     vcs
@@ -574,21 +605,23 @@ struct
             end
         | Dec.Val {rvbs,tyvars,vbs} => 
             let
-              val (rvcs,rvbsVE) = doItDec (ve,Dec.Fun {decs=rvbs,tyvars=tyvars})
-              val (vcss,vbsVE) = Vector.mapAndFold (vbs,rvbsVE,fn ({valbind,...},ve) =>
-                doItValBind (ve,tyvars(),valbind))
+              val (rvcs,rvbsVE) = doItDec (ve,re,
+                Dec.Fun {decs=rvbs,tyvars=tyvars})
+              val (vcss,vbsVE) = Vector.mapAndFold (vbs, rvbsVE,
+                fn ({valbind,...},ve) =>
+                  doItValBind (ve,re,tyvars(),valbind))
             in
               (Vector.concat [rvcs,Vector.concatV vcss] , vbsVE)
             end
         | _ => (Vector.new0 (), ve)
 
       val (vcsvec,extendedVE) = Vector.mapAndFold (decs,ve, 
-        fn (dec,ve) => doItDec (ve,dec))
+        fn (dec,ve) => doItDec (ve,re,dec))
 
     in
       (Vector.concatV vcsvec, extendedVE)
     end
 
-  fun doIt (ve, Program.T{decs}) = #1 $ doItDecs (ve,decs)
+  fun doIt (ve, re, Program.T{decs}) = #1 $ doItDecs (ve, re, decs)
 
 end

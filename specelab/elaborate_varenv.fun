@@ -596,10 +596,7 @@ struct
             VE.add ve (name,refTyS)
           end)
       val typedVE = elabDecs (protoVE, decs)
-      val _ = print "Typed VE:\n"
-      val _ = Control.message (Control.Top, fn _ =>
-        VE.layout typedVE)
-      val fullVE = Vector.fold (VE.toVector typedVE, initialVE,
+      val fullVE = Vector.fold (VE.toVector typedVE, refinedVE,
         fn ((name,RefTyS.T {tyvars,isAssume,refss}),ve) =>
           let
             val RefSS.T {prefty, ...} = refss

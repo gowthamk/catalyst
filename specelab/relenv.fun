@@ -32,7 +32,7 @@ struct
               val trmstr = RelLang.exprToString rexpr
             in
               cstr ^ vseq ^ " => " ^ trmstr
-            end) map) ^ "}\n"
+            end) map) ^ "}"
       in
         "{type = "^tyDS^", map = "^conmap^"}"
       end
@@ -54,6 +54,9 @@ struct
     handle (RelMap.KeyNotFound k) => raise (RelNotFound k)
 
   val add = fn env => fn (var,tys) => RelMap.add env var tys 
+
+  val addUniterp = fn env => fn (r,pts) => RelMap.add env r {ty=pts, 
+    map=Vector.new0 ()}
 
   val remove = RelMap.remove
 

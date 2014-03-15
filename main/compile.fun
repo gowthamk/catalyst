@@ -118,13 +118,13 @@ structure VE = ElaborateVarEnv.VE
 structure RE = ElaborateVarEnv.RE
 structure PRE = ElaborateVarEnv.PRE
 
-(*
 structure SpecVerify = SpecVerify (structure VE = VE
                                    structure RE = RE
                                    structure ANormalCoreML = ANormalCoreML)
 
 structure VC = SpecVerify.VC
 
+(*
 val (z3_log,z3_log_close) = (fn stream => 
   (fn str => (Out.output (stream,str);
       Out.flush stream), 
@@ -551,9 +551,11 @@ in
             val consty = VE.find ve consvid
             val ve = VE.add (VE.remove (VE.remove ve consvid) consvid')
               (consvid',consty)
+            (*
             val _ = print "Specification Ast:\n"
             val _ = Control.message (Control.Top, fn _ =>
               SpecLang.RelSpec.layout specast)
+            *)
             val _ = print "Var Env:\n"
             val _ = Control.message (Control.Top, fn _ =>
               VE.layout ve)
@@ -564,7 +566,6 @@ in
             val _ = Control.message (Control.Top, fn _ =>
               PRE.layout pre)
             val _ = print "\n"
-            (*
             val vcs = Control.pass 
               {
                 display = Control.NoDisplay,
@@ -572,7 +573,7 @@ in
                 stats = fn _ => Layout.empty,
                 style = Control.ML,
                 suffix = "specverify",
-                thunk = (fn () =>SpecVerify.doIt (ve,ancoreML))
+                thunk = (fn () =>SpecVerify.doIt (ve,RE.empty,ancoreML))
               }
             fun layouts (vcs,output) = (
               output $ Layout.str "Elaborated VarEnv:\n";
@@ -580,6 +581,7 @@ in
               VC.layouts (vcs,output))
             val _ = Control.saveToFile ({suffix = "vcs"}, No, vcs,
                                       Layouts layouts)
+            (*
             val elabvcs = Control.pass 
               {
                 display = Control.NoDisplay,

@@ -16,6 +16,8 @@ sig
   val mem : t -> SpecLang.RelId.t -> bool
   val find : t -> SpecLang.RelId.t -> reldesc
   val add : t -> (SpecLang.RelId.t * reldesc) -> t
+  val addUniterp : t -> (SpecLang.RelId.t * SpecLang.ProjTypeScheme.t)
+      -> t
   val remove : t -> SpecLang.RelId.t -> t
   val toVector : t -> (SpecLang.RelId.t * reldesc) vector
   val layout : t -> Layout.t
