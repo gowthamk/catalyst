@@ -464,18 +464,30 @@ struct
       val (rinstTab,anteP') = elabVCPred initRIT anteP
       val (rinstTab,conseqP') = elabVCPred rinstTab conseqP
 
+      (*
+       * Encode svars as tyvars.
+       *)
+      exception SVarNotFound
+      val sMap = HashTable.mkTable (fn v => HashString.hashString $
+        SVar.toString v, SVar.eq) (117, SVarNotFound)
+      val encodeSVar = fn v => case HashTable.find sMap v of
+          SOME tyvar => tyvar
+        | NONE => 
+          let
+            val bogus = SourcePos.bogus
+            val tyvar = TyD.makeTvar $ Tyvar.newString 
+              (SVar.toString v, {left=bogus, right=bogus})
+            val _ = HashTable.insert sMap (v,tyvar)
+          in
+            tyvar
+          end 
       val newtydbinds = Vector.map (RelInstTable.toVector rinstTab,
         fn (_,{rel=relId',sort}) =>
           let
             val SPS.ColonArrow (tyd,TS.Tuple tts) = sort
-            (*
-             * Encode svars as tyvars.
-             *)
-            val svarToTvar = fn v => Tyvar.newString (SVar.toString v,
-              {left=SourcePos.bogus, right=SourcePos.bogus})
             val tydvec = Vector.fromList $ tyd :: (List.map (tts, 
               fn tts => case tts of TS.T tyd => tyd 
-              | TS.S t => TyD.makeTvar $ svarToTvar t))
+              | TS.S t =>  encodeSVar t))
             val boolTyD = TyD.makeTconstr (Tycon.bool,[])
             val relArgTyd = TyD.Trecord $ Record.tuple tydvec
             val relTyD = TyD.makeTarrow (relArgTyd,boolTyD)

@@ -50,7 +50,8 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
       in
       case (t1,t2) of
           (Tunknown,Tunknown) => true
-        | (Tvar v1, Tvar v2 ) => tyvarStrEq (v1,v2)
+        | (Tvar v1, Tvar v2 ) => Tyvar.equals (v1,v2) orelse 
+              tyvarStrEq (v1,v2)
         | (Tarrow (tda1,tdr1), Tarrow (tda2,tdr2)) => 
             (sameType (tda1,tda2)) andalso
             (sameType (tdr1,tdr2))

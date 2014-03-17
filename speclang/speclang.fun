@@ -319,11 +319,9 @@ struct
 
     fun instantiate (T {tyvars,sortscheme=ss},tydv) =
       let
-        val tyvarMap = Vector.toList $ Vector.zip (tyvars,tydv) 
-          handle _ => Error.bug "PTS inst error"
-        val mapTvar = mkMapper tyvarMap Tyvar.equal TyD.makeTvar
-        val f = fn tyd => case tyd of TyD.Tvar v => mapTvar v
-          | _ => tyd
+        val tyvmap = Vector.zip (tydv,tyvars) 
+          handle _ => Error.bug "PTS: insufficient/more type args"
+        val f = TyD.instantiateTyvars tyvmap
         val  PSS.T {sort = PS.T{paramsorts, 
           sort = SPS.ColonArrow (tyd,ts)}, svars} = ss
         val sort' = SPS.ColonArrow (f tyd, TS.mapTyD ts f)
