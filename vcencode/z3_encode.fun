@@ -225,9 +225,13 @@ struct
             ("bv"^(Int.toString (indx+numbvs-i-1))))
           val bvtys = Vector.rev $ Vector.map (sorts,sortToZ3Sort)
           val (patterns,prop) = propfn bvs
+          (*
+           * We currently disable explicit pattern annotations,
+           * as they are not serving any purpose.
+           *)
           val forall = Z3_mk_forall (ctx, 0, 
-                        Vector.length patterns, 
-                        patterns,
+                        (*Vector.length patterns*) 0, 
+                        (*patterns*) Vector.new0 (),
                         numbvs,
                         bvtys, 
                         bvnames, 
@@ -253,9 +257,13 @@ struct
             ("ev"^(Int.toString (numbvs-i-1))))
           val bvtys = Vector.rev $ Vector.map (sorts,sortToZ3Sort)
           val (patterns,prop) = propfn bvs
+          (*
+           * We currently disable explicit pattern annotations,
+           * as they are not serving any purpose.
+           *)
           val exists = Z3_mk_exists (ctx, 0, 
-                        Vector.length patterns, 
-                        patterns,
+                        (*Vector.length patterns*) 0, 
+                        (*patterns*) Vector.new0 (),
                         numbvs,
                         bvtys, 
                         bvnames, 

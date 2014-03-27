@@ -1,5 +1,6 @@
 (set-option :auto-config false)
-(set-option :smt.mbqi false)
+(set-option :smt.mbqi true)
+(set-option :smt.macro-finder true)
 (declare-sort T0)
 (declare-const v_3 T0)
 (declare-sort T1)

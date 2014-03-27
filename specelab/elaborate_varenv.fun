@@ -176,7 +176,9 @@ struct
       fun typeSynthRElem elem = case elem of
           Int i => TyD.makeTconstr (Tycon.intInf,[])
         | Bool b => TyD.makeTconstr (Tycon.bool,[])
-        | Var v => TyDBinds.find tyDB v 
+        | Var v => TyDBinds.find tyDB v handle 
+            TyDBinds.KeyNotFound _ => Error.bug $ "Type of "
+              ^(Var.toString v)^" not found"
       fun doIt (e1,e2) cons f = 
         let 
           val (cs1,tupTy1,e1') = elabRExpr (re,pre,tyDB,spsB,e1)
@@ -242,6 +244,8 @@ struct
             \ prim/param relation " ^relName))
           val _ = case def of 
               PRE.Prim _ => raise (Return $ doItPrimApp (rinst,tyd))
+              (* Hack: For recursive applications. *)
+            | PRE.Bind Bind.BogusDef => raise CantInferType
             | _ => ()
           val tyd' = PTS.domain relTyS
           val targs = Vector.fromList (case (tyd,tyd') of 
@@ -380,7 +384,7 @@ struct
             ((con, valop, RelLang.Star newRInst), SOME relTyS)
           end
         | (SOME vars, RelLang.Expr rexpr) => 
-          let
+          (let
             val convid = Var.fromString (Con.toString con)
             val RefTyS.T {tyvars,refss,...} = VE.find ve convid handle
               VE.VarNotFound _ => Error.bug ("Constructor " ^
@@ -392,7 +396,21 @@ struct
             val tyDB = Vector.fold (unifyConArgs ve con vars, 
               TyDBinds.empty,
               fn ((_,var,tyD,_),tyDB) => TyDBinds.add tyDB var tyD)
-            val (cs,tupTy,rexpr') = elabRExpr (re,pre,tyDB,spsB,rexpr)
+            (*
+             * Hack : For structural relations with recursive
+             * occurances, we currently assume existence of a base
+             * case (with non-empty RHS) in order to infer its sort.
+             * We extend PRE with binding for current relation (id),
+             * mapping it to a bogus def. This is to identify
+             * recursive applications.
+             *)
+            val bogusDesc = {
+              ty = PTS.simple (empty(), SPS.ColonArrow
+                (TyD.makeTunknown(),TS.Tuple [])),
+              def = PRE.Bind $ Bind.BogusDef}
+            val extendedPRE = PRE.add pre (id,bogusDesc)
+            val (cs,tupTy,rexpr') = elabRExpr (re, extendedPRE, 
+                                      tyDB, spsB, rexpr)
             val _ = assertEmptyCs cs
             val relSPS = SPS.ColonArrow (datTyD, tupTy)
             val (svars, paramSPS) = Vector.unzip $ Vector.map 
@@ -409,8 +427,11 @@ struct
             val relTyS = PTS.generalize (tyvars,relSS)
           in
             ((con, valop, RelLang.Expr rexpr'), SOME relTyS)
-          end handle CantInferType => ((con, valop, rterm),relTySOp)
-        | _ => raise (Fail "Impossible case of rterm"))
+          end handle CantInferType => ((con, valop, rterm),relTySOp))
+        | _ => raise (Fail $ "Impossible case of valop-rterm :"
+                ^(case valop of NONE => "" 
+                  | SOME vars => Vector.toString Var.toString vars)
+                ^(RelLang.termToString rterm)))
       val pts = case relTySOp of NONE => raise CantInferType
         | SOME relTyS => relTyS 
       val bdef = Bind.makeBindDef (id,params,pts)
@@ -606,6 +627,8 @@ struct
               doItRelPred tyDB rp
           | _ => (emptycs(),phi)
         end
+      val mapFst = fn f => fn (x,y) => (f x,y)
+      val inv = fn (x,y) => (y,x)
       fun doItRefTy tyDB refty = case refty of 
           RefTy.Base (bv,tyd,phi) => 
             let
@@ -616,13 +639,26 @@ struct
         | RefTy.Arrow ((x,t1),t2) => 
           let
             val (cs1,t1') = doItRefTy tyDB t1
-            val tyd1 = RefTy.toTyD t1
-            val tyDB' = TyDB.add tyDB x tyd1
+            val tybinds = case t1 of
+              RefTy.Tuple _ => RefTy.decomposeTupleBind (x,t1)
+            | _ => Vector.new1 (x,t1)
+            val tydbinds = Vector.map (tybinds, fn (v,ty) =>
+              (v,RefTy.toTyD ty))
+            val tyDB' = Vector.fold (tydbinds, tyDB, 
+              fn ((x,tyd),tyDB) => TyDB.add tyDB x tyd)
             val (cs2,t2') = doItRefTy tyDB' t2
           in
             (List.concat [cs1,cs2], RefTy.Arrow ((x,t1'),t2'))
           end
-        | _ => (emptycs(), refty)
+        | RefTy.Tuple vts => inv $ mapFst RefTy.Tuple $ 
+            Vector.mapAndFold (vts, emptycs(), 
+              fn ((v,t),csAcc) => 
+                let
+                  val (cs,t') = doItRefTy tyDB t
+                  val cs' = List.concat [cs,csAcc]
+                in
+                  ((v,t'),cs')
+                end)
       val (cs,refty') = doItRefTy TyDB.empty refty
       val (solfn :SVar.t -> TS.t) = solvecs cs
       val sortedParams = Vector.map (SPSB.toVector spsB, 

@@ -235,6 +235,8 @@ sig
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
     val exnTyp : unit -> t
     val mapSVar : t -> (SVar.t -> TupSort.t) -> t
+    (* pre-condition: input t must be a Tuple _ *)
+    val decomposeTupleBind : Var.t*t -> (Var.t*t) vector
   end
 
   structure ParamRefType :
