@@ -142,6 +142,9 @@ structure NoMatch =
 
 datatype noMatch = datatype NoMatch.t
 
+datatype instexpr = RInst of {rel : Var.t, 
+                              args : instexpr vector}
+
 datatype dec =
    Datatype of {cons: {arg: Type.t option,
                        con: Con.t} vector,
@@ -193,7 +196,8 @@ and expNode =
   | Raise of exp
   | Record of exp Record.t
   | Seq of exp vector
-  | Var of (unit -> Var.t) * (unit -> Type.t vector)
+  | Var of (unit -> Var.t) * (unit -> Type.t vector) * 
+      instexpr vector (* catalyst *)
 and lambda = Lam of {arg: Var.t,
                      argType: Type.t,
                      body: exp,
@@ -213,6 +217,9 @@ in
            case arg of
               NONE => empty
             | SOME t => seq [str " of ", Type.layout t]]
+
+   fun layoutIE (RInst {rel,args}) = seq [Var.layout rel,
+      Vector.layout layoutIE args]
 
    fun layoutDec d =
       case d of
@@ -273,7 +280,7 @@ in
              record = r,
              separator = " = "}
        | Seq es => Pretty.seq (Vector.map (es, layoutExp))
-       | Var (var, targs) => 
+       | Var (var, targs, catalyst) => 
             if !Control.showTypes
                then let 
                        open Layout
@@ -282,7 +289,9 @@ in
                        if Vector.isEmpty targs
                           then Var.layout (var ())
                        else seq [Var.layout (var ()), str " ",
-                                 Vector.layout Type.layout targs]
+                                 Vector.layout Type.layout targs, 
+                                 str " ",
+                                 Vector.layout layoutIE catalyst]
                     end
             else Var.layout (var ())
    and layoutFuns (tyvars, decs)  =
@@ -331,6 +340,7 @@ structure Exp =
       type dec = dec
       type lambda = lambda
       datatype t = datatype exp
+      datatype instexpr = datatype instexpr
       datatype node = datatype expNode
 
       datatype noMatch = datatype noMatch
@@ -349,8 +359,9 @@ structure Exp =
       fun make (n, t) = Exp {node = n,
                              ty = t}
 
-      fun var (x: Var.t, ty: Type.t): t =
-         make (Var (fn () => x, fn () => Vector.new0 ()), ty)
+      fun var (x: Var.t, ty: Type.t): t = (* catalyst *)
+         make (Var (fn () => x, fn () => Vector.new0 (), 
+          Vector.new0 ()), ty)
 
       fun isExpansive (e: t): bool =
          case node e of
@@ -460,7 +471,7 @@ structure Exp =
                 | Raise e => loop e
                 | Record r => Record.foreach (r, loop)
                 | Seq es => Vector.foreach (es, loop)
-                | Var (x, _) => f (x ())
+                | Var (x, _, catalyst) => f (x ())
             and loopDec d =
                case d of
                   Datatype _ => ()

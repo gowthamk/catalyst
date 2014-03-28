@@ -71,6 +71,8 @@ signature CORE_ML =
             type lambda
             type t
             datatype noMatch = Impossible | RaiseAgain | RaiseBind | RaiseMatch
+            datatype instexpr = RInst of {rel : Var.t, 
+                                          args : instexpr vector}
             datatype node =
                App of t * t
              | Case of {kind: string,
@@ -100,7 +102,8 @@ signature CORE_ML =
              | Raise of t
              | Record of t Record.t
              | Seq of t vector
-             | Var of (unit -> Var.t) * (unit -> Type.t vector)
+             | Var of (unit -> Var.t) * (unit -> Type.t vector) * 
+                  instexpr vector (* catalyst *)
 
             val andAlso: t * t -> t
             val casee: {kind: string,

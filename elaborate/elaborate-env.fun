@@ -2995,7 +2995,9 @@ fun transparentCut (E: t, S: Structure.t, I: Interface.t, {isFunctor: bool},
                                   if 0 < Vector.length sigArgs
                                      orelse 0 < Vector.length strArgs
                                      then addDec (Var.originalName x, 
-                                                  Exp.Var (fn () => x, fn () => strArgs))
+                                                  Exp.Var (fn () => x,
+                                                  fn () => strArgs,
+                                                  Vector.new0 ())) (* catalyst *)
                                   else vid
                              | (Vid.Con _, Status.Con) => vid
                              | (Vid.Exn _, Status.Exn) => vid

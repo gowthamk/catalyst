@@ -172,6 +172,8 @@ hexnum={hexDigit}+;
 <INITIAL>"#" => (tok (Tokens.HASH, source, yypos, yypos + 1));
 <INITIAL>"->" => (tok (Tokens.ARROW, source, yypos, yypos + 2));
 <INITIAL>"=>" => (tok (Tokens.DARROW, source, yypos, yypos + 2));
+<INITIAL>"<%" => (tok (Tokens.ANGL, source, yypos, yypos + 2));
+<INITIAL>"%>" => (tok (Tokens.ANGR, source, yypos, yypos + 2));
 <INITIAL>"and" => (tok (Tokens.AND, source, yypos, yypos + 3));
 <INITIAL>"abstype" => (tok (Tokens.ABSTYPE, source, yypos, yypos + 7));
 <INITIAL>"as" => (tok (Tokens.AS, source, yypos, yypos + 2));

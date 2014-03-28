@@ -3229,11 +3229,14 @@ fun elaborateDec (d, {env = E, nest}) =
                    in
                       Cexp.make (Cexp.Seq es', Cexp.ty (Vector.sub (es', last)))
                    end
-              | Aexp.Var {name = id, ...} =>
+              | Aexp.Var {name = id, catalyst, ...} =>
                    let
                       val (vid, scheme) = Env.lookupLongvid (E, id)
                       fun dontCare () =
                          Cexp.var (Var.newNoname (), Type.new ())
+                      fun aToCRInst (Aexp.RInst {rel,args}) =
+                        Cexp.RInst {rel = Var.fromString (Avar.toString rel),
+                                        args = Vector.map (args, aToCRInst)}
                    in
                       case scheme of
                          NONE => dontCare ()
@@ -3283,13 +3286,15 @@ fun elaborateDec (d, {env = E, nest}) =
                                            val _ =
                                               List.push (overloadChecks, (p, ignore o resolve))
                                         in
-                                           Cexp.Var (#id o resolve, #args o resolve)
+                                           Cexp.Var (#id o resolve,
+                                           #args o resolve, Vector.map (catalyst, aToCRInst))
                                         end
                                    | Vid.Var x =>
                                         Cexp.Var (fn () => x,
                                                   case ! (recursiveTargs x) of
                                                      NONE => args
-                                                   | SOME f => f)
+                                                   | SOME f => f,
+                                                  Vector.map (catalyst, aToCRInst))
                             in
                                Cexp.make (e, instance)
                             end

@@ -301,8 +301,10 @@ structure Priority =
           | SOME x => Int.layout x
    end
 
+datatype instexpr = RInst of {rel : Var.t, 
+                              args : instexpr vector}
 datatype expNode =
-   Var of {name: Longvid.t, fixop: Fixop.t}
+   Var of {name: Longvid.t, fixop: Fixop.t, catalyst: instexpr vector}
   | Fn of match
   | FlatApp of exp vector
   | App of exp * exp
@@ -397,6 +399,8 @@ val traceLayoutExp =
    Trace.traceInfo' (Trace.info "AstCore.layoutExp",
                      fn (e, _: bool) => Layout.str (expNodeName e),
                      Layout.ignore: Layout.t -> Layout.t)
+fun layoutIE (RInst {rel,args}) = seq [Var.layout rel,
+  Vector.layout layoutIE args]
 
 fun layoutExp arg =
    traceLayoutExp
@@ -451,7 +455,8 @@ fun layoutExp arg =
             end
        | Selector f => seq [str "#", Field.layout f]
        | Seq es => paren (align (separateRight (layoutExpsT es, " ;")))
-       | Var {name, fixop} => seq [Fixop.layout fixop, layoutLongvid name]
+       | Var {name, fixop, catalyst} => seq [Fixop.layout fixop,
+           layoutLongvid name, Vector.layout layoutIE catalyst]
        | While {test, expr} =>
             delimit (align [seq [str "while ", layoutExpT test],
                             seq [str "do ", layoutExpT expr]])
@@ -594,6 +599,7 @@ structure Exp =
       type dec = dec
       type match = match
       type t = exp
+      datatype instexpr = datatype instexpr
       datatype node = datatype expNode
       type node' = node
       type obj = t
@@ -614,8 +620,8 @@ structure Exp =
          end
 
       fun longvid name =
-         makeRegion (Var {name = name, fixop = Fixop.None},
-                     Longvid.region name)
+         makeRegion (Var {name = name, fixop = Fixop.None,
+           catalyst=Vector.new0 ()}, Longvid.region name)
 
       val var = longvid o Longvid.short o Vid.fromVar
 

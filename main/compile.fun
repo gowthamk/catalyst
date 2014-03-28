@@ -112,6 +112,7 @@ structure LookupConstant = LookupConstant (structure Const = Const
                                            structure Ffi = Ffi)
 structure ANormalize = ANormalize (structure CoreML = CoreML
                                    structure ANormalCoreML = ANormalCoreML)
+(*
 structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
                                    structure ANormalCoreML = ANormalCoreML)
 structure VE = ElaborateVarEnv.VE
@@ -133,6 +134,7 @@ val (z3_log,z3_log_close) = (fn stream =>
 
 structure VCE = VCEncode (structure VC = VC
                           val z3_log = z3_log)
+*)
 (* ------------------------------------------------- *)
 (*                 Lookup Constant                   *)
 (* ------------------------------------------------- *)
@@ -509,6 +511,16 @@ in
               (CoreML.Dec.Datatype o Vector.new1))
             val coreML = CoreML.Program.T{decs = Vector.concat 
               [primitiveDecs, userDecs]}
+            val _ =
+               let open Control
+               in
+                  if !keepCoreML
+                     then saveToFile ({suffix = "core-ml"}, No, coreML,
+                                      Layouts CoreML.Program.layouts)
+                  else ()
+               end
+            fun $ (f,arg) = f arg
+            infixr 5 $
             val ancoreML = Control.pass 
               {
                 display = Control.NoDisplay,
@@ -522,14 +534,11 @@ in
                let open Control
                in
                   if !keepCoreML
-                     then (saveToFile ({suffix = "core-ml"}, No, coreML,
-                                      Layouts CoreML.Program.layouts);
-                           saveToFile ({suffix = "an-core-ml"}, No, ancoreML,
-                                      Layouts ANormalCoreML.Program.layouts))
+                     then saveToFile ({suffix = "an-core-ml"}, No, ancoreML,
+                                      Layouts ANormalCoreML.Program.layouts)
                   else ()
                end
-            fun $ (f,arg) = f arg
-            infixr 5 $
+            (*
             val speclang = specast
             val _ = print "Specification Ast:\n"
             val _ = Control.message (Control.Top, fn _ =>
@@ -610,6 +619,7 @@ in
                 thunk = (fn () => Vector.foreachi (elabvcs,dischargeVC))
               }
             val _ = z3_log_close ()
+            *)
          in
             print $ (!Control.inputFile)^" is correct w.r.t given specification!\n"
          end

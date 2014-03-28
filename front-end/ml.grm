@@ -229,6 +229,8 @@ type 'a whereAnd = wherespec list * SourcePos.t * 'a list
     | LPAREN | NONFIX | ORELSE | OF | OP | OPEN | OVERLOAD | RAISE | RBRACE 
     | RBRACKET | REC | RPAREN | SEMICOLON | SHARING | SIG | SIGNATURE | STRUCT
     | STRUCTURE | THEN | TYPE | VAL | WHERE | WHILE | WILD | WITH | WITHTYPE
+      (* Catalyst extensions *)
+    | ANGL | ANGR | MSG of string
       (* Extensions *)
     | BUILD_CONST | COMMAND_LINE_CONST | CONST 
     | ADDRESS | EXPORT | IMPORT | SYMBOL 
@@ -406,6 +408,11 @@ type 'a whereAnd = wherespec list * SourcePos.t * 'a list
        | wherespecs' of wherespec list
        | withtypes of TypBind.t
        | word of IntInf.t
+       (* Catalyst extension *)
+       | catalyst_ie of Exp.instexpr vector
+       | inst_exp of Exp.instexpr
+       | inst_args of Exp.instexpr list
+       | inst_exps of Exp.instexpr list
 
 %verbose
 %pos SourcePos.t
@@ -978,9 +985,28 @@ expnode : exp HANDLE match      (Exp.Handle (exp, match))
         | IF exp THEN exp ELSE exp (Exp.If (exp1, exp2, exp3))
         | RAISE exp             (Exp.Raise exp)
 
+catalyst_ie :  (Vector.new0 ())
+            | ANGL inst_exp ANGR (Vector.new1 inst_exp)
+            | ANGL LPAREN inst_exps RPAREN ANGR (Vector.fromList inst_exps)
+
+inst_exp : var (Exp.RInst {args = Vector.new0 (), 
+                rel = var})
+         | var inst_args (Exp.RInst {
+                args = Vector.fromList inst_args, 
+                rel = var})
+
+inst_args : LBRACKET inst_exp RBRACKET ([inst_exp])
+          | LBRACKET inst_exp RBRACKET inst_args (inst_exp :: inst_args)
+
+inst_exps : inst_exp ([inst_exp])
+          | inst_exp COMMA inst_exps (inst_exp :: inst_exps)
+
+
+
 app_exp : aexp app_exp1     (Exp.makeRegion' (aexp, aexpleft, aexpright)
                              :: app_exp1)
-        | longvid app_exp1  (Exp.makeRegion' (Exp.Var {name = longvid,
+        | longvid catalyst_ie app_exp1  (Exp.makeRegion' (Exp.Var {name = longvid,
+                                                       catalyst = catalyst_ie,
                                                        fixop = Fixop.None},
                                              longvidleft, longvidright)
                              :: app_exp1)
@@ -989,7 +1015,8 @@ app_exp1 :         ([])
          | app_exp (app_exp)
 
 aexp    : OP longvid            (Exp.Var {name = longvid,
-                                          fixop = Fixop.Op})
+                                          fixop = Fixop.Op,
+                                          catalyst = Vector.new0 ()})
         | const                 (Exp.Const const)
         | HASH field            (Exp.Selector field)
         | LBRACE elabels RBRACE

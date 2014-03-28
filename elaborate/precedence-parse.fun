@@ -44,7 +44,8 @@ structure Fixval =
 
       fun makeExp (e: Exp.t, E: Env.t): t =
          case Exp.node e of
-            Exp.Var r => make (r, E)
+            Exp.Var {name,fixop,...} => 
+              make ({name=name, fixop=fixop}, E)
           | _ => Nonfix
    end
 

@@ -57,8 +57,7 @@ signature AST_CORE =
              | Record of {flexible: bool,
                           items: (Record.Field.t * Item.t) vector}
              | Tuple of t vector
-             | Var of {fixop: Fixop.t,
-                       name: Longvid.t}
+             | Var of {fixop: Fixop.t, name: Longvid.t}
              | Wild
 
             include WRAPPED sharing type node' = node
@@ -133,6 +132,8 @@ signature AST_CORE =
             type dec
             type match
             type t
+            datatype instexpr = RInst of {rel : Var.t, 
+                                          args : instexpr vector}
             datatype node =
                Andalso of t * t
              | App of t * t
@@ -152,6 +153,7 @@ signature AST_CORE =
              | Selector of Record.Field.t
              | Seq of t vector
              | Var of {fixop: Fixop.t,
+                       catalyst: instexpr vector,
                        name: Longvid.t}
              | While of {expr: t,
                          test: t}
