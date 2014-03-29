@@ -94,12 +94,11 @@ structure NoMatch =
 
 datatype noMatch = datatype NoMatch.t
 
-datatype instexpr = RInst of {rel : Var.t, 
-                              args : instexpr vector}
-
 datatype exp_val_atom = Const of Const.t
-                      | Var of Var.t * Type.t vector *
-                          instexpr vector (* catalyst *)
+                      | Var of {var : Var.t,
+                                targs: Type.t vector,
+                                sargs : TupSort.t vector,
+                                ieargs : RelLang.instexpr vector} (* catalyst *)
 
 datatype exp_val_t = Atom of exp_val_atom
                   | Tuple of exp_val_atom vector
@@ -157,14 +156,15 @@ and lambda = Lam of {arg: Var.t,
 local
    open Layout
 in
-  fun layoutIE (RInst {rel,args}) = seq [Var.layout rel, 
-    Vector.layout layoutIE args]
+  fun layoutIE ie = str (RelLang.ieToString ie)
   fun exp_val_layt v = case v of
       Atom (Const c) => Const.layout c
-    | Atom (Var (v,targs,catalyst)) =>
+    | Atom (Var {var=v,targs,sargs,ieargs=catalyst}) => (* catalyst *)
         if Vector.isEmpty targs then Var.layout v
           else seq [Var.layout v, str " ", tuple (Vector.toListMap
-            (targs, Type.layout)), Vector.layout layoutIE  catalyst]
+            (targs, Type.layout)), str " ", tuple (Vector.toListMap
+            (sargs, str o TupSort.toString)), str " ", 
+            Vector.layout layoutIE  catalyst]
     | Tuple av => seq (Vector.toListMap (av, fn v => exp_val_layt (Atom v)))
     | Record r => Record.layout
             {extra = "",
@@ -296,7 +296,6 @@ structure Exp =
       type dec = dec
       type lambda = lambda
       datatype t = datatype exp
-      datatype instexpr = datatype instexpr
       datatype node = datatype expNode
 
       datatype noMatch = datatype noMatch

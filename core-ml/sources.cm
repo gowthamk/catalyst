@@ -21,6 +21,7 @@ is
 ../atoms/sources.cm
 ../control/sources.cm
 ../lib/mlton/sources.cm
+../speclang/sources.cm
 
 core-ml.sig
 core-ml.fun

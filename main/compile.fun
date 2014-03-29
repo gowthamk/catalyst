@@ -68,7 +68,17 @@ structure CoreML = CoreML (open Atoms
                                     (t, {expandOpaque = true,
                                          localTyvarNames = false})
                               end)
-structure ANormalCoreML = ANormalCoreML (open Atoms
+(*-----------------------------------------------------*)
+(*             Specification Language                  *)
+(*-----------------------------------------------------*)
+
+structure SpecLang = SpecLang (open Atoms)
+
+(*-----------------------------------------------------*)
+(*             A-Normal Core-ML                        *)
+(*-----------------------------------------------------*)
+
+structure ANormalCoreML = ANormalCoreML (open SpecLang
                                structure Type =
                                   struct
                                      open TypeEnv.Type
@@ -84,12 +94,6 @@ structure ANormalCoreML = ANormalCoreML (open Atoms
                                         (t, {expandOpaque = true,
                                              localTyvarNames = false})
                                   end)
-(*-----------------------------------------------------*)
-(*             Specification Language                  *)
-(*-----------------------------------------------------*)
-
-structure SpecLang = SpecLang (open Atoms)
-
 (*-----------------------------------------------------*)
 (*                  Processing Passes                  *)
 (*-----------------------------------------------------*)
@@ -112,13 +116,13 @@ structure LookupConstant = LookupConstant (structure Const = Const
                                            structure Ffi = Ffi)
 structure ANormalize = ANormalize (structure CoreML = CoreML
                                    structure ANormalCoreML = ANormalCoreML)
-(*
 structure ElaborateVarEnv = ElaborateVarEnv (structure SpecLang = SpecLang
                                    structure ANormalCoreML = ANormalCoreML)
 structure VE = ElaborateVarEnv.VE
 structure RE = ElaborateVarEnv.RE
 structure PRE = ElaborateVarEnv.PRE
 
+(*
 structure SpecVerify = SpecVerify (structure VE = VE
                                    structure RE = RE
                                    structure PRE = PRE
@@ -500,6 +504,10 @@ in
       fn {spec : File.t} => fn {input: File.t list} =>
         let val CoreML.Program.T{decs} = elaborate {input = genMLB {input = input}}
             val specast = SpecFrontend.lexAndParseSpecFile (spec)
+            val speclang = specast
+            val _ = print "Specification Ast:\n"
+            val _ = Control.message (Control.Top, fn _ =>
+              SpecLang.RelSpec.layout specast)
             val catexpi = Vector.index (decs,fn dec => case dec of
                 CoreML.Dec.Exception {arg,con} => String.compare 
                   (Con.toString con, "Catalyst") = EQUAL
@@ -538,12 +546,7 @@ in
                                       Layouts ANormalCoreML.Program.layouts)
                   else ()
                end
-            (*
-            val speclang = specast
-            val _ = print "Specification Ast:\n"
-            val _ = Control.message (Control.Top, fn _ =>
-              SpecLang.RelSpec.layout specast)
-            val (ve,re,pre) = Control.pass 
+            val (elabANC,ve,re,pre) = Control.pass 
               {
                 display = Control.NoDisplay,
                 name = "Spec Elab",
@@ -552,6 +555,15 @@ in
                 suffix = "elr",
                 thunk = (fn () => ElaborateVarEnv.elaborate ancoreML speclang)
               }
+            (* overwriting an-core-ml file, if elaboration succeeds *)
+            val _ =
+               let open Control
+               in
+                  if !keepCoreML
+                     then saveToFile ({suffix = "an-core-ml"}, No, elabANC,
+                                      Layouts ANormalCoreML.Program.layouts)
+                  else ()
+               end
             (* 
              * Hack : ML has ::, but not cons. So, ty(::) <- ty(cons) 
              * and remove cons from ve.
@@ -571,6 +583,7 @@ in
             val _ = Control.message (Control.Top, fn _ =>
               PRE.layout pre)
             val _ = print "\n"
+            (*
             val vcs = Control.pass 
               {
                 display = Control.NoDisplay,

@@ -3,7 +3,7 @@
  *)
 signature A_NORMAL_CORE_ML_STRUCTS = 
    sig
-      include ATOMS
+      include SPEC_LANG
       structure Type:
          sig
             type t
@@ -65,14 +65,14 @@ signature A_NORMAL_CORE_ML =
 
       structure Exp:
          sig
-            datatype instexpr = RInst of {rel : Var.t, 
-                                          args : instexpr vector}
             structure Val:
               sig
                 datatype atom =
                     Const of Const.t
-                  | Var of Var.t * Type.t vector * 
-                            instexpr vector (* catalyst *)
+                  | Var of {var : Var.t,
+                            targs: Type.t vector,
+                            sargs : TupSort.t vector,
+                            ieargs : RelLang.instexpr vector} (* catalyst *)
                 datatype t = 
                     Atom of atom
                   | Tuple of atom vector

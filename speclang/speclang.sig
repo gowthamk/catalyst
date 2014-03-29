@@ -11,6 +11,7 @@ sig
     include ID
     val eq : t*t -> bool
     val equal : t*t -> bool
+    val fromVar : Var.t -> t
   end
 
   structure SVar :
@@ -246,6 +247,7 @@ sig
     val layout : t -> Layout.t
     val parametrize : (RelId.t * SimpleProjSort.t) vector *
       RefinementType.t -> t
+    val instantiate : t * RelLang.instexpr vector -> RefinementType.t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
   end
 
@@ -256,7 +258,9 @@ sig
     val toRefTy : t -> RefinementType.t
     val fromRefTy : RefinementType.t -> t
     val generalize : (SVar.t vector * ParamRefType.t) -> t
+    val instantiate : t * TupSort.t vector -> ParamRefType.t
     val mapTyD : t -> (TypeDesc.t -> TypeDesc.t) -> t
+    val layout : t -> Layout.t
   end
 
   structure RefinementTypeScheme :

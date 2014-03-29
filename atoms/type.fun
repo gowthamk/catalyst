@@ -73,8 +73,8 @@ functor TypeDesc (S: TYPE_DESC_STRUCTS): TYPE_DESC =
 
     fun substTyvar ((tyd,tyvar),ty) = 
       let
-        fun tyvarStrEq (v1,v2) = (Tyvar.toString v1 = 
-          Tyvar.toString v2)
+        fun tyvarStrEq (v1,v2) = Tyvar.equals (v1,v2) orelse
+          (Tyvar.toString v1 = Tyvar.toString v2)
       in
         case ty of
           Tvar tvar => if tyvarStrEq (tvar,tyvar) 

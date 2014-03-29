@@ -1,8 +1,8 @@
 functor ElaborateVarEnv (S : ELABORATE_VAR_ENV_STRUCTS) : ELABORATE_VAR_ENV = 
 struct
   open S
-  open SpecLang
   open ANormalCoreML
+  open SpecLang
   structure L = Layout
   structure VE = VarEnv (structure Var = Var
                          structure SpecLang = SpecLang)
@@ -64,7 +64,13 @@ struct
   fun genVar () =  getUniqueId "x_" 
   val newLongVar = fn (var,fld) => Var.fromString $
     (Var.toString var)^"."^(Var.toString fld)
+  val len = Vector.length
   val empty = fn _ => Vector.new0 ()
+  val fst = fn (x,_) => x
+  val snd = fn (_,y) => y
+  val mapFst = fn f => fn (x,y) => (f x,y)
+  val inv = fn (x,y) => (y,x)
+  val mapFst3 = fn f => fn (x,y,z) => (f x,y,z)
   val emptycs = fn _ => []
   val mergecs = List.concat
   val solvecs = TS.solvecs
@@ -162,32 +168,13 @@ struct
       VE.add (VE.remove ve convid) (convid,newTyS)
     end
 
-  (*
-   * Synthesizes the type of rexpr in the given relational env.
-   * Rel Env is constructed during elaboration, hence this function
-   * is also part of elaboration.
-   *)
   exception CantInferType
 
-  fun elabRExpr (re,pre,tyDB,spsB,rexpr) : (TS.cs list * TS.t * 
-      RelLang.expr)=
+  fun elabRInst (re,pre,tyDB,spsB,rinst,tyD) 
+      : (TS.t * RelLang.instexpr) =
     let
       open RelLang
-      fun typeSynthRElem elem = case elem of
-          Int i => TyD.makeTconstr (Tycon.intInf,[])
-        | Bool b => TyD.makeTconstr (Tycon.bool,[])
-        | Var v => TyDBinds.find tyDB v handle 
-            TyDBinds.KeyNotFound _ => Error.bug $ "Type of "
-              ^(Var.toString v)^" not found"
-      fun doIt (e1,e2) cons f = 
-        let 
-          val (cs1,tupTy1,e1') = elabRExpr (re,pre,tyDB,spsB,e1)
-          val (cs2,tupTy2,e2') = elabRExpr (re,pre,tyDB,spsB,e2)
-          val (cs,tupTy) = f (tupTy1,tupTy2)
-        in
-          (mergecs [cs1,cs2,cs], tupTy, cons (e1',e2'))
-        end
-      val isParam = fn rid => SPSB.mem spsB rid
+
       fun doItParamApp (rinst as RInst {rel=rid,...},tyd) = 
         let
           val {dom,range=svar} = SPSB.find spsB rid
@@ -197,8 +184,9 @@ struct
                 ^(RelId.toString rid))
           val expsort = TS.fromSVar svar
         in
-          (emptycs(), expsort, rinst)
+          (expsort, rinst)
         end
+
       fun doItPrimApp (rinst as RInst {rel,args, ...},tyd) =
         let
           val relName = RelId.toString rel
@@ -230,9 +218,12 @@ struct
           val newRInst = RInst {rel=rel, args=args, targs=targs,
             sargs=empty()}
         in
-          (emptycs(), prR, newRInst)
+          (prR, newRInst)
         end
-      exception Return of TS.cs list * TS.t * RelLang.instexpr
+
+      val isParam = fn rid => SPSB.mem spsB rid
+
+      exception Return of TS.t * RelLang.instexpr
       fun doItRInstApp (rinst as RInst {rel,args,...},tyd) =
         let
           val _ = if isParam rel 
@@ -248,12 +239,15 @@ struct
             | PRE.Bind Bind.BogusDef => raise CantInferType
             | _ => ()
           val tyd' = PTS.domain relTyS
-          val targs = Vector.fromList (case (tyd,tyd') of 
+          val targList = case (tyd,tyd') of 
               (TyD.Tconstr (tycon,targs), TyD.Tconstr (tycon', _)) =>
                 (assert (tyconEq (tycon,tycon'),"Relation "^relName
                 ^" applied to arg of wrong type"); targs)
             | (_,TyD.Tvar _) => [tyd]
-            | _ => Error.bug ("RelApp type mismatch: " ^ relName))
+            | _ => Error.bug $ "RelApp type mismatch: "^relName^"\n"
+              ^ "Context requires : "^(TyD.toString tyd')^"\n"
+              ^ "Actual type : "^(TyD.toString tyd)^"\n"
+          val targs = Vector.fromList targList
           val relSS = PTS.instantiate (relTyS,targs)
           val PSS.T {sort=ProjSort.T {paramsorts, ...}, ...} = relSS
           val argDomains = Vector.map (paramsorts, 
@@ -261,12 +255,7 @@ struct
           val _ = assert (Vector.length args = Vector.length
             argDomains, "Incorrectly instantiating "^relName)
           val (argRanges, args') = Vector.unzip $ Vector.map2 
-            (args,argDomains, fn (arg,argD) =>
-              let
-                val (_,sort,arg') = doItRInstApp (arg,argD)
-              in
-                (sort,arg')
-              end)
+            (args,argDomains, doItRInstApp)
           (*
            * sargs are instantiations for sort vars in param ranges.
            * Since an arg instantiates param, sargs=argRanges
@@ -277,17 +266,43 @@ struct
           val newRInst = RInst {rel=rel, args=args', targs=targs,
             sargs=sargs}
         in
-          (emptycs(), expsort, newRInst)
+          (expsort, newRInst)
         end handle Return z => z
+    in
+      doItRInstApp (rinst,tyD)
+    end
 
+  (*
+   * Synthesizes the type of rexpr in the given relational env.
+   * Rel Env is constructed during elaboration, hence this function
+   * is also part of elaboration.
+   *)
+  fun elabRExpr (re,pre,tyDB,spsB,rexpr) : (TS.cs list * TS.t * 
+      RelLang.expr)=
+    let
+      open RelLang
+      fun typeSynthRElem elem = case elem of
+          Int i => TyD.makeTconstr (Tycon.intInf,[])
+        | Bool b => TyD.makeTconstr (Tycon.bool,[])
+        | Var v => TyDBinds.find tyDB v handle 
+            TyDBinds.KeyNotFound _ => Error.bug $ "Type of "
+              ^(Var.toString v)^" not found"
+      fun doIt (e1,e2) cons f = 
+        let 
+          val (cs1,tupTy1,e1') = elabRExpr (re,pre,tyDB,spsB,e1)
+          val (cs2,tupTy2,e2') = elabRExpr (re,pre,tyDB,spsB,e2)
+          val (cs,tupTy) = f (tupTy1,tupTy2)
+        in
+          (mergecs [cs1,cs2,cs], tupTy, cons (e1',e2'))
+        end
       val doItRInstApp = fn (rinst,x) =>
         let
           val tyd = TyDB.find tyDB x handle 
             TyDB.KeyNotFound _ => raise (Fail ("Var "
               ^(Var.toString x)^" unknown"))
-          val (cs,sort,rinst') = doItRInstApp (rinst,tyd)
+          val (sort,rinst') = elabRInst (re,pre,tyDB,spsB,rinst,tyd)
         in
-          (cs,sort,R (rinst',x))
+          (emptycs(), sort, R (rinst',x))
         end
     in
       case rexpr of
@@ -551,42 +566,8 @@ struct
     end
 
   (*
-   * Forall top-level fun decs, elabDecs annotates their ML
-   * types with type refinements. 
+   * elaborate relational parameters and refinements in a typespec.
    *)
-  fun elabDecs (ve : VE.t, decs : Dec.t vector) : VE.t =
-    let
-      fun elabRecDecs (ve : VE.t) (tyvars : Tyvar.t vector)  decs = 
-        Vector.fold (decs,ve, fn ({lambda : Lambda.t, var :
-          Var.t}, newVE) =>
-          let
-            val {arg,argType,body} = Lambda.dest lambda
-            val argTyD = Type.toMyType argType
-            val bodyTyD = Type.toMyType $ Exp.ty body
-            val funTyD = TyD.makeTarrow (argTyD,bodyTyD)
-            val funTyS = VE.find ve var (* VarNotFound handled below *)
-            val funRefTy = mergeTypes (funTyD, RefTyS.specializeRefTy
-                funTyS) 
-            val RefSS.T{svars, prefty=PRf.T{params,...}} = 
-              RefTyS.specialize funTyS
-            val funRefSS = RefSS.T{svars=svars, prefty=PRf.T 
-              {params=params, refty=funRefTy}}
-            val funspec = RefTyS.generalizeAssump (tyvars,funRefSS,
-              RefTyS.isAssumption funTyS)
-          in
-            VE.add (VE.remove newVE var) (var,funspec)
-          end handle (VE.VarNotFound _) => newVE)
-      fun elabDec (ve : VE.t, dec : Dec.t) : VE.t = case dec of
-          Dec.Fun {decs,tyvars} => elabRecDecs ve (tyvars()) decs
-        | Dec.Val {rvbs,tyvars,...} => elabDec (ve, Dec.Fun 
-            {decs=rvbs,tyvars=tyvars})
-        | _ => ve
-      val extendedVE = Vector.fold (decs,ve, 
-        fn (dec,ve) => elabDec (ve,dec))
-    in
-      extendedVE
-    end
-
   fun elabTypeSpec re pre {params,refty} =
     let
       (* Initially, param domains are none *)
@@ -627,8 +608,6 @@ struct
               doItRelPred tyDB rp
           | _ => (emptycs(),phi)
         end
-      val mapFst = fn f => fn (x,y) => (f x,y)
-      val inv = fn (x,y) => (y,x)
       fun doItRefTy tyDB refty = case refty of 
           RefTy.Base (bv,tyd,phi) => 
             let
@@ -681,6 +660,309 @@ struct
       refSS
     end
 
+  (*
+   * Forall top-level fun decs, elabDecs annotates their ML
+   * types with type refinements. 
+   *)
+  fun elabDecs (re:RE.t, pre:PRE.t, ve :VE.t, tyDB:TyDB.t, 
+    decs : Dec.t vector) : (Dec.t vector * VE.t * TyDB.t) =
+    let
+      (*
+       * Elaborates (x T R) to (x T \theta elabRInst(R))
+       *)
+      exception VarInstReturn of 
+                           {var : Var.t, 
+                            targs : Type.t vector, 
+                            sargs : TS.t vector, 
+                            ieargs : RelLang.instexpr vector}
+      fun elabVarInst (ve,tyDB, varInst as {var=f, targs=tyvec, 
+            sargs=ignored, ieargs}) =
+        let
+          val len = Vector.length
+          val _ = case len ieargs of 0 =>
+            (*
+             * No elaboration for non-parametric types
+             *)
+             raise (VarInstReturn varInst) | _ => ()
+          val tydvec = Vector.map (tyvec,Type.toMyType)
+          val fTyS = VE.find ve f handle VE.VarNotFound _ =>
+            Error.bug $ "Impossible case of elabExp. "
+              ^(Var.toString f)^" not found in VE."
+          val fSS as RefSS.T {prefty, svars} = 
+              RefTyS.instantiate (fTyS, tydvec)
+          val _ = print "Instantiated sort scheme:\n"
+          val _ = print $ L.toString $ RefSS.layout fSS
+          val _ = print "\n"
+          val PRf.T {params,...} = prefty
+          val _ = assert (len params = len ieargs, "Incorrect\
+            \ number of relation instantiations for function: "
+            ^ (Var.toString f))
+          val (pdoms, psorts) = Vector.unzip $ Vector.map
+            (params, fn (_, SPS.ColonArrow x) => x)
+          val (iesorts, ieargs') = Vector.unzip $ Vector.map2 
+            (ieargs, pdoms, fn (iearg,pdom) => 
+                elabRInst (re, pre, tyDB, SPSB.empty, iearg, pdom))
+          (*
+           * We cannot use our constraint solver from speclang
+           * to figure out instantiations, for two reasons:
+           * 1. TS.solvecs actually simplifies a system of
+           * equations assuming all SVars occuring in
+           * constraints as variables. In current case, we
+           * require SVars occuring in iesorts to be treated as
+           * constants. If we want to still use TS.solvecs, we
+           * may encode SVars as Tyvars, which are treated as
+           * constants.
+           * 2. When an SVar t is unified with empty tuple ([]),
+           * no equation is produced. However, if t is
+           * instantiated with [], then it means that t=[].
+           *
+           * What we implement here is a single pass,
+           * ineffective sort instantiation inference
+           *)
+          open TS
+          val pStr = fn _ => Vector.toString toString psorts
+          val iStr = fn _ => Vector.toString toString iesorts
+          val err = fn _ => "Cannot infer sort instantiations\
+            \ by unifying "^(pStr())^" with "^(iStr())
+          val eqs = Vector.concatV $ Vector.map2 
+            (psorts,iesorts, fn (Tuple tts1, Tuple tts2) => 
+              case (tts1,tts2) of 
+                ([S t],_) => Vector.new1 (t,Tuple tts2)
+              | ([T tyd1], [T tyd2]) => (assert(TyD.sameType
+                  (tyd1,tyd2), err()); Vector.new0 ())
+              | _ => 
+                let
+                  val tts1 = Vector.fromList tts1
+                  val tts2 = Vector.fromList tts2
+                  val len = Vector.length
+                  val _ = assert (len tts1 = len tts2, err())
+                in
+                  Vector.keepAllMap2 (tts1,tts2, fn x =>
+                    case x of (S t,tt2) => SOME (t,Tuple [tt2])
+                    | (T tyd1,T tyd2) => (assert(TyD.sameType
+                      (tyd1,tyd2), err()); NONE)
+                    | _ => Error.bug $ err())
+                end)
+          (*
+          val _ = print "Calculated eqs:\n"
+          val _ = print $ Vector.toString (fn (t,ts) => 
+            (SVar.toString t)^" -> "^(TS.toString ts)) eqs
+          val _ = print "\n"
+          *)
+          exception Return of (SVar.t * TS.t) list
+          val eqs = Vector.fold (eqs, [], fn ((t,ts),newEqs) =>
+            let
+              val eqop = List.peek (newEqs, fn (t',_) =>
+                SVar.eq (t,t'))
+              val _ = case eqop of NONE => ()
+                | SOME (_,ts') => assert (TS.equal (ts,ts'), 
+                    "Inconsistent equations. " ^ (err()))
+            in
+              (t,ts)::newEqs
+            end handle Return x => x)
+          val sargs = Vector.map (svars, fn s =>
+            case List.peekMap (eqs, fn (t,ts) => 
+              if SVar.eq (s,t) then SOME ts else NONE) of
+              SOME  ts => ts 
+            | NONE => Error.bug $ "No instantiation found for\
+              \ sort var: "^(SVar.toString s)^". "^(err()))
+        in
+          {var=f, targs=tyvec, sargs=sargs, ieargs=ieargs'}
+        end handle VarInstReturn varInst => varInst
+        
+      (*
+       * re and pre remain invariant
+       *)
+      val elabDecs = fn (ve,tyDB,decs) => 
+        elabDecs (re,pre,ve,tyDB,decs)
+
+      fun elabExpVal (ve,tyDB,expval) =
+        let
+          open Exp.Val
+        in
+          case expval of
+            Atom (Var varInst) => Atom $ Var $ elabVarInst 
+                (ve, tyDB, varInst)
+          | _ => expval (* Unimpl *)
+        end
+
+      exception PatBindReturn of TyDB.t
+
+      fun elabExp (ve,tyDB,exp) = 
+        let
+          val expty = Exp.ty exp
+          val expnode = Exp.node exp
+          open Exp
+          val (expnode',ve') = case expnode of
+              App (Val.Var varInst,x) => 
+                (App (Val.Var $ elabVarInst (ve,tyDB,varInst), x),
+                ve)
+            | Case {kind,lay,nest,rules,test} =>
+              let
+                val (rules',ve') = Vector.mapAndFold (rules,ve,
+                  fn ({exp,lay,pat},ve) => 
+                    let
+                      val tyDB' = elabPatBind (ve,tyDB, (pat,test))
+                      val cons = (fn exp' => {exp=exp', lay=lay, pat=pat})
+                    in
+                      mapFst cons $ elabExp (ve,tyDB',exp)
+                    end)
+              in
+                (Case {kind=kind, lay=lay, nest=nest, rules=rules',
+                       test=test},
+                 ve')
+              end
+            | Handle {catch, handler, try} =>
+              let
+                val (handler',ve') = elabExp (ve,tyDB,handler)
+                val (try',ve'') = elabExp (ve',tyDB,try)
+              in
+                (Handle {catch=catch, handler=handler', try=try'},
+                 ve'')
+              end
+            | Lambda lam => mapFst Lambda $ elabLambda (ve,tyDB,lam)
+            | Let (decs,t) => 
+              let
+                val (decs',ve',tyDB') = elabDecs (ve,tyDB,decs)
+                val (t',ve'') = elabExp (ve',tyDB',t)
+              in
+                (Let (decs',t'), ve'')
+              end
+            | Seq tv => mapFst Seq $ Vector.mapAndFold (tv, ve, 
+                fn (t,ve) => elabExp (ve,tyDB,t))
+            | Value v =>(Value $  elabExpVal (ve,tyDB,v), ve)
+            | _ => (expnode, ve)
+          val exp' = make (expnode',expty)
+        in
+          (exp',ve')
+        end 
+
+      and elabLambda (ve,tyDB,lam) = 
+        let
+          val {arg,argType,body} = Lambda.dest lam
+          val argTyD = Type.toMyType argType
+          val extendedTyDB = TyDB.add tyDB arg argTyD
+          val (body',ve') = elabExp (ve,extendedTyDB,body)
+        in
+          (Lambda.make {arg=arg, argType=argType, body=body'}, ve')
+        end
+
+      and elabExpBind (ve, tyDB, (patval,exp)) =
+        let
+          val expTyD = Type.toMyType $ Exp.ty exp
+          val (exp',ve') = elabExp (ve,tyDB,exp)
+          open Pat.Val
+          val tyDB' = case patval of 
+              Atom (Var v) => TyDB.add tyDB v expTyD
+            | Tuple av => 
+              let
+                val tyDs = case expTyD of
+                  TyD.Trecord r => Vector.map (Record.toVector r,snd)
+                | _ => Error.bug "Impossible ML type desc"
+                val _ = assert (len tyDs = len av, "error")
+              in
+                Vector.fold2 (av, tyDs, tyDB, 
+                  fn (Var v,tyD,tyDB) => TyDB.add tyDB v tyD
+                    |  _ => tyDB)
+              end
+            | Record _ => tyDB (* unimpl *)
+        in
+          ((patval,exp'),ve',tyDB')
+        end
+
+      and elabPatBind (ve, tyDB, (pat,expval)) =
+        let
+          open Exp.Val
+          val expty = Pat.ty pat (* ML types are same *)
+          val exp = Exp.make (Exp.Value $ expval, expty) 
+          val patval = case Pat.node pat of 
+            Pat.Value patval => patval
+          | _ => raise (PatBindReturn tyDB)
+          val (_,_,tyDB') = elabExpBind (ve, tyDB, (patval,exp))
+        in
+          tyDB'
+        end handle PatBindReturn x => x
+
+      fun elabValBind (ve, tyDB, vb) = case vb of
+          Dec.ExpBind expbind => mapFst3 (fn e' => Dec.ExpBind e')
+            $ elabExpBind (ve, tyDB, expbind)
+        | Dec.PatBind (pat,expval) => (Dec.PatBind (pat,expval), 
+            ve, elabPatBind (ve,tyDB,(pat,expval)))
+        
+      fun elabRecDecs (ve : VE.t) (tyDB : TyDB.t) 
+          (tyvars : Tyvar.t vector)  decs = 
+        Vector.mapAndFold (decs,ve, 
+          fn ({lambda : Lambda.t, var : Var.t}, ve) =>
+            let
+              val (lambda',newVE) = elabLambda (ve,tyDB,lambda)
+              val {arg,argType,body} = Lambda.dest lambda
+              val argTyD = Type.toMyType argType
+              val bodyTyD = Type.toMyType $ Exp.ty body
+              val funTyD = TyD.makeTarrow (argTyD,bodyTyD)
+              val funTyS = VE.find ve var (* VarNotFound handled below *)
+              val RefTyS.T {
+                  isAssume,
+                  refss=funSS, ...} = funTyS
+              val RefSS.T{
+                  svars, 
+                  prefty = PRf.T {params=sortedParams, 
+                                 refty=funRefTy}
+                         } = funSS
+              (* discard dummy sorts of params *)
+              val (params,_) = Vector.unzip sortedParams
+              val funRefTy' = mergeTypes (funTyD, funRefTy)
+              val funSS' = elabTypeSpec re pre {params=params,
+                refty=funRefTy'}
+              val funRefTyS' = RefTyS.T {tyvars=tyvars, 
+                isAssume=isAssume, 
+                refss=funSS'}
+              val ve' = VE.add (VE.remove newVE var) (var,funRefTyS')
+            in
+              ({lambda=lambda', var=var}, ve')
+            end handle (VE.VarNotFound _) => mapFst 
+              (fn lam' => {lambda=lam', var=var}) $
+                  elabLambda (ve,tyDB,lambda))
+
+      fun elabDec (ve : VE.t, tyDB : TyDB.t, dec : Dec.t) 
+          : (Dec.t * VE.t * TyDB.t) = 
+        case dec of
+          Dec.Fun {decs,tyvars} => 
+          let
+            val (decs',ve') = elabRecDecs ve tyDB (tyvars()) decs
+          in
+            (Dec.Fun {decs=decs', tyvars=tyvars}, ve', tyDB)
+          end
+        | Dec.Val {rvbs,tyvars,vbs} => 
+          let
+            val (Dec.Fun {decs=rvbs', ...},rvbsVE,_) = elabDec (ve, 
+                tyDB, Dec.Fun {decs=rvbs,tyvars=tyvars})
+            val (vbs', (vbsVE,vbsTyDB)) = 
+              Vector.mapAndFold (vbs, (rvbsVE,tyDB), 
+                fn ({valbind, lay, nest}, (ve,tyDB)) => 
+                  let
+                    val (valbind',ve',tyDB') = elabValBind (ve, tyDB, 
+                                                valbind)
+                    val desc' = {valbind=valbind', lay=lay, nest=nest}
+                  in
+                     (desc', (ve', tyDB'))
+                  end)
+            val desc' = {rvbs=rvbs', vbs=vbs', tyvars=tyvars}
+          in
+            (Dec.Val desc', vbsVE, vbsTyDB)
+          end 
+        | _ => (dec,ve,tyDB)
+
+      val (decs', (extendedVE,extendedTyDB)) = 
+        Vector.mapAndFold (decs, (ve,tyDB), 
+          fn (dec,(ve',tyDB')) => (fn (x,y,z) => (x,(y,z))) $ 
+            elabDec (ve',tyDB',dec))
+    in
+      (decs', extendedVE, extendedTyDB)
+    end
+
+  val elabProgramDecs = fn (re,pre,ve,decs) =>
+      (fn (x,y,_) => (x,y)) $ elabDecs (re,pre,ve,TyDB.empty,decs)
+
   fun elaborate (Program.T {decs=decs}) (RelSpec.T {reldecs, primdecs, 
       typespecs}) =
     let
@@ -698,7 +980,7 @@ struct
       val refinedVE = Vector.fold (RE.toVector elabRE, initialVE, 
         fn ((id,{ty,map}),ve) => Vector.fold (map, ve, 
           fn (conPatBind,ve) => addRelToConTy ve conPatBind id))
-      val protoVE = Vector.fold (typespecs, VE.empty,
+      val protoVE = Vector.fold (typespecs, refinedVE,
         fn (TypeSpec.T {isAssume,name,params,refty},ve) => 
           let
             val dummySPS = SPS.ColonArrow (TyD.makeTvar $
@@ -713,8 +995,10 @@ struct
           in
             VE.add ve (name,refTyS)
           end)
-      val typedVE = elabDecs (protoVE, decs)
-      val fullVE = Vector.fold (VE.toVector typedVE, refinedVE,
+      val (decs',elabVE) = elabProgramDecs (elabRE, elabPRE, 
+          protoVE, decs)
+      (*
+      val fullVE = Vector.fold (VE.toVector elabVE, refinedVE,
         fn ((name,RefTyS.T {tyvars,isAssume,refss}),ve) =>
           let
             val RefSS.T {prefty, ...} = refss
@@ -727,7 +1011,8 @@ struct
           in
             VE.add ve (name,refTyS)
           end)
+      *)
     in
-      (fullVE,elabRE,elabPRE)
+      (Program.T {decs=decs'}, elabVE, elabRE, elabPRE)
     end
 end

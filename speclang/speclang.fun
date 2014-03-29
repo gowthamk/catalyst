@@ -30,6 +30,7 @@ struct
     open Var
     val equal= fn (r1,r2) => toString r1 = toString r2
     val eq = fn (r1,r2) => toString r1 = toString r2
+    val fromVar = fn v => v
   end
 
   structure SVar = 
@@ -143,7 +144,7 @@ struct
       in
         List.keepAll (cs, fn (Eq (Tuple ts1,Tuple ts2)) =>
           case (ts1,ts2) of ([tt1],[tt2]) => not $ taut (tt1,tt2)
-          | _ => true)
+          | ([],_) => false | (_,[]) => false | _ => true)
       end
    
     (*
@@ -244,7 +245,12 @@ struct
     fun range (ColonArrow (_,r)) = r
    
     fun mapTyD (ColonArrow (tyd,ts)) f =
-      ColonArrow (f tyd, TS.mapTyD ts f)
+      let
+        val tyd' = f tyd
+        val ts' = TS.mapTyD ts f
+      in
+        ColonArrow (tyd',ts')
+      end
   end
 
   structure SPS = SimpleProjSort
@@ -918,9 +924,13 @@ struct
         val params' = Vector.map (params, fn (r,sps) => 
           (r, SPS.mapTyD sps f))
         val refty' = RefTy.mapTyD refty f
+        val t' = T {params=params', refty=refty'}
       in
-        T {params=params', refty=refty'}
+        t'
       end
+
+    fun instantiate (T {params, refty}, ieargs) =
+      raise (Fail "Unimpl")
   end
 
   structure PRf = ParamRefType
@@ -950,6 +960,9 @@ struct
 
     fun mapTyD (T {svars,prefty}) f = T {svars=svars,
       prefty=PRf.mapTyD prefty f}
+
+    fun instantiate (T {svars,prefty}, tupsorts) = 
+      raise (Fail "Unimpl")
   end
 
   structure RefSS = RefinementSortScheme
@@ -990,12 +1003,18 @@ struct
           L.seq [flaglyt,tyvlyt,refsslyt]
         end
 
-      fun instantiate (T{tyvars,refss,...},tydvec) =
+      fun instantiate (t as T{tyvars,refss,...},tydvec) =
         let
           val len = Vector.length
           val _ = assert (len tyvars = len tydvec,
             "insufficient number of type args")
           val tyvmap = Vector.zip (tydvec,tyvars)
+          (*
+           * print substs:
+            val _ = print $ Vector.toString 
+              (fn (x,y) => (TyD.toString x) ^"/"^(Tyvar.toString y))
+              tyvmap
+          *)
           (*
            * It is possible that we encounter a tyvar
            * that is not generalized in this RefTyS.

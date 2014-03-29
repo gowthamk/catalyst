@@ -11,6 +11,8 @@ sig
   sharing SpecLang.Const = ANormalCoreML.Const
   sharing SpecLang.Prim = ANormalCoreML.Prim
   sharing SpecLang.SourceInfo = ANormalCoreML.SourceInfo
+  sharing SpecLang.TupSort = ANormalCoreML.TupSort
+  sharing SpecLang.RelLang = ANormalCoreML.RelLang
 end
 signature ELABORATE_VAR_ENV =
 sig
@@ -21,5 +23,5 @@ sig
   sharing VE.SpecLang = RE.SpecLang
 
   val elaborate : ANormalCoreML.Program.t -> SpecLang.RelSpec.t ->
-    (VE.t * RE.t * PRE.t) 
+    (ANormalCoreML.Program.t * VE.t * RE.t * PRE.t) 
 end

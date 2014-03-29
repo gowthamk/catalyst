@@ -48,6 +48,8 @@ struct
   structure Var = A.Var
   structure Tyvar = A.Tyvar
   structure Type = A.Type
+  structure RelLang = A.RelLang
+  structure RelId = A.RelId
 
   fun $ (f,arg) = f arg
   infixr 5 $
@@ -85,12 +87,18 @@ struct
     A.Pat.Val.Atom (A.Pat.Val.Var var)
 
   val varToExpVal = fn (var,tyvec) => 
-    A.Exp.Val.Atom (A.Exp.Val.Var (var,tyvec, Vector.new0 ())) (* catalyst *)
+    A.Exp.Val.Atom $ A.Exp.Val.Var $
+        {var=var, targs=tyvec, sargs=Vector.new0 (), 
+        ieargs=Vector.new0 ()} (* catalyst *)
 
   val varToExpValCatalyst = fn (var,tyvec,catalyst) => 
-    A.Exp.Val.Atom (A.Exp.Val.Var (var,tyvec, catalyst)) (* catalyst *)
+    A.Exp.Val.Atom $ A.Exp.Val.Var $
+        {var=var, targs=tyvec, sargs=Vector.new0 (), 
+        ieargs=catalyst} (* catalyst *)
 
-  fun cToARInst (C.Exp.RInst {rel,args}) = A.Exp.RInst {rel=rel,
+  fun cToARInst (C.Exp.RInst {rel,args}) = RelLang.RInst {
+    rel=RelId.fromVar rel,
+    targs=Vector.new0 (), sargs = Vector.new0 (),
     args = Vector.map (args,cToARInst)}
 
   val tyvarvToTyv = fn tyvars => Vector.map (tyvars, fn tyvar =>
@@ -290,8 +298,11 @@ struct
       open A.Exp
       fun applyTyVarSubstsInExpAtom substs (expatom : A.Exp.Val.atom) =
         case expatom of
-          Val.Var (v,tyv,catalyst) => Val.Var (v,Vector.map (tyv,
-            applyTyVarSubstsInType substs),  catalyst)
+          Val.Var {var=v,targs=tyv, sargs, ieargs=catalyst} => 
+            Val.Var {var=v, 
+            targs=Vector.map (tyv, applyTyVarSubstsInType substs), 
+            sargs=sargs,
+            ieargs=catalyst}
         | _ => expatom
     in
       case expval of
@@ -311,9 +322,12 @@ struct
       val expnode = Exp.node exp
       val newexpty = applyTyVarSubstsInType substs expty
       val newexpnode = case expnode of
-        Exp.App (Exp.Val.Var (f,tyargs,catalyst),arg) =>
-          Exp.App (Exp.Val.Var (f, Vector.map (tyargs, 
-            applyTyVarSubstsInType substs), catalyst), arg)
+        Exp.App (Exp.Val.Var {var=f, targs=tyargs, sargs, 
+            ieargs=catalyst},arg) =>
+          Exp.App (Exp.Val.Var {var=f, 
+            targs=Vector.map (tyargs, applyTyVarSubstsInType substs), 
+            sargs=sargs, 
+            ieargs=catalyst}, arg)
       | Exp.Case {kind,lay,nest,rules,test} =>
         let
           val newrules = Vector.map (rules, fn {exp,lay,pat} =>
@@ -593,8 +607,9 @@ struct
                   (predecs, (lbl,var))
                 end)
             val atomrec = Record.fromVector (Vector.map (lblvarv,
-              fn (lbl,var) => (lbl,Exp.Val.Var (var,tyvarvToTyv
-                tyvars, Vector.new0 ())))) (* catalyst *)
+              fn (lbl,var) => (lbl,Exp.Val.Var 
+                {var=var, targs=tyvarvToTyv tyvars, 
+                 sargs=Vector.new0 (), ieargs=Vector.new0 ()}))) (* catalyst *)
             val expnode = Exp.Value (Exp.Val.Record atomrec)
           in
             (predecs, Exp.make (expnode,expty))
