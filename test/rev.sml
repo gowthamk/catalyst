@@ -6,7 +6,7 @@ fun concat l1 l2 = case l1 of
 
 fun rev l = case l of
     [] => []
-  | x::xs => concat (rev xs) [x] 
+  | x::xs => concat <% (Rmem[RId], Rob[RId]) %> (rev xs) [x] 
 
 fun snoc n l = case l of
     [] => [n]

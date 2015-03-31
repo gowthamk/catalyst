@@ -16,6 +16,8 @@ sig
   sharing VE.SpecLang.Const = ANormalCoreML.Const
   sharing VE.SpecLang.Prim = ANormalCoreML.Prim
   sharing VE.SpecLang.SourceInfo = ANormalCoreML.SourceInfo
+  sharing VE.SpecLang.TupSort = ANormalCoreML.TupSort
+  sharing VE.SpecLang.RelLang = ANormalCoreML.RelLang
 end
 signature SPEC_VERIFY = 
 sig

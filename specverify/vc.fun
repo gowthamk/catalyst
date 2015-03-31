@@ -527,7 +527,9 @@ struct
           val grinst = RInst {targs=gtargs, sargs=empty(),
             rargs=empty(), rel=grel}
           val {rel=grAlias, ...} = RIT.find rinstTab grinst handle
-            RIT.KeyNotFound _ => Error.bug "GRel Inst not found"
+            RIT.KeyNotFound _ => Error.bug $ "GRel Inst not found: "
+              ^(RI.toString grel)^" "^(Vector.toString TyD.toString
+                targs)^"\n"
           val expr' = Bind.Expr {ground=(grAlias,empty(),bv), fr=fr}
           val abs' = Bind.Abs (bv,expr')
           val def' = Bind.fromAbs abs'

@@ -251,6 +251,9 @@ struct
       in
         ColonArrow (tyd',ts')
       end
+
+    fun mapSVar f (ColonArrow (tyd,ts)) = 
+      ColonArrow (tyd, TS.instSVars ts f)
   end
 
   structure SPS = SimpleProjSort
@@ -462,6 +465,9 @@ struct
         | R (ie,argvar) => R (ieApplySubsts substs ie, subst argvar)
       end
 
+    (*
+     * Maps all top-level inst-exprs in a given rel-expr
+     *)
     fun mapInstExpr t f = 
       let
         val g = fn x => mapInstExpr x f
@@ -499,6 +505,9 @@ struct
         mapInstExpr t doItIE
       end
 
+    (*
+     * maps a any rel to rel'
+     *)
     fun mapRel t f =
       let
         fun doItIE (RInst {targs,sargs,args,rel}) = 
@@ -507,6 +516,27 @@ struct
             val args' = Vector.map (args,doItIE)
           in
             RInst {targs=targs, sargs=sargs, args=args',rel=rel'}
+          end
+      in
+        mapInstExpr t doItIE
+      end
+
+    (*
+     * maps only those relations with trivial instantiations to new
+     * inst expressions
+     *)
+    fun mapRelParam (f : RelId.t -> instexpr) t =
+      let
+        fun doItIE (RInst {targs,sargs,args,rel}) = 
+          let
+            val isEmpty = Vector.isEmpty
+            val maybeParam = isEmpty targs andalso isEmpty sargs
+              andalso isEmpty args
+          in
+            if maybeParam then f rel 
+            else RInst {targs = targs, sargs = sargs, 
+                        args = Vector.map (args,doItIE),
+                        rel = rel}
           end
       in
         mapInstExpr t doItIE
@@ -695,6 +725,8 @@ struct
           case t of Eq x => Eq $ doIt x | Sub x => Sub $ doIt x
           | SubEq x => SubEq $ doIt x
         end 
+      
+      fun mapRelParam f rp = exprMap rp $ RelLang.mapRelParam f
          
     end
     datatype t =  True
@@ -790,6 +822,8 @@ struct
     | _ => t
 
     fun mapSVar t f = mapRP t (fn rp => RelPredicate.mapSVar rp f)
+
+    fun mapRelParam f t = mapRP t $ RelPredicate.mapRelParam f
   end
 
   structure P = Predicate
@@ -896,6 +930,12 @@ struct
         binds
       end
 
+    (*
+     * Transparent all the way to RelLang
+     *)
+    fun mapRelParam f refTy = mapBaseTy refTy (fn (v,t,p) =>
+      (v,t,Predicate.mapRelParam f p))
+
   end
 
   structure RefTy = RefinementType
@@ -929,8 +969,31 @@ struct
         t'
       end
 
+    fun mapSVar f (T {params, refty}) =
+      let
+        val params' = Vector.map (params, fn (r,sps) => 
+          (r,SPS.mapSVar f sps))
+        val refty' = RefTy.mapSVar refty f
+      in
+        T {params=params', refty=refty'}
+      end
+
     fun instantiate (T {params, refty}, ieargs) =
-      raise (Fail "Unimpl")
+      let
+        (*
+         * Caution: Alpha-renaming needed. Otherwise 
+         * this is very error-prone. Unimpl.
+         *)
+        val len = Vector.length
+        val _ = assert (len params = len ieargs,
+          "Invalid number of arguments to instantiate relparams")
+        val eqns = Vector.toList $ Vector.map2 (params,ieargs,
+          fn ((param,_),iearg) => (param,iearg))
+        val mapf = mkMapper eqns RelId.eq RelLang.instOfRel
+        val refty' = RefTy.mapRelParam mapf refty
+      in
+        refty'
+      end
   end
 
   structure PRf = ParamRefType
@@ -962,7 +1025,20 @@ struct
       prefty=PRf.mapTyD prefty f}
 
     fun instantiate (T {svars,prefty}, tupsorts) = 
-      raise (Fail "Unimpl")
+      let
+        val len = Vector.length
+        val _ = assert (len svars = len tupsorts, 
+          "Incorrect number of tupsort args to instantiate svars\n"
+          ^"svars: "^(Vector.toString SVar.toString svars)^"\n"
+          ^"tupsorts: "^(Vector.toString TS.toString tupsorts)^"\n")
+        val eqns = Vector.toList $ Vector.zip (svars,tupsorts)
+        val err = fn v => Error.bug $ "Tupsort instantiation for "
+          ^ (SVar.toString v)^" not found"
+        val mapf = mkMapper eqns SVar.eq err
+        val prefty' = PRf.mapSVar mapf prefty
+      in
+        prefty'
+      end
   end
 
   structure RefSS = RefinementSortScheme
@@ -971,7 +1047,6 @@ struct
     struct
       datatype t = T of {tyvars : Tyvar.t vector,
                         refss : RefinementSortScheme.t,
-                        (* ICFP taking its toll *)
                         isAssume : bool}
     
       val generalizeRefTy = fn (tyvars, refTy) =>

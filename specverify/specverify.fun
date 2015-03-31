@@ -7,9 +7,10 @@ struct
                                         structure VE = VE
                                         structure RE = RE
                                         structure PRE = PRE)
-  open SpecLang
   open ANormalCoreML
+  open SpecLang
   structure TyD = TypeDesc
+  structure TS = TupSort
   structure PTS = ProjTypeScheme
   structure RefTy = RefinementType
   structure PRf = ParamRefType
@@ -31,6 +32,7 @@ struct
   fun $ (f,arg) = f arg
   infixr 5 $
   val assert = Control.assert
+  val len = Vector.length 
   val empty = fn _ => Vector.new0 ()
   val unifiable = TyD.unifiable
   fun toRefTyS refTy = RefTyS.generalize (Vector.new0(), 
@@ -50,7 +52,8 @@ struct
     (Var.toString var)^"."^(Var.toString fld)
   fun varEq (v1,v2) = ((Var.toString v1) = (Var.toString v2))
   val varToExpVal = fn (var,tyvec) => 
-    Exp.Val.Atom (Exp.Val.Var (var,tyvec,empty()))
+    Exp.Val.Atom (Exp.Val.Var {var=var,targs=tyvec,
+      sargs=empty(), ieargs=empty()})
   fun markVE ve = 
     let
       val marker = getUniqueMarker ()
@@ -154,7 +157,7 @@ struct
       open Exp.Val
     in
       case (argTy,argExpVal) of
-        (RefTy.Base _, Atom (Var (v,typv,ieargs))) => 
+        (RefTy.Base _, Atom (Var {var=v,targs=typv,ieargs,...})) => 
           (Vector.new1 (v,argTy), Vector.new1 (v,argv))
       | (RefTy.Base _,Atom (Const c)) => Error.bug $ 
           "Unimpl const args"
@@ -200,7 +203,7 @@ struct
           in
             (Vector.concatV reftyss, Vector.concatV substss)
           end
-      | (RefTy.Tuple argBinds', Atom (Var (v,_,_))) => 
+      | (RefTy.Tuple argBinds', Atom (Var {var=v, ...})) => 
           let
             (* Unifying v0:{x0:T0,x1:T1} with v1 would return
              * v1 ↦ {x0:T0,x1:T1} as the only new bind. However,
@@ -223,7 +226,7 @@ struct
           in
             (binds,substs)
           end
-      | (RefTy.Arrow _, Atom (Var (v,_,_))) => (Vector.new1 (v,argTy), 
+      | (RefTy.Arrow _, Atom (Var {var=v, ...})) => (Vector.new1 (v,argTy), 
           Vector.new1 (v,argv))
       | _ => raise Fail $ "Invalid argTy-argExpVal pair encountered"
     end
@@ -264,26 +267,23 @@ struct
     in
       case valexp of
         Val.Atom (Val.Const c) => RefTy.fromTyD (TyD.makeTunknown ())
-      | Val.Atom (Val.Var (v,typv,ieargs)) =>  
+      | Val.Atom (Val.Var {var=v, targs, sargs, ieargs}) =>  
         let
-          val vtor = RelId.fromVar 
-          fun aIEToSpecIE (RInst {rel,args}) =
-            RelLang.RInst {rel = vtor rel, targs=empty (), 
-              sargs=empty (), args=Vector.map (args,aIEToSpecIE)}
-          val ieargs = Vector.map (ieargs,aIEToSpecIE)
-          val tydvec = Vector.map (typv,Type.toMyType)
-          val tsvec = empty ()
+          val log = fn _ => print $ "Var: "^(Var.toString v)^"\n"
+            ^"sargs: "^(Vector.toString TS.toString sargs)^"\n"
+            ^"args: "^(Vector.toString RelLang.ieToString ieargs)^"\n"
+          val tydvec = Vector.map (targs, Type.toMyType)
           val vtys = VE.find ve v handle (VE.VarNotFound _) => Error.bug
             ((Var.toString v) ^ " not found in the current environment\n")
           val vss = RefTyS.instantiate (vtys,tydvec)  
-          val vprf = RefSS.instantiate (vss,tsvec)
-          val vty = PRf.instantiate (vprf, ieargs)
-          (*
-          val vty = RefSS.toRefTy vss
-          val _ = case vss of RefSS.T {prefty = PRf.T {params, ...}, 
-            ...} => assert (Vector.isEmpty params, "Non-recursive use\
-              \ of a param type, without instantiating rel params.")
-          *)
+          val vprf = fn _ => RefSS.instantiate (vss,sargs)
+          val vty = fn _ => PRf.instantiate (vprf (), ieargs)
+          val RefSS.T {prefty = PRf.T {params, ...}, ...}  = vss
+          val vty = case (len params, len ieargs) of 
+              (0,0) => RefSS.toRefTy vss
+            | (_,0) => raise (Fail $ (Var.toString v)^" expects \
+                \ parameter instantiation arguments.\n")
+            | _ => vty()
           (*
            * Keep track of variable equality.
            * We currently cannot keep track of equality if rhs
@@ -481,8 +481,8 @@ struct
             let
               fun patAtomToExpAtom patatom = case patatom of
                   Pat.Val.Const c => Exp.Val.Const c
-                | Pat.Val.Var v => Exp.Val.Var (v,Vector.new0 (), 
-                    Vector.new0())
+                | Pat.Val.Var v => (fn (Exp.Val.Atom v) => v) $ 
+                    varToExpVal (v,empty ()) 
             in
               case patval of
               Pat.Val.Atom (Pat.Val.Wild) => Error.bug "Impossible case wild"
@@ -508,7 +508,7 @@ struct
           | Pat.Con {arg : Pat.Val.t option,con,targs} => 
             let
               val rhsvar = case expval of 
-                  Exp.Val.Atom (Exp.Val.Var (v,_,_)) => v
+                  Exp.Val.Atom (Exp.Val.Var {var=v, ...}) => v
                 | _ => Error.bug "A var is expected on rhs for conpat bind."
               val tydargs = Vector.map (targs,Type.toMyType)
               val convid = Var.fromString $ Con.toString con
